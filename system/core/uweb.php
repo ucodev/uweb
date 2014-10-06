@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 24/09/2014
+ * Date: 06/10/2014
  * License: GPLv3
  */
 
@@ -65,8 +65,8 @@ class UW_Session extends UW_Base {
 	private $_session_data = array();
 	private $_encryption = FALSE;
 
-	private function _session_data_serialize($init_session = TRUE) {
-		if ($init_session === TRUE)
+	private function _session_data_serialize($init_close = TRUE) {
+		if ($init_close === TRUE)
 			session_start();
 
 		/* Encrypt session data if _encryption is enabled */
@@ -79,14 +79,15 @@ class UW_Session extends UW_Base {
 			$_SESSION['data'] = json_encode($this->_session_data);
 		}
 
-		if ($init_session === TRUE)
+		if ($init_close === TRUE)
 			session_write_close();
 	}
 
 	private function _init_load() {
 		global $config;
 		$this->_session_id = session_id();
-		
+
+		/* Evaluate if we're using encrypted sessions */
 		$this->_encryption = $config['session']['encrypt'];
 
 		/* Load user data */
@@ -99,6 +100,7 @@ class UW_Session extends UW_Base {
 				$this->_session_data = json_decode($cipher->decrypt($_SESSION['data'], $config['encrypt']['key']), TRUE);
 				$this->_session_data_serialize(FALSE);
 			} else {
+				/* Unencrypted session */
 				$this->_session_data = json_decode($_SESSION['data'], TRUE);
 			}
 		}
@@ -107,33 +109,41 @@ class UW_Session extends UW_Base {
 	public function __construct() {
 		global $config;
 
+		/* Call the parent constructor */
 		parent::__construct();
 
+		/* Check if we're using sessions */
 		if (!$config['session']['enable'])
 			return ;
 
+		/* Check if we can use sessions */
 		if (session_status() == PHP_SESSION_DISABLED) {
 			header("HTTP/1.1 403 Forbbiden");
 			die("PHP Sessions are disabled.");
 		}
 
+		/* Get the default cookie parameters */
 		$cookie = session_get_cookie_params();
-		
-		//var_dump($config);
-		//var_dump($cookie);
 
+		/* Initialize cookie parameters */
 		session_set_cookie_params(0, '/', $config['session']['cookie_domain'], FALSE, FALSE);
 
+		/* Set custom cookie parameters */
 		session_set_cookie_params(
 			$config['session']['cookie_lifetime'] . ', ' . $config['session']['cookie_path'],
 			$config['session']['cookie_domain'],
 			$config['session']['cookie_secure'], $config['session']['cookie_httponly']);
 
+		/* Name the session */
 		session_name($config['session']['name']);
+		
+		/* Start the session */
 		session_start();
 
+		/* Load session data */
 		$this->_init_load();
 
+		/* Close the session */
 		session_write_close();
 	}
 
@@ -184,6 +194,9 @@ class UW_Database extends UW_Base {
 
 			/* Try to connect to the database */
 			try {
+				/* FIXME: For MySQL and PostgreSQL drivers the following code will work fine.
+				 *        Currently unsupported drivers: SQLServer and Oracle
+				 */
 				$this->_db[$dbname] =
 					new PDO(
 						$config['database'][$dbname]['driver'] . ':' .
