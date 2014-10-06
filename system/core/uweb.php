@@ -65,8 +65,9 @@ class UW_Session extends UW_Base {
 	private $_session_data = array();
 	private $_encryption = FALSE;
 
-	private function _session_data_serialize() {
-		session_start();
+	private function _session_data_serialize($init_session = TRUE) {
+		if ($init_session === TRUE)
+			session_start();
 
 		/* Encrypt session data if _encryption is enabled */
 		if ($this->_encryption) {
@@ -78,7 +79,8 @@ class UW_Session extends UW_Base {
 			$_SESSION['data'] = json_encode($this->_session_data);
 		}
 
-		session_write_close();
+		if ($init_session === TRUE)
+			session_write_close();
 	}
 
 	private function _init_load() {
@@ -95,6 +97,7 @@ class UW_Session extends UW_Base {
 				$cipher = new UW_Encrypt;
 
 				$this->_session_data = json_decode($cipher->decrypt($_SESSION['data'], $config['encrypt']['key']), TRUE);
+				$this->_session_data_serialize(FALSE);
 			} else {
 				$this->_session_data = json_decode($_SESSION['data'], TRUE);
 			}

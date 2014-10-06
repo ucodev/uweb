@@ -7,6 +7,6 @@
 
 class UW_Dummy extends UW_Model {
 	public function test() {
-		echo('Testing Dummy model.<br />');
+		return 'Testing Dummy model.';
 	}
 }
