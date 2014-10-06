@@ -285,9 +285,9 @@ class UW_Database extends UW_Base {
 }
 
 class UW_View extends UW_Base {
-	public function load($file, $data) {
+	public function load($file, $data = NULL) {
 		/* Check if there's anything to extract */
-		if ($data)
+		if ($data !== NULL)
 			extract($data, EXTR_PREFIX_SAME, "wddx");
 
 		/* Unset $data variable as it's no longer required */
