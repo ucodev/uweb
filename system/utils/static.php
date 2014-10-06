@@ -33,26 +33,26 @@ function static_base_url() {
 }
 
 function static_css_dir() {
-	return static_dir() . '/css';
+	return static_base_dir() . '/css';
 }
 
 function static_css_url() {
-	return static_url() . '/css';
+	return static_base_url() . '/css';
 }
 
 function static_images_dir() {
-	return static_dir() . '/images';
+	return static_base_dir() . '/images';
 }
 
 function static_images_url() {
-	return static_url() . '/images';
+	return static_base_url() . '/images';
 }
 
 function static_js_dir() {
-	return static_dir() . '/js';
+	return static_base_dir() . '/js';
 }
 
 function static_js_url() {
-	return static_url() . '/js';
+	return static_base_url() . '/js';
 }
 

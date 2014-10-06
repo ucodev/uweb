@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html>
 	<head>
+		<link rel="stylesheet" href="<?=static_css_url()?>/main.css" />
+		<script src="<?=static_js_url()?>/test.js"></script>
 		<title>Dummy View</title>
 	</head>
 	<body>
@@ -17,5 +19,8 @@
 		<p>
 			<strong>Base URL:</strong> <?=base_url()?>
 		</p>
+		<script type="text/javascript">
+			test_js();
+		</script>
 	</body>
 </html>
