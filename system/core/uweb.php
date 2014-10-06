@@ -294,7 +294,7 @@ class UW_View extends UW_Base {
 		unset($data);
 
 		/* Load view from file */
-		include('views/' . $file . '.php');
+		include('application/views/' . $file . '.php');
 	}
 }
 

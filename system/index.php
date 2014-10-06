@@ -92,7 +92,7 @@ if (!$__controller)
 
 /* Load requested controller, if any */
 if ($__controller) {
-	include('controllers/' . $__controller . '.php');
+	include('application/controllers/' . $__controller . '.php');
 
 	eval('$__r_ = new UW_' . ucfirst($__controller) . ';');
 

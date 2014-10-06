@@ -33,5 +33,5 @@ foreach (glob("system/core/*.php") as $sys_core) {
 }
 
 /* Load all user models */
-foreach (glob("models/*.php") as $user_model)
+foreach (glob("application/models/*.php") as $user_model)
     include($user_model);

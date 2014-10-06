@@ -25,11 +25,11 @@
  */
 
 function static_base_dir() {
-	return base_dir() . '/static';
+	return base_dir() . '/application/static';
 }
 
 function static_base_url() {
-	return base_url() . '/static';
+	return base_url() . '/application/static';
 }
 
 function static_css_dir() {
