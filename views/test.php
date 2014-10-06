@@ -8,7 +8,7 @@
 	<body>
 		<h1>Model Output</h1>
 		<p><?=$model_output?></p>
-		<h1>Database Output</h2>
+		<h1>Database Output</h1>
 		<p><?=$database_output?></p>
 		<h1>Session Output</h1>
 		<p><?=$session_output?></p>
