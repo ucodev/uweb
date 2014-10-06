@@ -10,5 +10,12 @@
 		<p><?=$database_output?></p>
 		<h1>Session Output</h1>
 		<p><?=$session_output?></p>
+		<h1>Directories</h1>
+		<p>
+			<strong>Base Directory:</strong> <?=base_dir()?>
+		</p>
+		<p>
+			<strong>Base URL:</strong> <?=base_url()?>
+		</p>
 	</body>
 </html>

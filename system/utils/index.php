@@ -25,5 +25,9 @@
  */
 
 /* Load all system utilities */
-foreach (glob("system/utils/*.php") as $sys_utility)
+foreach (glob("system/utils/*.php") as $sys_utility) {
+	if (substr($sys_utility, -9) == 'index.php')
+		continue;
+
     include($sys_utility);
+}

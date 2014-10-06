@@ -80,6 +80,7 @@ if (($__a_count >= 3) && $__uri[$__a_koffset + 3]) {
 }
 
 /* Load system core controllers */
+include('system/utils/index.php');
 include('system/core/index.php');
 
 /* Load user extensions */
