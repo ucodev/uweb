@@ -24,14 +24,6 @@
  *
  */
 
-/* Load all system core modules */
-foreach (glob("system/core/*.php") as $sys_core) {
-	if (substr($sys_core, -9) == 'index.php')
-		continue;
-
-    include($sys_core);
-}
-
-/* Load all user models */
-foreach (glob("models/*.php") as $user_model)
-    include($user_model);
+/* Load all system utilities */
+foreach (glob("system/utils/*.php") as $sys_utility)
+    include($sys_utility);

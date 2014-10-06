@@ -2,11 +2,11 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 24/09/2014
+ * Date: 06/10/2014
  * License: GPLv3
  */
 
- /*
+/*
  * This file is part of uweb.
  *
  * uweb is free software: you can redistribute it and/or modify
@@ -24,14 +24,9 @@
  *
  */
 
-/* Load all system core modules */
-foreach (glob("system/core/*.php") as $sys_core) {
-	if (substr($sys_core, -9) == 'index.php')
-		continue;
+/* Load user core controllers */
+include('user/core/index.php');
 
-    include($sys_core);
-}
+/* Load user utilities */
+include('user/utils/index.php');
 
-/* Load all user models */
-foreach (glob("models/*.php") as $user_model)
-    include($user_model);

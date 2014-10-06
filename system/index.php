@@ -79,8 +79,11 @@ if (($__a_count >= 3) && $__uri[$__a_koffset + 3]) {
 	$__args_list = rtrim($__args_list, ',');
 }
 
-/* Load core controllers */
+/* Load system core controllers */
 include('system/core/index.php');
+
+/* Load user extensions */
+include('user/index.php');
 
 /* Set the configured default controller, if none was defined */
 if (!$__controller)
