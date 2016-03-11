@@ -218,10 +218,14 @@ class UW_Database extends UW_Base {
 		}
 
 		$this->_q_select = 'SELECT ' . $fields . ' ';
+
+		return $this;
 	}
 
 	public function distinct() {
 		$this->_q_distinct = true;
+
+		return $this;
 	}
 
 	public function from($table = NULL, $enforce = true) {
@@ -233,6 +237,8 @@ class UW_Database extends UW_Base {
 		} else {
 			$this->_q_from = ' FROM ' . $table . ' ';
 		}
+
+		return $this;
 	}
 
 	public function join($table = NULL, $on = NULL, $type = 'inner') {
@@ -243,6 +249,8 @@ class UW_Database extends UW_Base {
 			$this->_q_join = '';
 
 		$this->_q_join .= ' ' . strtoupper($type) . ' JOIN `' . $table . '` ON ' . $on . ' ';
+
+		return $this;
 	}
 
 	public function where($field_cond = NULL, $value = NULL, $enforce = true, $or = false, $in = false, $like = false, $not = false) {
@@ -298,42 +306,44 @@ class UW_Database extends UW_Base {
 		} else {
 			array_push($this->_q_args, $value);
 		}
+
+		return $this;
 	}
 
 	public function or_where($field_cond = NULL, $value = NULL, $enforce = true) {
-		$this->where($field_cond, $value, $enforce, true /* OR */);
+		return $this->where($field_cond, $value, $enforce, true /* OR */);
 	}
 
 	public function or_where_in($field_cond = NULL, $value = NULL, $enforce = true) {
-		$this->where($field_cond, $value, $enforce, true /* OR */, true /* IN */);
+		return $this->where($field_cond, $value, $enforce, true /* OR */, true /* IN */);
 	}
 
 	public function or_where_not_in($field_cond = NULL, $value = NULL, $enforce = true) {
-		$this->where($field_cond, $value, $enforce, true /* OR */, true /* IN */, false /* like */, true /* NOT */);
+		return $this->where($field_cond, $value, $enforce, true /* OR */, true /* IN */, false /* like */, true /* NOT */);
 	}
 
 	public function where_in($field_cond = NULL, $value = NULL, $enforce = true) {
-		$this->where($field_cond, $value, $enforce, false /* or */, true /* IN */);
+		return $this->where($field_cond, $value, $enforce, false /* or */, true /* IN */);
 	}
 
 	public function where_not_in($field_cond = NULL, $value = NULL, $enforce = true) {
-		$this->where($field_cond, $value, $enforce, false /* or */, true /* IN */, false /* like */, true /* NOT */);
+		return $this->where($field_cond, $value, $enforce, false /* or */, true /* IN */, false /* like */, true /* NOT */);
 	}
 
 	public function like($field_cond = NULL, $value = NULL, $enforce = true) {
-		$this->where($field_cond, $value, $enforce, false /* or */, false /* in */, true /* LIKE */);
+		return $this->where($field_cond, $value, $enforce, false /* or */, false /* in */, true /* LIKE */);
 	}
 
 	public function or_like($field_cond = NULL, $value = NULL, $enforce = true) {
-		$this->where($field_cond, $value, $enforce, true /* OR */, false /* in */, true /* LIKE */);
+		return $this->where($field_cond, $value, $enforce, true /* OR */, false /* in */, true /* LIKE */);
 	}
 
 	public function not_like($field_cond = NULL, $value = NULL, $enforce = true) {
-		$this->where($field_cond, $value, $enforce, false /* or */, false /* in */, true /* LIKE */, true /* NOT */);
+		return $this->where($field_cond, $value, $enforce, false /* or */, false /* in */, true /* LIKE */, true /* NOT */);
 	}
 
 	public function or_not_like($field_cond = NULL, $value = NULL, $enforce = true) {
-		$this->where($field_cond, $value, $enforce, true /* OR */, false /* in */, true /* LIKE */, true /* NOT */);
+		return $this->where($field_cond, $value, $enforce, true /* OR */, false /* in */, true /* LIKE */, true /* NOT */);
 	}
 
 	public function group_by($fields, $enforce = true) {
@@ -350,6 +360,8 @@ class UW_Database extends UW_Base {
 			header('HTTP/1.1 500 Internal Server Error');
 			die('group_by(): Invalid argument type.');
 		}
+
+		return $this;
 	}
 
 	public function having($fields_cond, $enforce = true, $or = false) {
@@ -380,10 +392,12 @@ class UW_Database extends UW_Base {
 
 			$this->_q_having .= ' HAVING ' . $this->_q_having;
 		}
+
+		return $this;
 	}
 
 	public function or_having($fields_cond, $enforce = true) {
-		$this->having($fields_cond, $enforce, true);
+		return $this->having($fields_cond, $enforce, true);
 	}
 
 	public function order_by($field, $order, $enforce = true) {
@@ -393,6 +407,7 @@ class UW_Database extends UW_Base {
 		else
 			$this->_q_order_by .= ', `' . $field . '` ' . $order;
 
+		return $this;
 	}
 
 	public function limit($limit, $offset = NULL) {
@@ -401,6 +416,8 @@ class UW_Database extends UW_Base {
 			$this->_q_limit = ' LIMIT ' . $offset . ', ' . $limit;
 		else
 			$this->_q_limit = ' LIMIT ' . $limit;
+
+		return $this;
 	}
 
 	public function get_compiled_select($table = NULL) {

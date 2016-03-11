@@ -14,12 +14,13 @@ class UW_Test extends UW_Controller {
 	private function test_database($value) {
 		$this->db->trans_begin();
 
-		$this->db->select('id');
-		$this->db->from('dummy');
+		$q = $this->db->select('id')->from('dummy')->where_in('id', array(1, 2, 3))->get();
+		//$this->db->select('id');
+		//$this->db->from('dummy');
 		//$this->db->where('id >=', $value);
-		$this->db->where_in('id', array(1, 2, 3));
+		//$this->db->where_in('id', array(1, 2, 3));
 		//echo($this->db->get_compiled_select()[0]);
-		$q = $this->db->get();
+		//$q = $this->db->get();
 		//echo ($q->row()->num_rows);
 		//$this->db->query('SELECT `id` FROM `dummy` WHERE `id` >= ?', array($value));
 
