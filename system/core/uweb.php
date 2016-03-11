@@ -352,7 +352,7 @@ class UW_Database extends UW_Base {
 		}
 	}
 
-	public function having($fields_cond, $or = false) {
+	public function having($fields_cond, $enforce = true, $or = false) {
 		if (!$fields_cond)
 			return;
 
@@ -382,11 +382,11 @@ class UW_Database extends UW_Base {
 		}
 	}
 
-	public function or_having($fields_cond) {
-		$this->having($fields_cond, true);
+	public function or_having($fields_cond, $enforce = true) {
+		$this->having($fields_cond, $enforce, true);
 	}
 
-	public function order_by($field, $order) {
+	public function order_by($field, $order, $enforce = true) {
 		/* TODO: Check whether enforce is set and disable field escape accordingly */
 		if (!$this->_q_order_by)
 			$this->_q_order_by = ' ORDER BY `' . $field . '` ' . $order;
@@ -396,6 +396,7 @@ class UW_Database extends UW_Base {
 	}
 
 	public function limit($limit, $offset = NULL) {
+		/* TODO: These arguments should also be merged into the prepared statement data */
 		if ($offset)
 			$this->_q_limit = ' LIMIT ' . $offset . ', ' . $limit;
 		else

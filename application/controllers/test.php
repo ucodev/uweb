@@ -20,6 +20,7 @@ class UW_Test extends UW_Controller {
 		$this->db->where_in('id', array(1, 2, 3));
 		//echo($this->db->get_compiled_select()[0]);
 		$q = $this->db->get();
+		//echo ($q->row()->num_rows);
 		//$this->db->query('SELECT `id` FROM `dummy` WHERE `id` >= ?', array($value));
 
 		if (!$this->db->trans_commit()) {
