@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 24/09/2014
+ * Date: 11/03/2016
  */
 
 class UW_Test extends UW_Controller {
@@ -14,7 +14,13 @@ class UW_Test extends UW_Controller {
 	private function test_database($value) {
 		$this->db->trans_begin();
 
-		$this->db->query('SELECT id FROM dummy WHERE id >= ?', array($value));
+		$this->db->select('id');
+		$this->db->from('dummy');
+		//$this->db->where('id >=', $value);
+		$this->db->where_in('id', array(1, 2, 3));
+		//echo($this->db->get_compiled_select()[0]);
+		$q = $this->db->get();
+		//$this->db->query('SELECT `id` FROM `dummy` WHERE `id` >= ?', array($value));
 
 		if (!$this->db->trans_commit()) {
 			header('HTTP/1.1 503 Service Unavailable');
@@ -23,13 +29,15 @@ class UW_Test extends UW_Controller {
 
 		$output = '';
 
-		if ($this->db->num_rows()) {
-			foreach ($this->db->fetchall() as $row)
+		if ($q->num_rows()) {
+			foreach ($q->fetchall() as $row)
 				$output .= $row['id'] . ', ';
 		} else {
 			return 'No results.';
 		}
 		
+		$this->db->close();
+
 		return $output;
 	}
 
