@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 11/03/2016
+ * Date: 13/03/2016
  * License: GPLv3
  */
 
@@ -153,6 +153,18 @@ class UW_Session extends UW_Base {
 		$this->_session_data_serialize();
 	}
 
+	public function set_userdata($variable, $value = null) {
+		if ($value) {
+			$this->set($variable, $value);
+		} else if (gettype($variable) == "array") {
+			$this->_session_data = $variable; /* $variable should be an array */
+			$this->_session_data_serialize();
+		} else {
+			header("HTTP/1.1 500 Internal Server Error");
+			die("set_userdata(): First argument should be an array when no value is specified on second argument.");
+		}
+	}
+
 	public function get($variable) {
 		if (!isset($this->_session_data[$variable]))
 			return NULL;
@@ -160,6 +172,23 @@ class UW_Session extends UW_Base {
 		return $this->_session_data[$variable];
 	}
 	
+	public function userdata($variable) {
+		return $this->get($variable);
+	}
+
+	public function all_userdata() {
+		return $this->_session_data;
+	}
+
+	public function clear($variable) {
+		unset($this->_session_data[$variable]);
+		$this->_session_data_serialize();
+	}
+
+	public function unset_userdata($variable) {
+		$this->clear($variable);
+	}
+
 	public function cleanup() {
 		session_unset();
 	}
