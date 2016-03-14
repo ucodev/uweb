@@ -220,6 +220,7 @@ class UW_Database extends UW_Base {
 	private $_q_limit = NULL;
 	private $_q_args = array();
 	private $_q_objects = NULL;
+	private $_trans_status_invoked = false;
 
 	private function _q_reset_all() {
 		/* Reset query data */
@@ -774,6 +775,12 @@ class UW_Database extends UW_Base {
 	}
 	
 	public function trans_commit() {
+		/* Compatibility with old interface trans_status() */
+		if ($this->_trans_status_invoked) {
+			$this->_trans_status_invoked = false;
+			return true;
+		}
+
 		try {
 			$this->_db[$this->_cur_db]->commit();
 			
@@ -783,8 +790,22 @@ class UW_Database extends UW_Base {
 			return FALSE;
 		}
 	}
-	
+
+	public function trans_status() { /* Old interface. Backward compatibility */
+		$this->_trans_status_invoked = false;
+
+		$ret = $this->trans_commit();
+
+		$this->_trans_status_invoked = true;
+
+		return $ret;
+	}
+
 	public function trans_rollback() {
+		/* Compatibility with old interface trans_status() */
+		$this->_trans_status_invoked = false;
+
+		/* Perform the rollback */
 		$this->_db[$this->_cur_db]->rollBack();
 	}
 }
@@ -834,7 +855,7 @@ class UW_Model {
 	}
 }
 
-/* Alias class for loading methods */
+/* Alias class for loading methods (Old API compatibility) */
 class UW_Load extends UW_Model {
 	public $db = NULL;
 	public $view = NULL;
