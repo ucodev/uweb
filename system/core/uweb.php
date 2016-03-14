@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 13/03/2016
+ * Date: 14/03/2016
  * License: GPLv3
  */
 
@@ -782,7 +782,7 @@ class UW_Database extends UW_Base {
 }
 
 class UW_View extends UW_Base {
-	public function load($file, $data = NULL) {
+	public function load($file, $data = NULL, $export_content = false) {
 		/* Check if there's anything to extract */
 		if ($data !== NULL)
 			extract($data, EXTR_PREFIX_SAME, "wddx");
@@ -791,7 +791,16 @@ class UW_View extends UW_Base {
 		unset($data);
 
 		/* Load view from file */
-		include('application/views/' . $file . '.php');
+		if ($export_content) {
+			ob_start();
+			include('application/views/' . $file . '.php');
+			$content = ob_get_contents();
+			ob_end_clean();
+			return $content;
+		} else {
+			include('application/views/' . $file . '.php');
+			return true;
+		}
 	}
 }
 
@@ -812,6 +821,38 @@ class UW_Model {
 			return FALSE;
 
 		eval('$this->' . $model . ' = new UW_' . ucfirst($model) . ';');
+
+		return true;
+	}
+}
+
+/* Alias class for loading methods */
+class UW_Load extends UW_Model {
+	public $db = NULL;
+	public $view = NULL;
+	public $model = NULL;
+
+	public function __construct($db, $model, $view) {
+		/* Initialize system database controller */
+		$this->db = $db;
+		
+		/* Initialize model class */
+		$this->model = $model;
+
+		/* Initialize system view controller */
+		$this->view = $view;
+	}
+
+	public function view($file, $data = NULL, $export_content = false) {
+		return $this->view->load($file, $data, $export_content);
+	}
+
+	public function model($model) {
+		return $this->model->load($model);
+	}
+
+	public function database($database, $return_self = false) {
+		return $this->database->load($database, $return_self);
 	}
 }
 
@@ -822,10 +863,14 @@ class UW_Controller extends UW_Model {
 	public function __construct() {
 		parent::__construct();
 		
+		/* Initialize model class */
 		$this->model = $this;
 
 		/* Initialize system view controller */
 		$this->view = new UW_View;
+
+		/* Initialize load class */
+		$this->load = new UW_Load($this->db, $this->model, $this->view);
 	}
 }
 
