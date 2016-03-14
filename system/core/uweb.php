@@ -753,6 +753,14 @@ class UW_Database extends UW_Base {
 		return ($assoc == TRUE) ? $this->_stmt->fetchAll(PDO::FETCH_ASSOC) : $this->_stmt->fetchAll();
 	}
 
+	public function result() {
+		return $this->fetchall(false);
+	}
+
+	public function result_array() {
+		return $this->fetchall();
+	}
+
 	public function num_rows() {
 		return $this->_stmt->rowCount();
 	}
