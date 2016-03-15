@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 14/03/2016
+ * Date: 15/03/2016
  * License: GPLv3
  */
 
@@ -38,19 +38,19 @@ class UW_Encrypt extends UW_Base {
 		$this->_n_size = mcrypt_get_iv_size($config['encrypt']['cipher'], $config['encrypt']['mode']);
 	}
 	
-	public function encrypt($m, $k, $b64_encode = TRUE) {
+	public function encrypt($m, $k, $b64_encode = true) {
 		global $config;
 
 		$n = mcrypt_create_iv($this->_n_size, MCRYPT_RAND);
 		$c = mcrypt_encrypt($config['encrypt']['cipher'], $k, $m, $config['encrypt']['mode'], $n);
 
-		return ($b64_encode === TRUE) ? base64_encode($n . $c) : ($n . $c);
+		return ($b64_encode === true) ? base64_encode($n . $c) : ($n . $c);
 	}
 	
-	public function decrypt($c, $k, $b64_decode = TRUE) {
+	public function decrypt($c, $k, $b64_decode = true) {
 		global $config;
 
-		if ($b64_decode === TRUE)
+		if ($b64_decode === true)
 			$c = base64_decode($c);
 
 		$n = substr($c, 0, $this->_n_size);
@@ -63,10 +63,10 @@ class UW_Encrypt extends UW_Base {
 class UW_Session extends UW_Base {
 	private $_session_id = NULL;
 	private $_session_data = array();
-	private $_encryption = FALSE;
+	private $_encryption = false;
 
-	private function _session_data_serialize($init_close = TRUE) {
-		if ($init_close === TRUE)
+	private function _session_data_serialize($init_close = true) {
+		if ($init_close === true)
 			session_start();
 
 		/* Encrypt session data if _encryption is enabled */
@@ -79,7 +79,7 @@ class UW_Session extends UW_Base {
 			$_SESSION['data'] = json_encode($this->_session_data);
 		}
 
-		if ($init_close === TRUE)
+		if ($init_close === true)
 			session_write_close();
 	}
 
@@ -93,15 +93,15 @@ class UW_Session extends UW_Base {
 		/* Load user data */
 		if (array_key_exists('data', $_SESSION)) {
 			/* Decrypt session data if _encryption is enabled */
-			if ($this->_encryption === TRUE) {
+			if ($this->_encryption === true) {
 				global $config;
 				$cipher = new UW_Encrypt;
 
-				$this->_session_data = json_decode($cipher->decrypt($_SESSION['data'], $config['encrypt']['key']), TRUE);
-				$this->_session_data_serialize(FALSE);
+				$this->_session_data = json_decode($cipher->decrypt($_SESSION['data'], $config['encrypt']['key']), true);
+				$this->_session_data_serialize(false);
 			} else {
 				/* Unencrypted session */
-				$this->_session_data = json_decode($_SESSION['data'], TRUE);
+				$this->_session_data = json_decode($_SESSION['data'], true);
 			}
 		}
 	}
@@ -126,7 +126,7 @@ class UW_Session extends UW_Base {
 		$cookie = session_get_cookie_params();
 
 		/* Initialize cookie parameters */
-		session_set_cookie_params(0, '/', $config['session']['cookie_domain'], FALSE, FALSE);
+		session_set_cookie_params(0, '/', $config['session']['cookie_domain'], false, false);
 
 		/* Set custom cookie parameters */
 		session_set_cookie_params(
@@ -153,7 +153,7 @@ class UW_Session extends UW_Base {
 		$this->_session_data_serialize();
 	}
 
-	public function set_userdata($variable, $value = null) {
+	public function set_userdata($variable, $value = NULL) {
 		if ($value) {
 			$this->set($variable, $value);
 		} else if (gettype($variable) == "array") {
@@ -199,7 +199,7 @@ class UW_Session extends UW_Base {
 
 	public function destroy() {
 		session_unset();
-		session_regenerate_id(TRUE);
+		session_regenerate_id(true);
 		session_destroy();
 	}
 }
@@ -209,6 +209,7 @@ class UW_Database extends UW_Base {
 	private $_cur_db = NULL;
 	private $_res = NULL;
 	private $_stmt = NULL;
+	private $_cfg_use_stmt = true;
 	private $_q_select = NULL;
 	private $_q_distinct = false;
 	private $_q_from = NULL;
@@ -220,7 +221,7 @@ class UW_Database extends UW_Base {
 	private $_q_limit = NULL;
 	private $_q_args = array();
 	private $_q_objects = NULL;
-	private $_trans_status_invoked = false;
+	private $_trans_status_invoked = false; /* Used to indicate if trans_status() function was used prior to trans_commit() [Old API] */
 
 	private function _q_reset_all() {
 		/* Reset query data */
@@ -236,14 +237,72 @@ class UW_Database extends UW_Base {
 		$this->_q_args = array();
 	}
 
+	private function _has_special($value) {
+		/* TODO: Should a better approach (Prehaps regex? Or now we have two problems?) be implemented here? */
+		if (strpos($value, '#') || strstr($value, '/*') || strstr($value, '--') || strpos($value, ';') || strpos($value, '`'))
+			return true;
+
+		return false;
+	}
+
+	private function _query_aggregate_args($query, $data = null) {
+		if (!$data)
+			return $query;
+
+		$q = explode('?', $query);
+
+		if ((count($q) - 1) != count($data)) {
+			header('HTTP/1.1 500 Internal Server Error');
+			die('_query_aggregate_args(): Query and Data counts do not match.');
+		}
+
+		$aggregate = '';
+
+		for ($i = 0; $i < count($q); $i ++) {
+			/* Check if we've reached the last slice */
+			if ($i == (count($q) - 1)) {
+				$aggregate .= $q[$i];
+				break;
+			}
+
+			/* Aggregate data value to query */
+			$aggregate .= $q[$i] . '\'' . $data[$i] . '\'';
+		}
+
+		return $aggregate;
+	}
+
+	private function _convert_boolean($value) {
+		if (gettype($value) == "boolean") {
+			return $value === true ? 1 : 0;
+		}
+
+		return $value;
+	}
+
 	public function select($fields = NULL, $enforce = true) {
-		/* TODO: enforce not currently supported */
-		if (!$fields)
-			return;
+		if (!$fields) {
+			header('HTTP/1.1 500 Internal Server Error');
+			die('select(): No fields selected.');
+		}
 
 		/* Escape field if enforce is set */
 		if ($enforce) {
+			/* $fields shall not contain any spaces ' ' */
+			$fields = str_replace(' ', '', $fields);
+
+			/* Boom */
 			$field_parsed = explode(',', $fields);
+
+			/* $field_parsed shall not contain any comments */
+			foreach ($field_parsed as $field) {
+				if ($this->_has_special($field)) {
+					header('HTTP/1.1 500 Internal Server Error');
+					die('select(): Enforced select() shall not contain any comments');
+				}
+			}
+
+			/* Glue it */
 			$fields = '`' . implode('`,`', $field_parsed) . '`';
 		}
 
@@ -259,10 +318,18 @@ class UW_Database extends UW_Base {
 	}
 
 	public function from($table = NULL, $enforce = true) {
-		if (!$table)
-			return;
+		if (!$table) {
+			header('HTTP/1.1 500 Internal Server Error');
+			die('from(): No table specified.');
+		}
 
 		if ($enforce) {
+			/* $table shall not contain any whitespaces nor comments */
+			if ($this->_has_special($table) || strstr($table, ' ')) {
+				header('HTTP/1.1 500 Internal Server Error');
+				die('select(): Enforced select() shall not contain any comments');
+			}
+
 			$this->_q_from = ' FROM `' . $table . '` ';
 		} else {
 			$this->_q_from = ' FROM ' . $table . ' ';
@@ -271,14 +338,40 @@ class UW_Database extends UW_Base {
 		return $this;
 	}
 
-	public function join($table = NULL, $on = NULL, $type = 'inner') {
-		if (!$table || !$on)
-			return;
+	public function join($table = NULL, $on = NULL, $type = 'INNER', $enforce = true) {
+		if (!$table || !$on) {
+			header('HTTP/1.1 500 Internal Server Error');
+			die('join(): Missing required arguments.');
+		}
 
 		if (!$this->_q_join)
 			$this->_q_join = '';
 
-		$this->_q_join .= ' ' . strtoupper($type) . ' JOIN `' . $table . '` ON ' . $on . ' ';
+		$type = strtoupper($type);
+
+		if ($type != "INNER" || $type != "LEFT" || $type != "RIGHT") {
+			header('HTTP/1.1 500 Internal Server Error');
+			die('join(): $type must be one of INNER, LEFT or RIGHT.');
+		}
+
+		/* Escape and filter on enforce */
+		if ($enforce) {
+			/* $table shall not contain any whitespaces nor comments */
+			if ($this->_has_special($table) || strstr($table, ' ')) {
+				header('HTTP/1.1 500 Internal Server Error');
+				die('join(): Enforced join() shall not contain any comments nor whitespaces on $table name.');
+			}
+
+			/* $on shall not contain any comments */
+			if ($this->_has_special($on)) {
+				header('HTTP/1.1 500 Internal Server Error');
+				die('join(): Enforced join() shall not contain any comments on $on clause.');
+			}
+
+			$this->_q_join .= ' ' . strtoupper($type) . ' JOIN `' . $table . '` ON ' . $on . ' ';
+		} else {
+			$this->_q_join .= ' ' . strtoupper($type) . ' JOIN ' . $table . ' ON ' . $on . ' ';
+		}
 
 		return $this;
 	}
@@ -295,8 +388,10 @@ class UW_Database extends UW_Base {
 			die('where(): NOT only accepted when IN or LIKE are used.');
 		}
 
-		if (!$field_cond)
-			return;
+		if (!$field_cond) {
+			header('HTTP/1.1 500 Internal Server Error');
+			die('where(): No fields were specified.');
+		}
 
 		if (!$this->_q_where)
 			$this->_q_where = ' WHERE ';
@@ -307,7 +402,12 @@ class UW_Database extends UW_Base {
 
 		/* Escape field if enforce is set */
 		if ($enforce) {
-			$field_cond_parsed = explode(' ', $field_cond);
+			if ($this->_has_special($field_cond)) {
+				header('HTTP/1.1 500 Internal Server Error');
+				die('where(): Field names cannot contain comments when enfoce is used.');
+			}
+
+			$field_cond_parsed = explode(' ', $field_cond); /* Expected to have 2 arguments (field name and comparator) */
 			$field_cond = '`' . $field_cond_parsed[0] . '` ' . implode(' ', array_slice($field_cond_parsed, 1));
 		}
 
@@ -319,6 +419,10 @@ class UW_Database extends UW_Base {
 		if ($in) {
 			$this->_q_where .= ' IN (';
 			for ($i = 0; $i < count($value); $i ++) {
+				/* Convert booleans */
+				$value[$i] = $this->_convert_boolean($value[$i]);
+
+				/* Add prepared statement argument indicator */
 				$this->_q_where .= '?,';
 			}
 			$this->_q_where = rtrim($this->_q_where, ',') . ') ';
@@ -327,14 +431,14 @@ class UW_Database extends UW_Base {
 		} else if (strpos($field_cond, '=') || strpos($field_cond, '>') || strpos($field_cond, '<')) {
 			$this->_q_where .= ' ? ';
 		} else {
-			$this->_q_where .= ' = ' . $value;
+			$this->_q_where .= ' = ? ';
 		}
 
 		/* Push value into data array */
 		if ($in) {
 			$this->_q_args = array_merge($this->_q_args, $value);
 		} else {
-			array_push($this->_q_args, $value);
+			array_push($this->_q_args, $this->_convert_boolean($value));
 		}
 
 		return $this;
@@ -377,10 +481,41 @@ class UW_Database extends UW_Base {
 	}
 
 	public function group_by($fields, $enforce = true) {
+		if (!$fields) {
+			header('HTTP/1.1 500 Internal Server Error');
+			die('group_by(): No fields were specified.');
+		}
+
 		if (gettype($fields) == "string") {
-			$this->_q_group_by = ' GROUP BY `' . $fields . '` ';
+			$fields_list = explode(',', $fields);
+
+			if ($enforce) {
+				$fields = '`' . implode('`,`', $fields) . '`';
+			} else {
+				$fields = implode(',', $fields);
+			}
+
+			$this->_q_group_by = ' GROUP BY ' . $fields . ' ';
 		} else if (gettype($fields) == "array") {
 			if ($enforce) {
+				/* Grant that there aren't any comments to block */
+				if (gettype($fields) == "string") {
+					if ($this->_has_special($fields)) {
+						header('HTTP/1.1 500 Internal Server Error');
+						die('group_by(): Enforced function shall not contain comments in it.');
+					}
+				} else if (gettype($fields) == "array") {
+					foreach ($fields as $field) {
+						if ($this->_has_special($field)) {
+							header('HTTP/1.1 500 Internal Server Error');
+							die('group_by(): Enforced function shall not contain comments in it.');
+						}
+					}
+				} else {
+					header('HTTP/1.1 500 Internal Server Error');
+					die('group_by(): Illegal type for $fields.');
+				}
+
 				/* Escape each field during implode (enforce) */
 				$this->_q_group_by = ' GROUP BY `' . implode('`,`', $fields) . '`';
 			} else {
@@ -394,15 +529,65 @@ class UW_Database extends UW_Base {
 		return $this;
 	}
 
-	public function having($fields_cond, $enforce = true, $or = false) {
-		if (!$fields_cond)
-			return;
+	public function having($fields_cond, $value = null, $enforce = true, $or = false) {
+		if (!$fields_cond) {
+			header('HTTP/1.1 500 Internal Server Error');
+			die('having(): No fields were specified.');
+		}
 
-		if (gettype($fields) == "string") {
-			$this->_q_having = ' HAVING ' . $fields_cond . ' ';
-		} else if (gettype($fields) == "array") {
+		$data = array();
+
+		if (gettype($fields_cond) == "string") {
+			if ($value) {
+				/* Value is not part of first argument */
+				if (strpos($fields_cond, '=') || strpos($fields_cond, '>') || strpos($fields_cond, '<')) {
+					if ($enforce) {
+						/* Check if there are any comments to block */
+						if ($enforce) {
+							if ($this->_has_special($fields_cond)) {
+								header('HTTP/1.1 500 Internal Server Error');
+								die('having(): Enforced function shall not contain comments in it.');
+							}
+						}
+
+						/* Separate fields by ' ' (only 2 fields expected) and rejoin them by escaping the first */
+						$field = explode(' ', $fields_cond);
+						$fields_cond = ' `' . $field[0] . '` ' . $field[1];
+					}
+
+					$this->_q_having = ' ' . $fields_cond . ' ? ';
+					array_push($this->_q_args, $this->_convert_boolean($value));
+				} else {
+					if ($enforce) {
+						/* Check if there are any comments to block */
+						if ($enforce) {
+							if ($this->_has_special($fields_cond)) {
+								header('HTTP/1.1 500 Internal Server Error');
+								die('having(): Enforced function shall not contain comments in it.');
+							}
+						}
+
+						$this->_q_having = ' `' . $fields_cond . '` = ? ';
+						array_push($this->_q_args, $this->_convert_boolean($value));
+					} else
+						$this->_q_having = ' ' . $fields_cond . ' = ? ';
+						array_push($this->_q_args, $this->_convert_boolean($value));
+				}
+			} else {
+				/* Value is part of the first argument and enforce value is disregarded */
+				$this->_q_having = ' ' . $fields_cond . ' ';
+			}
+		} else if (gettype($fields_cond) == "array") {
 			$this->_q_having = '';
 			foreach ($fields_cond as $k => $v) {
+				/* Check if there are any comments to block */
+				if ($enforce) {
+					if ($this->_has_special($k)) {
+						header('HTTP/1.1 500 Internal Server Error');
+						die('having(): Enforced function shall not contain comments in it.');
+					}
+				}
+
 				if ($this->_q_having) {
 					if ($or) {
 						$this->_q_having .= ' OR ';
@@ -411,13 +596,27 @@ class UW_Database extends UW_Base {
 					}
 				}
 
-				/* TODO: Escape fields if enforce is set */
-
 				/* Check if there's already a comparator */
-				if (strpos($fields_cond, '=') || strpos($fields_cond, '>') || strpos($fields_cond, '<'))
-					$this->_q_having .= ' ' . $k . ' \'' . $v . '\' ';
-				else
-					$this->_q_having .= ' ' . $k . ' = \'' . $v . '\' '; /* If not, assume = as default */
+				if (strpos($k, '=') || strpos($k, '>') || strpos($k, '<')) {
+					/* Escape fields if enforce is set */
+					if ($enforce) {
+						/* NOTE: $k must have a space separating field name from comparator */
+						$c = explode(' ', $k);
+
+						$k = '`' . $c[0] . '`' . ' ' . $c[1];
+					}
+
+					$this->_q_having .= ' ' . $k . ' ? ';
+					array_push($this->_q_args, $v);
+				} else {
+					/* Escape fields if enforce is set */
+					if ($enforce)
+						$this->_q_having .= ' `' . $k . '` = ? '; /* If no comparator, assume = as default */
+					else
+						$this->_q_having .= ' ' . $k . ' = ? '; /* If no comparator, assume = as default */
+
+					array_push($this->_q_args, $this->_convert_boolean($v));
+				}
 			}
 
 			$this->_q_having .= ' HAVING ' . $this->_q_having;
@@ -426,31 +625,71 @@ class UW_Database extends UW_Base {
 		return $this;
 	}
 
-	public function or_having($fields_cond, $enforce = true) {
-		return $this->having($fields_cond, $enforce, true);
+	public function or_having($fields_cond, $value = null, $enforce = true) {
+		return $this->having($fields_cond, $value, $enforce, true);
 	}
 
-	public function order_by($field, $order, $enforce = true) {
-		/* TODO: Check whether enforce is set and disable field escape accordingly */
-		if (!$this->_q_order_by)
-			$this->_q_order_by = ' ORDER BY `' . $field . '` ' . $order;
-		else
-			$this->_q_order_by .= ', `' . $field . '` ' . $order;
+	public function order_by($field, $order = 'ASC', $enforce = true) {
+		if (!$field) {
+			header('HTTP/1.1 500 Internal Server Error');
+			die('order_by(): No fields were specified.');
+		}
+
+		/* Validate $order */
+		if (!$order != 'ASC' || $order != 'DESC') {
+			header('HTTP/1.1 500 Internal Server Error');
+			die('order_by(): $order shall only assume ASC or DESC.');
+		}
+
+		/* Include keyword or separator, based on previous _q_order_by value */
+		if ($this->_q_order_by) {
+			$this->_q_order_by .= ', ';
+		} else {
+			$this->_q_order_by = ' ORDER BY ';
+		}
+
+		/* Extra validation and escaping if $enforce is set */
+		if ($enforce) {
+			if ($this->_has_special($field)) {
+				header('HTTP/1.1 500 Internal Server Error');
+				die('order_by(): Enforced function shall not contain comments in it.');
+			}
+			$this->_q_order_by .= ' `' . $field . '` ' . $order;
+		} else {
+			$this->_q_order_by .= ' ' . $field . ' ' . $order;
+		}
 
 		return $this;
 	}
 
-	public function limit($limit, $offset = NULL) {
-		/* TODO: These arguments should also be merged into the prepared statement data */
-		if ($offset)
-			$this->_q_limit = ' LIMIT ' . $offset . ', ' . $limit;
-		else
-			$this->_q_limit = ' LIMIT ' . $limit;
+	public function limit($limit, $offset = NULL, $enforce = true) {
+		if (!$limit) {
+			header('HTTP/1.1 500 Internal Server Error');
+			die('limit(): No limit was specified.');
+		}
+
+		if ($enforce) {
+			/* Validate fields */
+			if ($this->_has_special($limit) || $this->_has_special($offset)) {
+				header('HTTP/1.1 500 Internal Server Error');
+				die('limit(): Enforced function shall not contain comments in it.');
+			}
+		}
+		
+		/* Grant that parameters are integers */
+		$limit = intval($limit);
+		$offset = intval($offset);
+
+		if ($offset) {
+			$this->_q_limit = ' LIMIT ' . $offset . ', ' . $limit . ' ';
+		} else {
+			$this->_q_limit = ' LIMIT ' . $limit . ' ';
+		}
 
 		return $this;
 	}
 
-	public function get_compiled_select($table = NULL) {
+	public function get_compiled_select($table = NULL, $enforce = true) {
 		$query = NULL;
 		$data = NULL;
 
@@ -506,7 +745,17 @@ class UW_Database extends UW_Base {
 			/* Reset query data */
 			$this->_q_reset_all();
 		} else {
-			$query = 'SELECT * FROM `' . $table . '`';
+			/* $table shall not contain any whitespaces nor comments */
+			if ($enforce) {
+				if ($this->_has_special($table) || strstr($table, ' ')) {
+					header('HTTP/1.1 500 Internal Server Error');
+					die('get_compiled_select(): Enforced functions shall not contain any comments in their protected arguments.');
+				}
+
+				$query = 'SELECT * FROM `' . $table . '`';
+			} else {
+				$query = 'SELECT * FROM ' . $table;
+			}
 		}
 
 		/* Store query objects */
@@ -516,58 +765,54 @@ class UW_Database extends UW_Base {
 		return $this->_q_objects;
 	}
 
-	public function get($table = NULL) {
-		$query_data = $this->get_compiled_select($table);
+	public function get($table = NULL, $enforce = true) {
+		$query_data = $this->get_compiled_select($table, $enforce);
 
 		/* Reset all stored query elements */
 		$this->_q_reset_all();
 
-		/* Perform Query with Prepared Statement */
+		/* Execute Query */
 		return $this->query($query_data[0], $query_data[1]);
 	}
 
-	public function get_where($table, $fields_cond, $limit = NULL, $offset = NULL) {
+	public function get_where($table, $fields_cond, $limit = NULL, $offset = NULL, $enforce = true) {
 		$query = NULL;
 		$data = array();
 
 		/* SELECT */
-		$query = 'SELECT * FROM `' . $table . '` WHERE ';
-
-		/* WHERE */
-		$where_cond = '';
-		foreach ($fields_cond as $k => $v) {
-			if ($where_cond) {
-				$where_cond .= ' AND ';
+		if ($enforce) {
+			/* $table shall not contain any whitespaces nor comments */
+			if ($this->_has_special($table) || strstr($table, ' ')) {
+				header('HTTP/1.1 500 Internal Server Error');
+				die('get_where(): Enforced functions shall not contain any comments in their protected arguments.');
 			}
 
-			/* TODO: Escape fields if enforce is set */
-
-			/* Check if there's already a comparator */
-			if (strpos($fields_cond, '=') || strpos($fields_cond, '>') || strpos($fields_cond, '<'))
-				$where_cond .= ' ' . $k . ' ? ';
-			else
-				$where_cond .= ' ' . $k . ' = ? '; /* If not, assume = as default */
-
-			/* Push value into data array */
-			array_push($data, $v);
+			$query = 'SELECT * FROM `' . $table . '` ';
+		} else {
+			$query = 'SELECT * FROM ' . $table . ' ';
 		}
 
-		$query .= $where_cond;
+		/* WHERE */
+		foreach ($fields_cond as $k => $v)
+			$this->where($k, $v, $enforce);
+
+		/* Merge args and query */
+		$data = array_merge($data, $this->_q_args);
+		$query .= ' ' . $this->_q_where . ' ';
 
 		/* LIMIT */
-		if ($offset)
-			$query .= ' LIMIT ' . $offset . ', ' . $limit;
-		else
-			$query .= ' LIMIT ' . $limit;
+		$this->limit($limit, $offset);
+
+		$query .= ' ' . $this->_q_limit . ' ';
 
 		/* Reset all stored query elements */
 		$this->_q_reset_all();
 
-		/* Perform Query with Prepared Statement */
+		/* Execute Query */
 		return $this->query($query, $data);
 	}
 
-	public function count_all_results($table = NULL) {
+	public function count_all_results($table) {
 		$this->get($table);
 		return $this->num_rows();
 	}
@@ -576,13 +821,39 @@ class UW_Database extends UW_Base {
 		return $this->count_all_results($table);
 	}
 
-	public function insert($table, $data) {
-		$values = '(';
-		$query = 'INSERT INTO `' . $table . '` (';
+	public function insert($table, $kv, $enforce = true) {
+		if (!$table) {
+			header('HTTP/1.1 500 Internal Server Error');
+			die('insert(): No table was specified.');
+		}
 
-		foreach ($data as $k => $v) {
+		if (!$kv) {
+			header('HTTP/1.1 500 Internal Server Error');
+			die('insert(): No K/V pairs were specified.');
+		}
+
+		if ($enforce) {
+			/* $table shall not contain any whitespaces nor comments */
+			if ($this->_has_special($table) || strstr($table, ' ')) {
+				header('HTTP/1.1 500 Internal Server Error');
+				die('insert(): Enforced functions shall not contain any comments in their protected arguments.');
+			}
+		}
+
+		$values = '(';
+		$data = array();
+
+		if ($enforce) {
+			$query = 'INSERT INTO `' . $table . '` (';
+		} else {
+			$query = 'INSERT INTO ' . $table . ' (';
+		}
+
+		/* Iterate k/v */
+		foreach ($kv as $k => $v) {
 			$query .= '`' . $k . '`,';
-			$values .= $v . ',';
+			$values .= '?,';
+			array_push($data, $this->_convert_boolean($v));
 		}
 
 		$values = rtrim($values, ',') . ')';
@@ -591,16 +862,39 @@ class UW_Database extends UW_Base {
 		/* Reset all stored query elements */
 		$this->_q_reset_all();
 
-		return $this->query($query);
+		return $this->query($query, $data);
 	}
 
-	public function update($table, $data) {
-		$data = array();
-		$query = 'UPDATE `' . $table . '` SET ';
+	public function update($table, $kv, $enforce = true) {
+		if (!$table) {
+			header('HTTP/1.1 500 Internal Server Error');
+			die('update(): No table was specified.');
+		}
 
-		foreach ($data as $k => $v) {
-			$query .= ' `' . $k . '` = ?, ';
-			array_push($data, $v);
+		if (!$kv) {
+			header('HTTP/1.1 500 Internal Server Error');
+			die('update(): No K/V pairs were specified.');
+		}
+
+		if ($enforce) {
+			/* $table shall not contain any whitespaces nor comments */
+			if ($this->_has_special($table) || strstr($table, ' ')) {
+				header('HTTP/1.1 500 Internal Server Error');
+				die('update(): Enforced functions shall not contain any comments in their protected arguments.');
+			}
+		}
+
+		$data = array();
+
+		if ($enforce) {
+			$query = 'UPDATE `' . $table . '` SET ';
+		} else {
+			$query = 'UPDATE ' . $table . ' SET ';
+		}
+
+		foreach ($kv as $k => $v) {
+			$query .= ' `' . $k . '` = ?,';
+			array_push($data, $this->_convert_boolean($v));
 		}
 
 		$query = rtrim($query, ',');
@@ -608,45 +902,47 @@ class UW_Database extends UW_Base {
 		/* WHERE */
 		$query .= ' ' . $this->_q_where;
 
+		/* Aggregate args */
+		$data = array_merge($data, $this->_q_args);
+
 		/* Reset all stored query elements */
 		$this->_q_reset_all();
-
-		/* Aggregate args */
-		array_push($data, $this->_q_args);
 
 		/* Execute query */
 		return $this->query($query, $data);
 	}
 
 	public function delete($table, $fields_cond = NULL, $enforce = true) {
+		if (!$table) {
+			header('HTTP/1.1 500 Internal Server Error');
+			die('delete(): No table was specified.');
+		}
+
+		if ($enforce) {
+			/* $table shall not contain any whitespaces nor comments */
+			if ($this->_has_special($table) || strstr($table, ' ')) {
+				header('HTTP/1.1 500 Internal Server Error');
+				die('delete(): Enforced functions shall not contain any comments in their protected arguments.');
+			}
+		}
+
 		$data = array();
-		$query = 'DELETE FROM `' . $table . '`';
+
+		if ($enforce) {
+			$query = 'DELETE FROM `' . $table . '` ';
+		} else {
+			$query = 'DELETE FROM ' . $table . ' ';
+		}
 
 		/* WHERE */
 		if ($fields_cond) {
 			$where_cond = '';
-			foreach ($fields_cond as $k => $v) {
-				if ($where_cond) {
-					$where_cond .= ' AND ';
-				}
-
-				/* TODO: Escape fields if enforce is set */
-
-				/* Check if there's already a comparator */
-				if (strpos($fields_cond, '=') || strpos($fields_cond, '>') || strpos($fields_cond, '<'))
-					$where_cond .= ' ' . $k . ' ? ';
-				else
-					$where_cond .= ' ' . $k . ' = ? '; /* If not, assume = as default */
-
-				/* Push value into data array */
-				array_push($data, $v);
-			}
-
-			$query .= ' ' . $where_cond;
-		} else {
-			$query .= ' ' . $this->_q_where;
-			$data = $this->_q_args;
+			foreach ($fields_cond as $k => $v)
+				$this->where($k, $v, $enforce);
 		}
+
+		$query .= ' ' . $this->_q_where;
+		$data = array_merge($data, $this->_q_args);
 
 		/* Reset all stored query elements */
 		$this->_q_reset_all();
@@ -706,30 +1002,58 @@ class UW_Database extends UW_Base {
 			if ($return_self === true)
 				return $this;
 
-			return TRUE;
+			return true;
 		} else {
 			error_log('$this->db->load(): Attempting to load a database that is not properly configured: ' . $dbname);
-			return FALSE;
+			return false;
 		}
 	}
 
 	public function query($query, $data = NULL) {
-		try {
-			$this->_stmt = $this->_db[$this->_cur_db]->prepare($query);
-			
-			if (!$this->_stmt) {
-				error_log('$this->db->query(): PDOStatement::prepare(): Failed.');
-				return FALSE;
-			}
-		} catch (PDOException $e) {
-			error_log('$this->db->query(): PDOStatement::prepare(): ' . $e);
-			return FALSE;
+		if (!$query) {
+			header('HTTP/1.1 500 Internal Server Error');
+			die('query(): No query was specified.');
 		}
 
-		if ($data)
-			$this->_stmt->execute($data);
-		else
-			$this->_stmt->execute();
+		/* Wipe out any previous statement */
+		if ($this->_stmt) {
+			$this->_stmt->closeCursor();
+			$this->_stmt = null;
+		}
+
+		if ($this->_cfg_use_stmt) {
+			try {
+				$this->_stmt = $this->_db[$this->_cur_db]->prepare($query);
+				
+				if (!$this->_stmt) {
+					error_log('$this->db->query(): PDOStatement::prepare(): Failed.');
+					header('HTTP/1.1 500 Internal Server Error');
+					die('query(): PDOStatement::prepare(): Failed.');
+				}
+			} catch (PDOException $e) {
+				error_log('$this->db->query(): PDOStatement::prepare(): ' . $e);
+				header('HTTP/1.1 500 Internal Server Error');
+				die('query(): PDOStatement::prepare(): Failed.');
+			}
+
+			if ($data) {
+				if (!$this->_stmt->execute($data)) {
+					header('HTTP/1.1 500 Internal Server Error');
+					die('query(): Failed to execute prepared statement.');
+				}
+			} else {
+				if (!$this->_stmt->execute()) {
+					header('HTTP/1.1 500 Internal Server Error');
+					die('query(): Failed to execute prepared statement.');
+				}
+			}
+		} else {
+			/* Execute query without prepared statement allocation */
+			if (!($this->_stmt = $this->_db[$this->_cur_db]->query($this->_query_aggregate_args($query, $data)))) {
+				header('HTTP/1.1 500 Internal Server Error');
+				die('query(): Failed to execute query.');
+			}
+		}
 
 		/* Reset query objects */
 		$this->_q_objects = NULL;
@@ -738,20 +1062,20 @@ class UW_Database extends UW_Base {
 		return $this;
 	}
 	
-	public function fetchone($assoc = TRUE) {
-		return ($assoc == TRUE) ? $this->_stmt->fetch(PDO::FETCH_ASSOC) : $this->_stmt->fetch();
+	public function fetchone($assoc = true) {
+		return ($assoc == true) ? $this->_stmt->fetch(PDO::FETCH_ASSOC) : $this->_stmt->fetch();
 	}
 
 	public function row() {
-		return $this->fetchone(FALSE);
+		return $this->fetchone(false);
 	}
 
 	public function row_array() {
-		return $this->fetchone(TRUE);
+		return $this->fetchone(true);
 	}
 
-	public function fetchall($assoc = TRUE) {
-		return ($assoc == TRUE) ? $this->_stmt->fetchAll(PDO::FETCH_ASSOC) : $this->_stmt->fetchAll();
+	public function fetchall($assoc = true) {
+		return ($assoc == true) ? $this->_stmt->fetchAll(PDO::FETCH_ASSOC) : $this->_stmt->fetchAll();
 	}
 
 	public function result() {
@@ -787,7 +1111,8 @@ class UW_Database extends UW_Base {
 			return TRUE;
 		} catch (PDOException $e) {
 			error_log('$this->db->trans_commit(): PDO::commit(): ' . $e);
-			return FALSE;
+			header('HTTP/1.1 500 Internal Server Error');
+			die('trans_commit(): Failed to commit changes');
 		}
 	}
 
@@ -807,6 +1132,16 @@ class UW_Database extends UW_Base {
 
 		/* Perform the rollback */
 		$this->_db[$this->_cur_db]->rollBack();
+	}
+
+	public function stmt_disable() {
+		/* Disable prepared statements */
+		$this->_cfg_use_stmt = false;
+	}
+
+	public function stmt_enable() {
+		/* Enable prepared statements (enabled by default) */
+		$this->_cfg_use_stmt = true;
 	}
 }
 
@@ -857,31 +1192,31 @@ class UW_Model {
 
 /* Alias class for loading methods (Old API compatibility) */
 class UW_Load extends UW_Model {
-	public $db = NULL;
-	public $view = NULL;
-	public $model = NULL;
+	private $_db = NULL;
+	private $_view = NULL;
+	private $_model = NULL;
 
-	public function __construct($db, $model, $view) {
+	public function __construct($database, $model, $view) {
 		/* Initialize system database controller */
-		$this->db = $db;
+		$this->_database = $database;
 		
 		/* Initialize model class */
-		$this->model = $model;
+		$this->_model = $model;
 
 		/* Initialize system view controller */
-		$this->view = $view;
+		$this->_view = $view;
 	}
 
 	public function view($file, $data = NULL, $export_content = false) {
-		return $this->view->load($file, $data, $export_content);
+		return $this->_view->load($file, $data, $export_content);
 	}
 
 	public function model($model) {
-		return $this->model->load($model);
+		return $this->_model->load($model);
 	}
 
 	public function database($database, $return_self = false) {
-		return $this->database->load($database, $return_self);
+		return $this->_database->load($database, $return_self);
 	}
 }
 
