@@ -36,8 +36,11 @@ class UW_Pagination {
 			return false;
 
 		/* Defaults */
-		if (!isset($config['url_var_name']))
-			$config['url_var_name'] = '@PAGE_NR@';
+		if (!isset($config['url_var_page_nr']))
+			$config['url_var_page_nr'] = '@PAGE_NR@';
+
+		if (!isset($config['url_var_row_nr']))
+			$config['url_var_row_nr'] = '@ROW_NR@';
 
 		if (!isset($config['per_page']))
 			$config['per_page'] = 10;
@@ -136,7 +139,7 @@ class UW_Pagination {
 				continue;
 			}
 
-			$links .= '<a href="' . str_replace($this->_config['url_var_name'], $p[2], $this->_config['base_url']) . '">' . $p[0] . '</a>&nbsp;&nbsp;';
+			$links .= '<a href="' . str_replace($this->_config['url_var_row_nr'], $p[2], str_replace($this->_config['url_var_page_nr'], $p[1], $this->_config['base_url'])) . '">' . $p[0] . '</a>&nbsp;&nbsp;';
 		}
 
 		return $links;
