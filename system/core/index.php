@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 24/09/2014
+ * Date: 16/03/2016
  * License: GPLv3
  */
 
@@ -31,6 +31,14 @@ foreach (glob("system/core/*.php") as $sys_core) {
 
     include($sys_core);
 }
+
+/* Load all system models */
+foreach (glob("system/models/*.php") as $sys_model)
+    include($sys_model);
+
+/* Load all system extentions */
+foreach (glob("system/extentions/*.php") as $sys_ext)
+    include($sys_ext);
 
 /* Load all user models */
 foreach (glob("application/models/*.php") as $user_model)

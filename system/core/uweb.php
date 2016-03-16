@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 15/03/2016
+ * Date: 16/03/2016
  * License: GPLv3
  */
 
@@ -239,7 +239,10 @@ class UW_Database extends UW_Base {
 
 	private function _has_special($value) {
 		/* TODO: Should a better approach (Prehaps regex? Or now we have two problems?) be implemented here? */
-		if (strpos($value, '#') || strstr($value, '/*') || strstr($value, '--') || strpos($value, ';') || strpos($value, '`'))
+		if (strpos($value, '#') ||
+			    strstr($value, '/*') || strstr($value, '--') ||
+				strpos($value, ';')  || strpos($value, '`')  ||
+				strpos($value, '\'') || strpos($value, '"'))
 			return true;
 
 		return false;
@@ -851,6 +854,11 @@ class UW_Database extends UW_Base {
 
 		/* Iterate k/v */
 		foreach ($kv as $k => $v) {
+			if ($enforce && $this->_has_special($k)) {
+				header('HTTP/1.1 500 Internal Server Error');
+				die('insert(): Enforced functions shall not contain any comments in their protected arguments (K/V).');
+			}
+
 			$query .= '`' . $k . '`,';
 			$values .= '?,';
 			array_push($data, $this->_convert_boolean($v));
@@ -893,6 +901,11 @@ class UW_Database extends UW_Base {
 		}
 
 		foreach ($kv as $k => $v) {
+			if ($enforce && $this->_has_special($k)) {
+				header('HTTP/1.1 500 Internal Server Error');
+				die('update(): Enforced functions shall not contain any comments in their protected arguments (K/V).');
+			}
+
 			$query .= ' `' . $k . '` = ?,';
 			array_push($data, $this->_convert_boolean($v));
 		}
@@ -936,7 +949,6 @@ class UW_Database extends UW_Base {
 
 		/* WHERE */
 		if ($fields_cond) {
-			$where_cond = '';
 			foreach ($fields_cond as $k => $v)
 				$this->where($k, $v, $enforce);
 		}
@@ -1108,11 +1120,10 @@ class UW_Database extends UW_Base {
 		try {
 			$this->_db[$this->_cur_db]->commit();
 			
-			return TRUE;
+			return true;
 		} catch (PDOException $e) {
 			error_log('$this->db->trans_commit(): PDO::commit(): ' . $e);
-			header('HTTP/1.1 500 Internal Server Error');
-			die('trans_commit(): Failed to commit changes');
+			return false;
 		}
 	}
 
@@ -1146,13 +1157,32 @@ class UW_Database extends UW_Base {
 }
 
 class UW_View extends UW_Base {
-	public function load($file, $data = NULL, $export_content = false) {
+	public function load($file, $data = NULL, $export_content = false, $enforce = true) {
+		/* If enforce is set, grant that no potential harmful tags are exported to the view */
+		if ($enforce) {
+			foreach ($data as $k => $v) {
+				/* NOTE: This is only effective for string type values. Any other object won't be checked */
+				if (gettype($v) == "string" && strpos(str_replace(' ', '', strtolower($v)), '<script')) {
+					header('HTTP/1.1 500 Internal Server Error');
+					die('load(): Unable to load views with <script> tags on their $data strings when $enforce is set to true (default).');
+				}
+			}
+		}
+
 		/* Check if there's anything to extract */
 		if ($data !== NULL)
 			extract($data, EXTR_PREFIX_SAME, "wddx");
 
 		/* Unset $data variable as it's no longer required */
 		unset($data);
+
+		/* Validate filename */
+		if ($enforce) {
+			if (strpos($file, '/')) {
+				header('HTTP/1.1 500 Internal Server Error');
+				die('load(): Unable to load view files with \'/\' characters on their names.');
+			}
+		}
 
 		/* Load view from file */
 		if ($export_content) {
@@ -1182,7 +1212,7 @@ class UW_Model {
 	
 	public function load($model) {
 		if (!preg_match('/^[a-z0-9_]+$/', $model))
-			return FALSE;
+			return false;
 
 		eval('$this->' . $model . ' = new UW_' . ucfirst($model) . ';');
 
@@ -1195,8 +1225,9 @@ class UW_Load extends UW_Model {
 	private $_db = NULL;
 	private $_view = NULL;
 	private $_model = NULL;
+	private $_extention = NULL;
 
-	public function __construct($database, $model, $view) {
+	public function __construct($database, $model, $view, $extention) {
 		/* Initialize system database controller */
 		$this->_database = $database;
 		
@@ -1205,6 +1236,9 @@ class UW_Load extends UW_Model {
 
 		/* Initialize system view controller */
 		$this->_view = $view;
+
+		/* Initialize system extentions */
+		$this->_extention = $extention;
 	}
 
 	public function view($file, $data = NULL, $export_content = false) {
@@ -1218,11 +1252,18 @@ class UW_Load extends UW_Model {
 	public function database($database, $return_self = false) {
 		return $this->_database->load($database, $return_self);
 	}
+
+	public function extention($extention) {
+		/* Extentions loading are treated as models, just a different name and a different directory */
+		return $this->_model->load($extention);
+	}
 }
 
 class UW_Controller extends UW_Model {
 	public $view = NULL;
 	public $model = NULL;
+	public $extention = NULL;
+	public $load = NULL;
 
 	public function __construct() {
 		parent::__construct();
@@ -1233,8 +1274,11 @@ class UW_Controller extends UW_Model {
 		/* Initialize system view controller */
 		$this->view = new UW_View;
 
+		/* Initialize system extention class */
+		$this->extention = $this; /* Extentions loading are treated as models, just a different name and a different directory */
+
 		/* Initialize load class */
-		$this->load = new UW_Load($this->db, $this->model, $this->view);
+		$this->load = new UW_Load($this->db, $this->model, $this->view, $this->extention);
 	}
 }
 
