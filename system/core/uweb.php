@@ -610,7 +610,7 @@ class UW_Database extends UW_Base {
 					}
 
 					$this->_q_having .= ' ' . $k . ' ? ';
-					array_push($this->_q_args, $v);
+					array_push($this->_q_args, $this->_convert_boolean($v));
 				} else {
 					/* Escape fields if enforce is set */
 					if ($enforce)
