@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 16/03/2016
+ * Date: 17/03/2016
  * License: GPLv3
  */
 
@@ -47,6 +47,12 @@ class UW_Encrypt extends UW_Base {
 		return ($b64_encode === true) ? base64_encode($n . $c) : ($n . $c);
 	}
 	
+	public function encode($m, $b64_encode = false) {
+		global $config;
+
+		return $this->encrypt($m, $config['encrypt']['key'], $b64_encode);
+	}
+
 	public function decrypt($c, $k, $b64_decode = true) {
 		global $config;
 
@@ -57,6 +63,12 @@ class UW_Encrypt extends UW_Base {
 		$c = substr($c, $this->_n_size);
 
 		return mcrypt_decrypt($config['encrypt']['cipher'], $k, $c, $config['encrypt']['mode'], $n);
+	}
+
+	public function decode($c, $b64_encode = false) {
+		global $config;
+
+		return $this->decrypt($c, $config['encrypt']['key'], $b64_encode);
 	}
 }
 
@@ -819,6 +831,12 @@ class UW_Database extends UW_Base {
 
 		/* Return the prepared statement objects */
 		return $this->_q_objects;
+	}
+
+	public function get_compiled_select_str($table = NULL, $enforce = true) {
+		$query_obj = $this->get_compiled_select($table, $enforce);
+
+		return $this->_query_aggregate_args($query_obj[0], $query_obj[1]);
 	}
 
 	public function get($table = NULL, $enforce = true) {
