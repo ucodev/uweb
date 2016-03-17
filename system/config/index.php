@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 24/09/2014
+ * Date: 17/03/2016
  * License: GPLv3
  */
 
@@ -23,6 +23,8 @@
  * along with uweb.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
+/** THIS FILE IS LOADED FROM system/index.php **/
 
 $config = array();
 

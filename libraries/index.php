@@ -26,12 +26,12 @@
 
 /** THIS FILE IS LOADED FROM system/index.php **/
 
-/* Load user core controllers */
-include('user/core/index.php');
+/* Load all system utilities */
+foreach (glob("libraries/*", GLOB_ONLYDIR) as $lib) {
+	if (substr($lib, -1) == '.' || substr($lib, -1) == '..')
+		continue;
 
-/* Load user utilities */
-include('user/utils/index.php');
+	/* Search for index.php on each library directory */
+    include($lib . '/index.php');
+}
 
-/* Load user extentions */
-foreach (glob("user/extentions/*.php") as $user_ext)
-    include($user_ext);

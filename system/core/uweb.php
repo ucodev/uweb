@@ -379,7 +379,7 @@ class UW_Database extends UW_Base {
 		return $this;
 	}
 
-	public function where($field_cond = NULL, $value = NULL, $enforce = true, $or = false, $in = false, $like = false, $not = false) {
+	public function where($field_cond = NULL, $value = NULL, $enforce = true, $or = false, $in = false, $like = false, $not = false, $is_null = false, $is_not_null = false) {
 		/* Sanity checks */
 		if ($in && $like) {
 			header('HTTP/1.1 500 Internal Server Error');
@@ -439,8 +439,10 @@ class UW_Database extends UW_Base {
 
 		/* Push value into data array */
 		if ($in) {
+			/* $value is an array */
 			$this->_q_args = array_merge($this->_q_args, $value);
 		} else {
+			/* $value is a string */
 			array_push($this->_q_args, $this->_convert_boolean($value));
 		}
 
@@ -1226,8 +1228,9 @@ class UW_Load extends UW_Model {
 	private $_view = NULL;
 	private $_model = NULL;
 	private $_extention = NULL;
+	private $_library = NULL;
 
-	public function __construct($database, $model, $view, $extention) {
+	public function __construct($database, $model, $view, $extention, $library) {
 		/* Initialize system database controller */
 		$this->_database = $database;
 		
@@ -1239,6 +1242,9 @@ class UW_Load extends UW_Model {
 
 		/* Initialize system extentions */
 		$this->_extention = $extention;
+
+		/* Initialize libraries */
+		$this->_library = $library;
 	}
 
 	public function view($file, $data = NULL, $export_content = false) {
@@ -1257,12 +1263,18 @@ class UW_Load extends UW_Model {
 		/* Extentions loading are treated as models, just a different name and a different directory */
 		return $this->_model->load($extention);
 	}
+
+	public function library($library) {
+		/* Library loading are treated as models, just a different name and a different directory */
+		return $this->_model->load($library);
+	}
 }
 
 class UW_Controller extends UW_Model {
 	public $view = NULL;
 	public $model = NULL;
 	public $extention = NULL;
+	public $library = NULL;
 	public $load = NULL;
 
 	public function __construct() {
@@ -1277,8 +1289,11 @@ class UW_Controller extends UW_Model {
 		/* Initialize system extention class */
 		$this->extention = $this; /* Extentions loading are treated as models, just a different name and a different directory */
 
+		/* Initialize library class */
+		$this->library = $this; /* Libraries loading are treated as models, just a different name and a different directory */
+
 		/* Initialize load class */
-		$this->load = new UW_Load($this->db, $this->model, $this->view, $this->extention);
+		$this->load = new UW_Load($this->db, $this->model, $this->view, $this->extention, $this->library);
 	}
 }
 

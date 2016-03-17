@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 24/09/2014
+ * Date: 17/03/2016
  * License: GPLv3
  */
 
@@ -42,7 +42,7 @@ $__uri = explode('/', $_SERVER['REQUEST_URI']);
 $__a_koffset = array_search('index.php', $__uri);
 
 /* If index.php isn't present in the URI, assume the base dir as the offset */
-if ($__a_koffset === FALSE) {
+if ($__a_koffset === false) {
 	$__a_koffset = count($__uri);
 	$__a_count = 0;
 } else {
@@ -79,8 +79,13 @@ if (($__a_count >= 3) && $__uri[$__a_koffset + 3]) {
 	$__args_list = rtrim($__args_list, ',');
 }
 
-/* Load system core controllers */
+/* Load system utilities */
 include('system/utils/index.php');
+
+/* Load libraries */
+include('libraries/index.php');
+
+/* Load system core controllers */
 include('system/core/index.php');
 
 /* Load user extensions */

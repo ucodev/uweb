@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 16/03/2016
+ * Date: 17/03/2016
  * License: GPLv3
  */
 
@@ -24,6 +24,8 @@
  *
  */
 
+/** THIS FILE IS LOADED FROM system/index.php **/
+
 /* Load all system core modules */
 foreach (glob("system/core/*.php") as $sys_core) {
 	if (substr($sys_core, -9) == 'index.php')
@@ -40,6 +42,6 @@ foreach (glob("system/models/*.php") as $sys_model)
 foreach (glob("system/extentions/*.php") as $sys_ext)
     include($sys_ext);
 
-/* Load all user models */
-foreach (glob("application/models/*.php") as $user_model)
-    include($user_model);
+/* Load all application models */
+foreach (glob("application/models/*.php") as $app_model)
+    include($app_model);
