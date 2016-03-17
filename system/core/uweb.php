@@ -1284,11 +1284,16 @@ class UW_Model {
 		$this->encrypt = new UW_Encrypt;
 	}
 	
-	public function load($model) {
-		if (!preg_match('/^[a-z0-9_]+$/', $model))
+	public function load($model, $is_library = false, $tolower = false) {
+		if (!preg_match('/^[a-zA-Z0-9_]+$/', $model))
 			return false;
 
-		eval('$this->' . $model . ' = new UW_' . ucfirst($model) . ';');
+		if ($is_library === true) {
+			/* We're loading a library */
+			eval('$this->' . ($tolower ? strtolower($model) : $model) . ' = new ' . $model . ';');
+		} else {
+			eval('$this->' . $model . ' = new UW_' . ucfirst($model) . ';');
+		}
 
 		return true;
 	}
@@ -1336,9 +1341,9 @@ class UW_Load extends UW_Model {
 		return $this->_model->load($extension);
 	}
 
-	public function library($library) {
-		/* Library loading are treated as models, just a different name and a different directory */
-		return $this->_model->load($library);
+	public function library($library, $tolower = true) {
+		/* Libraries loading are treated as models, with some minor changes (no UW_ prefix required on library main class and optional $tolower parameter) */
+		return $this->_model->load($library, true, $tolower);
 	}
 }
 

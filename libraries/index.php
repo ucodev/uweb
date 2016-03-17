@@ -32,6 +32,6 @@ foreach (glob("libraries/*", GLOB_ONLYDIR) as $lib) {
 		continue;
 
 	/* Search for index.php on each library directory */
-    include($lib . '/index.php');
+    include($lib . '/' . explode('/', $lib)[1] . '.php');
 }
 
