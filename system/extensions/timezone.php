@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 16/03/2016
+ * Date: 17/03/2016
  * License: GPLv3
  */
 
@@ -31,6 +31,9 @@ class UW_Timezone {
 			header('HTTP/1.1 500 Internal Server Error');
 			die('convert(): Invalid input data.');
 		}
+
+		if ($from == $to)
+			return $datetime_value;
 
 		/* Store the current configured timezone */
 		$default_timezone = date_default_timezone_get();
