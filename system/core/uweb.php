@@ -77,21 +77,20 @@ class UW_Session extends UW_Base {
 	private $_session_data = array();
 	private $_encryption = false;
 
-	private function _session_data_serialize($init_close = true) {
-		if ($init_close === true)
+	private function _session_data_serialize($session_start = true, $session_close = true) {
+		if ($session_start === true)
 			session_start();
 
 		/* Encrypt session data if _encryption is enabled */
 		if ($this->_encryption) {
 			global $config;
 			$cipher = new UW_Encrypt;
-
 			$_SESSION['data'] = $cipher->encrypt(json_encode($this->_session_data), $config['encrypt']['key']);
 		} else {
 			$_SESSION['data'] = json_encode($this->_session_data);
 		}
 
-		if ($init_close === true)
+		if ($session_close === true)
 			session_write_close();
 	}
 
@@ -110,7 +109,7 @@ class UW_Session extends UW_Base {
 				$cipher = new UW_Encrypt;
 
 				$this->_session_data = json_decode($cipher->decrypt($_SESSION['data'], $config['encrypt']['key']), true);
-				$this->_session_data_serialize(false);
+				$this->_session_data_serialize(false, false); /* Do not start nor close the session as it was/will be performed by __construct() */
 			} else {
 				/* Unencrypted session */
 				$this->_session_data = json_decode($_SESSION['data'], true);
@@ -142,7 +141,7 @@ class UW_Session extends UW_Base {
 
 		/* Set custom cookie parameters */
 		session_set_cookie_params(
-			$config['session']['cookie_lifetime'] . ', ' . $config['session']['cookie_path'],
+			$config['session']['cookie_lifetime'], $config['session']['cookie_path'],
 			$config['session']['cookie_domain'],
 			$config['session']['cookie_secure'], $config['session']['cookie_httponly']);
 
@@ -1272,6 +1271,7 @@ class UW_View extends UW_Base {
 class UW_Model {
 	public $db = NULL;
 	public $session = NULL;
+	public $encrypt = NULL;
 
 	public function __construct() {
 		/* Initialize system database controller */
@@ -1279,6 +1279,9 @@ class UW_Model {
 		
 		/* Initialize system session controller */
 		$this->session = new UW_Session;
+
+		/* Initialize system encryption controller */
+		$this->encrypt = new UW_Encrypt;
 	}
 	
 	public function load($model) {
