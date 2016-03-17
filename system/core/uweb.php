@@ -250,7 +250,7 @@ class UW_Database extends UW_Base {
 
 	private function _has_special($value) {
 		/* TODO: Should a better approach (Prehaps regex? Or now we have two problems?) be implemented here? */
-		if (strpos($value, '#') ||
+		if (strpos($value, '#') || strpos($value, '(') || strpos($value, ')') || strpos(',') ||
 			    strpos($value, '/*') || strpos($value, '--') ||
 				strpos($value, ';')  || strpos($value, '`')  ||
 				strpos($value, '\'') || strpos($value, '"'))
