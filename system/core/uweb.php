@@ -65,10 +65,10 @@ class UW_Encrypt extends UW_Base {
 		return mcrypt_decrypt($config['encrypt']['cipher'], $k, $c, $config['encrypt']['mode'], $n);
 	}
 
-	public function decode($c, $b64_encode = false) {
+	public function decode($c, $b64_decode = false) {
 		global $config;
 
-		return $this->decrypt($c, $config['encrypt']['key'], $b64_encode);
+		return $this->decrypt($c, $config['encrypt']['key'], $b64_decode);
 	}
 }
 
@@ -260,7 +260,7 @@ class UW_Database extends UW_Base {
 		return false;
 	}
 
-	private function _query_aggregate_args($query, $data = null) {
+	private function _query_aggregate_args($query, $data = NULL) {
 		if (!$data)
 			return $query;
 
