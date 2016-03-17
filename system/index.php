@@ -35,6 +35,12 @@ $__function = NULL;
 $__args = NULL;
 $__args_list = '';
 
+/* Grant URI match the acceptable regex */
+if (!preg_match($config['base']['acceptable_uri_regex'], $_SERVER['REQUEST_URI'])) {
+	header('HTTP/1.1 403 Forbidden');
+	die('URI contains invalid characters.');
+}
+
 /* Get request URI */
 $__uri = explode('/', $_SERVER['REQUEST_URI']);
 
