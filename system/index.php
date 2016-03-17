@@ -26,7 +26,7 @@
 
 ob_start();
 
-/* Load configuration */
+/* Include configuration */
 include('system/config/index.php');
 
 /* Initialize globals */
@@ -79,16 +79,16 @@ if (($__a_count >= 3) && $__uri[$__a_koffset + 3]) {
 	$__args_list = rtrim($__args_list, ',');
 }
 
-/* Load system utilities */
+/* Include system utilities */
 include('system/utils/index.php');
 
-/* Load libraries */
+/* Include libraries */
 include('libraries/index.php');
 
-/* Load system core controllers */
+/* Include system core controllers */
 include('system/core/index.php');
 
-/* Load user extensions */
+/* Include user extensions */
 include('user/index.php');
 
 /* Set the configured default controller, if none was defined */

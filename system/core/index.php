@@ -26,7 +26,7 @@
 
 /** THIS FILE IS LOADED FROM system/index.php **/
 
-/* Load all system core modules */
+/* Include all system core modules */
 foreach (glob("system/core/*.php") as $sys_core) {
 	if (substr($sys_core, -9) == 'index.php')
 		continue;
@@ -34,14 +34,14 @@ foreach (glob("system/core/*.php") as $sys_core) {
     include($sys_core);
 }
 
-/* Load all system models */
+/* Include all system models */
 foreach (glob("system/models/*.php") as $sys_model)
     include($sys_model);
 
-/* Load all system extentions */
+/* Include all system extentions */
 foreach (glob("system/extentions/*.php") as $sys_ext)
     include($sys_ext);
 
-/* Load all application models */
+/* Include all application models */
 foreach (glob("application/models/*.php") as $app_model)
     include($app_model);

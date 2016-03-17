@@ -28,6 +28,10 @@
 
 $config = array();
 
+/* Autoload settings */
+include('system/config/autoload.php');
+$config['autoload'] = $autoload;
+
 /* Base settings */
 include('system/config/base.php');
 $config['base'] = $base;

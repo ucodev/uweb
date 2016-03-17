@@ -26,7 +26,7 @@
 
 /** THIS FILE IS LOADED FROM system/index.php **/
 
-/* Load all system utilities */
+/* Include all system utilities */
 foreach (glob("system/utils/*.php") as $sys_utility) {
 	if (substr($sys_utility, -9) == 'index.php')
 		continue;

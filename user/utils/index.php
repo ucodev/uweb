@@ -26,7 +26,7 @@
 
 /** THIS FILE IS LOADED FROM user/index.php **/
 
- /* Load all user models */
+ /* Include all user models */
 foreach (glob("user/utils/*.php") as $user_util) {
 	if (substr($user_util, -9) == 'index.php')
 		continue;

@@ -379,7 +379,7 @@ class UW_Database extends UW_Base {
 		return $this;
 	}
 
-	public function where($field_cond = NULL, $value = NULL, $enforce = true, $or = false, $in = false, $like = false, $not = false, $is_null = false, $is_not_null = false) {
+	public function where($field_cond = NULL, $value = NULL, $enforce = true, $or = false, $in = false, $like = false, $not = false, $is_null = false, $is_not_null = false, $between = false) {
 		/* Sanity checks */
 		if ($in && $like) {
 			header('HTTP/1.1 500 Internal Server Error');
@@ -416,10 +416,29 @@ class UW_Database extends UW_Base {
 
 		$this->_q_where .= ' ' . $field_cond;
 
+		/* Check the special cases of [ IS NULL / IS NOT NULL ] */
+		if ($value === NULL) {
+			if ($is_null && !strpos($field_cond, ' ')) {
+				$this->_q_where .= ' IS NULL ';
+			} else if ($is_not_null && !strpos($field_cond, ' ')) {
+				$this->_q_where .= ' IS NOT NULL ';
+			} else {
+				header('HTTP/1.1 500 Internal Server Error');
+				die('where(): For NULL comparations, use is_null(), is_not_null(), or_is_null() and or_is_not_null() functions and do not use any comparators on first parameter.');
+			}
+
+			return $this;
+		}
+
 		if ($not)
 			$this->_q_where .= ' NOT ';
 
-		if ($in) {
+		if ($between) {
+			$this->_q_where .= ' BETWEEN ? AND ? ';
+
+			$value[0] = $this->_convert_boolean($value[0]);
+			$value[1] = $this->_convert_boolean($value[1]);
+		} else if ($in) {
 			$this->_q_where .= ' IN (';
 			for ($i = 0; $i < count($value); $i ++) {
 				/* Convert booleans */
@@ -438,7 +457,7 @@ class UW_Database extends UW_Base {
 		}
 
 		/* Push value into data array */
-		if ($in) {
+		if ($in || $between) {
 			/* $value is an array */
 			$this->_q_args = array_merge($this->_q_args, $value);
 		} else {
@@ -483,6 +502,38 @@ class UW_Database extends UW_Base {
 
 	public function or_not_like($field_cond = NULL, $value = NULL, $enforce = true) {
 		return $this->where($field_cond, $value, $enforce, true /* OR */, false /* in */, true /* LIKE */, true /* NOT */);
+	}
+
+	public function is_null($field_cond = NULL, $enforce = true) {
+		return $this->where($field_cond, NULL, $enforce, false /* or */, false /* in */, false /* like */, false /* not */, true /* IS NULL */);
+	}
+
+	public function or_is_null($field_cond = NULL, $enforce = true) {
+		return $this->where($field_cond, NULL, $enforce, true /* OR */, false /* in */, false /* like */, false /* not */, true /* IS NULL */);
+	}
+
+	public function is_not_null($field_cond = NULL, $enforce = true) {
+		return $this->where($field_cond, NULL, $enforce, false /* or */, false /* in */, false /* like */, false /* not */, false /* is null */, true /* IS NOT NULL */);
+	}
+
+	public function or_is_not_null($field_cond = NULL, $enforce = true) {
+		return $this->where($field_cond, NULL, $enforce, true /* OR */, false /* in */, false /* like */, false /* not */, false /* is null */, true /* IS NOT NULL */);
+	}
+
+	public function between($field_cond = NULL, $value1 = NULL, $value2 = NULL, $enforce = true) {
+		return $this->where($field_cond, array($value1, $value2), $enforce, false /* or */, false /* in */, false /* like */, false /* not */, false /* is null */, false /* is not null */, true /* BETWEEN */);
+	}
+
+	public function not_between($field_cond = NULL, $value1 = NULL, $value2 = NULL, $enforce = true) {
+		return $this->where($field_cond, array($value1, $value2), $enforce, false /* or */, false /* in */, false /* like */, true /* NOT */, false /* is null */, false /* is not null */, true /* BETWEEN */);
+	}
+
+	public function or_between($field_cond = NULL, $value1 = NULL, $value2 = NULL, $enforce = true) {
+		return $this->where($field_cond, array($value1, $value2), $enforce, true /* OR */, false /* in */, false /* like */, false /* not */, false /* is null */, false /* is not null */, true /* BETWEEN */);
+	}
+
+	public function or_not_between($field_cond = NULL, $value1 = NULL, $value2 = NULL, $enforce = true) {
+		return $this->where($field_cond, array($value1, $value2), $enforce, true /* OR */, false /* in */, false /* like */, true /* NOT */, false /* is null */, false /* is not null */, true /* BETWEEN */);
 	}
 
 	public function group_by($fields, $enforce = true) {
@@ -1278,6 +1329,8 @@ class UW_Controller extends UW_Model {
 	public $load = NULL;
 
 	public function __construct() {
+		global $config;
+
 		parent::__construct();
 		
 		/* Initialize model class */
@@ -1294,6 +1347,18 @@ class UW_Controller extends UW_Model {
 
 		/* Initialize load class */
 		$this->load = new UW_Load($this->db, $this->model, $this->view, $this->extention, $this->library);
+
+		/* Autoload configured libraries */
+		foreach ($config['autoload']['libraries'] as $_lib)
+			$this->load->library($_lib);
+
+		/* Autoload configured extentions */
+		foreach ($config['autoload']['extentions'] as $_ext)
+			$this->load->extention($_ext);
+
+		/* Autoload configured models */
+		foreach ($config['autoload']['models'] as $_model)
+			$this->load->extention($_model);
 	}
 }
 

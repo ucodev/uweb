@@ -26,7 +26,7 @@
 
 /** THIS FILE IS LOADED FROM system/index.php **/
 
-/* Load all system utilities */
+/* Include all system utilities */
 foreach (glob("libraries/*", GLOB_ONLYDIR) as $lib) {
 	if (substr($lib, -1) == '.' || substr($lib, -1) == '..')
 		continue;

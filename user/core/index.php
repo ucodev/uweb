@@ -26,7 +26,7 @@
 
 /** THIS FILE IS LOADED FROM user/index.php **/
 
- /* Load all user core controllers */
+ /* Include all user core controllers */
 foreach (glob("user/core/*.php") as $user_core) {
 	if (substr($user_core, -9) == 'index.php')
 		continue;

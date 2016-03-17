@@ -26,12 +26,12 @@
 
 /** THIS FILE IS LOADED FROM system/index.php **/
 
-/* Load user core controllers */
+/* Include user core controllers */
 include('user/core/index.php');
 
-/* Load user utilities */
+/* Include user utilities */
 include('user/utils/index.php');
 
-/* Load user extentions */
+/* Include user extentions */
 foreach (glob("user/extentions/*.php") as $user_ext)
     include($user_ext);
