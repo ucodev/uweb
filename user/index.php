@@ -32,6 +32,6 @@ include('user/core/index.php');
 /* Include user utilities */
 include('user/utils/index.php');
 
-/* Include user extentions */
-foreach (glob("user/extentions/*.php") as $user_ext)
+/* Include user extensions */
+foreach (glob("user/extensions/*.php") as $user_ext)
     include($user_ext);

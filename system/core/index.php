@@ -38,8 +38,8 @@ foreach (glob("system/core/*.php") as $sys_core) {
 foreach (glob("system/models/*.php") as $sys_model)
     include($sys_model);
 
-/* Include all system extentions */
-foreach (glob("system/extentions/*.php") as $sys_ext)
+/* Include all system extensions */
+foreach (glob("system/extensions/*.php") as $sys_ext)
     include($sys_ext);
 
 /* Include all application models */

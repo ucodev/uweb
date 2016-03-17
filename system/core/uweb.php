@@ -1296,10 +1296,10 @@ class UW_Load extends UW_Model {
 	private $_db = NULL;
 	private $_view = NULL;
 	private $_model = NULL;
-	private $_extention = NULL;
+	private $_extension = NULL;
 	private $_library = NULL;
 
-	public function __construct($database, $model, $view, $extention, $library) {
+	public function __construct($database, $model, $view, $extension, $library) {
 		/* Initialize system database controller */
 		$this->_database = $database;
 		
@@ -1309,8 +1309,8 @@ class UW_Load extends UW_Model {
 		/* Initialize system view controller */
 		$this->_view = $view;
 
-		/* Initialize system extentions */
-		$this->_extention = $extention;
+		/* Initialize system extensions */
+		$this->_extension = $extension;
 
 		/* Initialize libraries */
 		$this->_library = $library;
@@ -1328,9 +1328,9 @@ class UW_Load extends UW_Model {
 		return $this->_database->load($database, $return_self);
 	}
 
-	public function extention($extention) {
-		/* Extentions loading are treated as models, just a different name and a different directory */
-		return $this->_model->load($extention);
+	public function extension($extension) {
+		/* Extensions loading are treated as models, just a different name and a different directory */
+		return $this->_model->load($extension);
 	}
 
 	public function library($library) {
@@ -1342,7 +1342,7 @@ class UW_Load extends UW_Model {
 class UW_Controller extends UW_Model {
 	public $view = NULL;
 	public $model = NULL;
-	public $extention = NULL;
+	public $extension = NULL;
 	public $library = NULL;
 	public $load = NULL;
 
@@ -1357,26 +1357,26 @@ class UW_Controller extends UW_Model {
 		/* Initialize system view controller */
 		$this->view = new UW_View;
 
-		/* Initialize system extention class */
-		$this->extention = $this; /* Extentions loading are treated as models, just a different name and a different directory */
+		/* Initialize system extension class */
+		$this->extension = $this; /* Extensions loading are treated as models, just a different name and a different directory */
 
 		/* Initialize library class */
 		$this->library = $this; /* Libraries loading are treated as models, just a different name and a different directory */
 
 		/* Initialize load class */
-		$this->load = new UW_Load($this->db, $this->model, $this->view, $this->extention, $this->library);
+		$this->load = new UW_Load($this->db, $this->model, $this->view, $this->extension, $this->library);
 
 		/* Autoload configured libraries */
 		foreach ($config['autoload']['libraries'] as $_lib)
 			$this->load->library($_lib);
 
-		/* Autoload configured extentions */
-		foreach ($config['autoload']['extentions'] as $_ext)
-			$this->load->extention($_ext);
+		/* Autoload configured extensions */
+		foreach ($config['autoload']['extensions'] as $_ext)
+			$this->load->extension($_ext);
 
 		/* Autoload configured models */
 		foreach ($config['autoload']['models'] as $_model)
-			$this->load->extention($_model);
+			$this->load->model($_model);
 	}
 }
 

@@ -8,4 +8,4 @@ $session['cookie_lifetime'] = 7200;
 $session['cookie_path'] = '/uweb/';
 $session['cookie_domain'] = 'localhost';
 $session['cookie_secure'] = FALSE;
-$session['cookie_httponly'] = FALSE;
+$session['cookie_httponly'] = TRUE;
