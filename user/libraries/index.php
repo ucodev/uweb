@@ -24,14 +24,14 @@
  *
  */
 
-/** THIS FILE IS LOADED FROM system/index.php **/
+/** THIS FILE IS LOADED FROM user/index.php **/
 
 /* Include all system utilities */
-foreach (glob("libraries/*", GLOB_ONLYDIR) as $lib) {
+foreach (glob("user/libraries/*", GLOB_ONLYDIR) as $lib) {
 	if (substr($lib, -1) == '.' || substr($lib, -1) == '..')
 		continue;
 
 	/* Search for index.php on each library directory */
-    include($lib . '/' . explode('/', $lib)[1] . '.php');
+    include($lib . '/' . explode('/', $lib)[2] . '.php');
 }
 

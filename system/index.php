@@ -83,7 +83,7 @@ if (($__a_count >= 3) && $__uri[$__a_koffset + 3]) {
 include('system/utils/index.php');
 
 /* Include libraries */
-include('libraries/index.php');
+include('system/libraries/index.php');
 
 /* Include system core controllers */
 include('system/core/index.php');
