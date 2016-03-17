@@ -27,6 +27,10 @@
 class UW_Pagination {
 	private $_config = array();
 
+	private function _convert_entity_space($value) {
+		return str_replace(' ', '&nbsp;', $value);
+	}
+
 	public function initialize($config) {
 		/* Required */
 		if (!isset($config['base_url']))
@@ -66,16 +70,20 @@ class UW_Pagination {
 		if (!isset($config['prev_pages']))
 			$config['prev_pages'] = 2;
 
+		if (!isset($config['separator']))
+			$config['separator'] = '  ';
+
 		/* Enforce */
 		$config['total_rows'] = intval($config['total_rows']);
 		$config['per_page'] = intval($config['per_page']);
 		$config['page'] = intval($config['page']);
-		$config['prev_link'] = htmlentities($config['prev_link'], ENT_QUOTES, 'UTF-8');
-		$config['next_link'] = htmlentities($config['next_link'], ENT_QUOTES, 'UTF-8');
-		$config['first_link'] = htmlentities($config['first_link'], ENT_QUOTES, 'UTF-8');
-		$config['last_link'] = htmlentities($config['last_link'], ENT_QUOTES, 'UTF-8');
+		$config['prev_link'] = $this->_convert_entity_space(htmlentities($config['prev_link'], ENT_QUOTES, 'UTF-8'));
+		$config['next_link'] = $this->_convert_entity_space(htmlentities($config['next_link'], ENT_QUOTES, 'UTF-8'));
+		$config['first_link'] = $this->_convert_entity_space(htmlentities($config['first_link'], ENT_QUOTES, 'UTF-8'));
+		$config['last_link'] = $this->_convert_entity_space(htmlentities($config['last_link'], ENT_QUOTES, 'UTF-8'));
 		$config['next_pages'] = intval($config['next_pages']);
 		$config['prev_pages'] = intval($config['prev_pages']);
+		$config['separator'] = $this->_convert_entity_space(htmlentities($config['separator'], ENT_QUOTES, 'UTF-8'));
 
 		/* If current page is greater than total pages, force current page to the max possible page value */
 		if (intval(ceil(floatval($config['total_rows']) / floatval($config['per_page']))) < $config['page'])
@@ -135,11 +143,11 @@ class UW_Pagination {
 		$links = '';
 		foreach ($page_list as $p) {
 			if ($p[2] === NULL) {
-				$links .= $p[1] . '</a>&nbsp;&nbsp;';
+				$links .= $p[1] . $this->_config['separator'];
 				continue;
 			}
 
-			$links .= '<a href="' . str_replace($this->_config['url_var_row_nr'], $p[2], str_replace($this->_config['url_var_page_nr'], $p[1], $this->_config['base_url'])) . '">' . $p[0] . '</a>&nbsp;&nbsp;';
+			$links .= '<a href="' . str_replace($this->_config['url_var_row_nr'], $p[2], str_replace($this->_config['url_var_page_nr'], $p[1], $this->_config['base_url'])) . '">' . $p[0] . '</a>' . $this->_config['separator'];
 		}
 
 		return $links;
