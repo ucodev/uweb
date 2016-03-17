@@ -1249,9 +1249,9 @@ class UW_View extends UW_Base {
 
 		/* Validate filename */
 		if ($enforce) {
-			if (strpos($file, '/')) {
+			if (strpos($file, '../')) {
 				header('HTTP/1.1 500 Internal Server Error');
-				die('load(): Unable to load view files with \'/\' characters on their names.');
+				die('load(): Unable to load view files with \'../\' string on their names.');
 			}
 		}
 
