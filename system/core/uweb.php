@@ -259,6 +259,18 @@ class UW_Database extends UW_Base {
 		return false;
 	}
 
+	private function _table_fieild_enforce($field) {
+		$field_enforced = NULL;
+
+		if (strpos($field, '.')) {
+			$field_enforced = '`' . implode('`.`', explode('.', $field)) . '`';
+		} else {
+			$field_enforced = '`' . $field . '`';
+		}
+
+		return $field_enforced;
+	}
+
 	private function _query_aggregate_args($query, $data = NULL) {
 		if (!$data)
 			return $query;
@@ -302,8 +314,11 @@ class UW_Database extends UW_Base {
 
 		/* Escape field if enforce is set */
 		if ($enforce) {
+			/* Strip all '`' characters as we'll check fields individually and apply '`' as required */
+			$fields = str_replace('`', '', $fields);
+
 			/* $fields shall not contain any spaces ' ' unless ' AS ' is used */
-			if (!strpos($fields, ' AS '))
+			if (!strpos($fields, ' AS ')) /* TODO: this validation should be case insensitive */
 				$fields = str_replace(' ', '', $fields);
 
 			/* Boom */
@@ -322,11 +337,11 @@ class UW_Database extends UW_Base {
 
 			foreach ($field_parsed as $f) {
 				/* Process special case AS (aliases) */
-				if (strpos($f, ' AS ')) {
-					$f_alias_parsed = explode(' AS ', $f);
-					$fields .= '`' . str_replace(' ', '', $f_alias_parsed[0]) . '` AS `' . str_replace(' ', '', $f_alias_parsed[1]) . '`,';
+				if (strpos($f, ' AS ')) { /* TODO: this validation should be case insensitive */
+					$f_alias_parsed = explode(' AS ', $f); /* TODO: case insensitive */
+					$fields .= str_replace(' ', '', $this->_table_fieild_enforce($f_alias_parsed[0])) . ' AS `' . str_replace(' ', '', $f_alias_parsed[1]) . '`,';
 				} else {
-					$fields .= '`' . $f . '`,';
+					$fields .= $this->_table_fieild_enforce($f) . ',';
 				}
 			}
 
@@ -390,6 +405,7 @@ class UW_Database extends UW_Base {
 			}
 
 			/* $on shall not contain any comments */
+			/* FIXME: TODO: Strip '`' from $on and analyze each component, setting '`' as required . Also check '.' */
 			if ($this->_has_special($on)) {
 				header('HTTP/1.1 500 Internal Server Error');
 				die('join(): Enforced join() shall not contain any comments on $on clause.');
@@ -490,6 +506,10 @@ class UW_Database extends UW_Base {
 		}
 
 		return $this;
+	}
+
+	public function where_append($raw) {
+		$this->_q_where .= $raw;
 	}
 
 	public function or_where($field_cond = NULL, $value = NULL, $enforce = true) {
@@ -1401,4 +1421,3 @@ class UW_Controller extends UW_Model {
 			$this->load->model($_model);
 	}
 }
-
