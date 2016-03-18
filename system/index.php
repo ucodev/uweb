@@ -28,6 +28,7 @@ ob_start();
 
 /* Include configuration */
 include('system/config/index.php');
+include('user/config/index.php');
 
 /* Initialize globals */
 $__controller = NULL;

@@ -473,6 +473,7 @@ class UW_Database extends UW_Base {
 			/* Split and glue */
 			$field_cond_parsed = explode(' ', $field_cond); /* Expected to have 2 arguments (field name and comparator) */
 			$field_cond = $this->_table_field_enforce($field_cond_parsed[0]) . ' ' . implode(' ', array_slice($field_cond_parsed, 1));
+			$field_cond = rtrim($field_cond, ' ');
 		}
 
 		$this->_q_where .= ' ' . $field_cond;
@@ -1129,7 +1130,8 @@ class UW_Database extends UW_Base {
 						$config['database'][$dbname]['driver'] . ':' .
 						'host=' . $config['database'][$dbname]['host'] . ';' .
 						'port=' . $config['database'][$dbname]['port'] . ';' .
-						'dbname=' . $dbname,
+						'dbname=' . $dbname . ';' .
+						'charset=' . $config['database'][$dbname]['charset'],
 						$config['database'][$dbname]['username'],
 						$config['database'][$dbname]['password']
 					);
