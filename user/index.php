@@ -36,7 +36,7 @@ include('user/libraries/index.php');
 include('user/core/index.php');
 
 /* Include all user models */
-foreach (glob("system/models/*.php") as $user_model)
+foreach (glob("user/models/*.php") as $user_model)
     include($user_model);
 
 /* Include user extensions */
