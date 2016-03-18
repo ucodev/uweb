@@ -250,11 +250,14 @@ class UW_Database extends UW_Base {
 
 	private function _has_special($value) {
 		/* TODO: Should a better approach (Prehaps regex? Or now we have two problems?) be implemented here? */
-		if (strpos($value, '#') || strpos($value, '(') || strpos($value, ')') || strpos($value, ',') ||
-			    strpos($value, '/*') || strpos($value, '--') ||
-				strpos($value, ';')  || strpos($value, '`')  ||
-				strpos($value, '\'') || strpos($value, '"'))
+		if (    strpos($value, '#')  !== false || strpos($value, '(')  !== false ||
+				strpos($value, ')')  !== false || strpos($value, ',')  !== false ||
+			    strpos($value, '/*') !== false || strpos($value, '--') !== false ||
+				strpos($value, ';')  !== false || strpos($value, '*')  !== false ||
+				strpos($value, '\'') !== false || strpos($value, '"')  !== false)
+		{
 			return true;
+		}
 
 		return false;
 	}
@@ -262,7 +265,9 @@ class UW_Database extends UW_Base {
 	private function _table_field_enforce($field) {
 		$field_enforced = NULL;
 
-		if (strpos($field, '.')) {
+		$field = str_replace('`', '', $field); /* Remove any ` chars as they will be inserted as required */
+
+		if (strpos($field, '.') !== false) {
 			$field_enforced = '`' . implode('`.`', explode('.', $field)) . '`';
 		} else {
 			$field_enforced = '`' . $field . '`';
@@ -318,7 +323,7 @@ class UW_Database extends UW_Base {
 			$fields = str_replace('`', '', $fields);
 
 			/* $fields shall not contain any spaces ' ' unless ' AS ' is used */
-			if (!strpos($fields, ' AS ')) /* TODO: this validation should be case insensitive */
+			if (strpos($fields, ' AS ') === false) /* TODO: this validation should be case insensitive */
 				$fields = str_replace(' ', '', $fields);
 
 			/* Boom */
@@ -328,7 +333,7 @@ class UW_Database extends UW_Base {
 			foreach ($field_parsed as $field) {
 				if ($this->_has_special($field)) {
 					header('HTTP/1.1 500 Internal Server Error');
-					die('select(): Enforced select() shall not contain any comments');
+					die('select(): Enforced select() shall not contain any comments nor special characters.');
 				}
 			}
 
@@ -337,7 +342,7 @@ class UW_Database extends UW_Base {
 
 			foreach ($field_parsed as $f) {
 				/* Process special case AS (aliases) */
-				if (strpos($f, ' AS ')) { /* TODO: this validation should be case insensitive */
+				if (strpos($f, ' AS ') !== false) { /* TODO: this validation should be case insensitive */
 					$f_alias_parsed = explode(' AS ', $f); /* TODO: case insensitive */
 					$fields .= str_replace(' ', '', $this->_table_field_enforce($f_alias_parsed[0])) . ' AS `' . str_replace(' ', '', $f_alias_parsed[1]) . '`,';
 				} else {
@@ -366,8 +371,11 @@ class UW_Database extends UW_Base {
 		}
 
 		if ($enforce) {
+			/* Filter any previous escapes */
+			$table = str_replace('`', '', $table);
+
 			/* $table shall not contain any whitespaces nor comments */
-			if ($this->_has_special($table) || strstr($table, ' ')) {
+			if ($this->_has_special($table) || strpos($table, ' ') !== false) {
 				header('HTTP/1.1 500 Internal Server Error');
 				die('select(): Enforced select() shall not contain any comments');
 			}
@@ -398,8 +406,11 @@ class UW_Database extends UW_Base {
 
 		/* Escape and filter on enforce */
 		if ($enforce) {
+			/* Filter any previous escapes */
+			$table = str_replace('`', '', $table);
+
 			/* $table shall not contain any whitespaces nor comments */
-			if ($this->_has_special($table) || strstr($table, ' ')) {
+			if ($this->_has_special($table) || strpos($table, ' ') !== false) {
 				header('HTTP/1.1 500 Internal Server Error');
 				die('join(): Enforced join() shall not contain any comments nor whitespaces on $table name.');
 			}
@@ -445,22 +456,27 @@ class UW_Database extends UW_Base {
 
 		/* Escape field if enforce is set */
 		if ($enforce) {
+			/* Filter any previous escapes */
+			$field_cond = str_replace('`', '', $field_cond);
+
+			/* ... and grant that there aren't any other undesired characters */
 			if ($this->_has_special($field_cond)) {
 				header('HTTP/1.1 500 Internal Server Error');
-				die('where(): Field names cannot contain comments when enfoce is used.');
+				die('where(): Field names cannot contain comments nor special charaters when enfoce is used.');
 			}
 
+			/* Split and glue */
 			$field_cond_parsed = explode(' ', $field_cond); /* Expected to have 2 arguments (field name and comparator) */
-			$field_cond = '`' . $field_cond_parsed[0] . '` ' . implode(' ', array_slice($field_cond_parsed, 1));
+			$field_cond = $this->_table_field_enforce($field_cond_parsed[0]) . ' ' . implode(' ', array_slice($field_cond_parsed, 1));
 		}
 
 		$this->_q_where .= ' ' . $field_cond;
 
 		/* Check the special cases of [ IS NULL / IS NOT NULL ] */
 		if ($value === NULL) {
-			if ($is_null && !strpos($field_cond, ' ')) {
+			if ($is_null && strpos($field_cond, ' ') === false) {
 				$this->_q_where .= ' IS NULL ';
-			} else if ($is_not_null && !strpos($field_cond, ' ')) {
+			} else if ($is_not_null && strpos($field_cond, ' ') === false) {
 				$this->_q_where .= ' IS NOT NULL ';
 			} else {
 				header('HTTP/1.1 500 Internal Server Error');
@@ -490,7 +506,7 @@ class UW_Database extends UW_Base {
 			$this->_q_where = rtrim($this->_q_where, ',') . ') ';
 		} else if ($like) {
 			$this->_q_where .= ' LIKE ? ';
-		} else if (strpos($field_cond, '=') || strpos($field_cond, '>') || strpos($field_cond, '<')) {
+		} else if (strpos($field_cond, '=') !== false || strpos($field_cond, '>') !== false || strpos($field_cond, '<') !== false) {
 			$this->_q_where .= ' ? ';
 		} else {
 			$this->_q_where .= ' = ? ';
@@ -587,10 +603,27 @@ class UW_Database extends UW_Base {
 		}
 
 		if (gettype($fields) == "string") {
-			$fields_list = explode(',', $fields);
-
 			if ($enforce) {
-				$fields = '`' . implode('`,`', $fields) . '`';
+				/* Filter any previous escapes */
+				$fields = str_replace('`', '', $fields);
+
+				/* Grant that there aren't any comments to block */
+				if ($this->_has_special($fields)) {
+					header('HTTP/1.1 500 Internal Server Error');
+					die('group_by(): Enforced function shall not contain comments in it.');
+				}
+
+				/* Split fields by ',' */
+				$fields_list = explode(',', $fields);
+				
+				$fields = '';
+
+				/* Glue enforced fields */
+				foreach ($fields_list as $f) {
+					$fields = $this->_table_field_enforce($f) . ',';
+				}
+
+				$fields = rtrim($fields, ',');
 			} else {
 				$fields = implode(',', $fields);
 			}
@@ -599,25 +632,24 @@ class UW_Database extends UW_Base {
 		} else if (gettype($fields) == "array") {
 			if ($enforce) {
 				/* Grant that there aren't any comments to block */
-				if (gettype($fields) == "string") {
-					if ($this->_has_special($fields)) {
+				foreach ($fields as $field) {
+					if ($this->_has_special($field)) {
 						header('HTTP/1.1 500 Internal Server Error');
 						die('group_by(): Enforced function shall not contain comments in it.');
 					}
-				} else if (gettype($fields) == "array") {
-					foreach ($fields as $field) {
-						if ($this->_has_special($field)) {
-							header('HTTP/1.1 500 Internal Server Error');
-							die('group_by(): Enforced function shall not contain comments in it.');
-						}
-					}
-				} else {
-					header('HTTP/1.1 500 Internal Server Error');
-					die('group_by(): Illegal type for $fields.');
 				}
 
 				/* Escape each field during implode (enforce) */
-				$this->_q_group_by = ' GROUP BY `' . implode('`,`', $fields) . '`';
+				$this->_q_group_by = ' GROUP BY ';
+
+				foreach ($fields as $f) {
+					/* Filter any previous escapes */
+					$f = str_replace('`', '', $f);
+
+					$this->_q_group_by .= $this->_table_field_enforce($f) . ',';
+				}
+
+				$this->_q_group_by = rtrim($this->_q_group_by, ',');
 			} else {
 				$this->_q_group_by = ' GROUP BY ' . implode(',', $fields);
 			}
@@ -640,19 +672,20 @@ class UW_Database extends UW_Base {
 		if (gettype($fields_cond) == "string") {
 			if ($value) {
 				/* Value is not part of first argument */
-				if (strpos($fields_cond, '=') || strpos($fields_cond, '>') || strpos($fields_cond, '<')) {
+				if (strpos($fields_cond, '=') !== false|| strpos($fields_cond, '>') !== false || strpos($fields_cond, '<') !== false) {
 					if ($enforce) {
+						/* Filter any previous escapes */
+						$fields_cond = str_replace('`', '', $fields_cond);
+
 						/* Check if there are any comments to block */
-						if ($enforce) {
-							if ($this->_has_special($fields_cond)) {
-								header('HTTP/1.1 500 Internal Server Error');
-								die('having(): Enforced function shall not contain comments in it.');
-							}
+						if ($this->_has_special($fields_cond)) {
+							header('HTTP/1.1 500 Internal Server Error');
+							die('having(): Enforced function shall not contain comments in it.');
 						}
 
 						/* Separate fields by ' ' (only 2 fields expected) and rejoin them by escaping the first */
 						$field = explode(' ', $fields_cond);
-						$fields_cond = ' `' . $field[0] . '` ' . $field[1];
+						$fields_cond = ' ' . $this->_table_field_enforce($field[0]) . ' ' . $field[1];
 					}
 
 					$this->_q_having = ' ' . $fields_cond . ' ? ';
@@ -667,7 +700,7 @@ class UW_Database extends UW_Base {
 							}
 						}
 
-						$this->_q_having = ' `' . $fields_cond . '` = ? ';
+						$this->_q_having = ' ' . $this->_table_field_enforce($fields_cond) . ' = ? ';
 						array_push($this->_q_args, $this->_convert_boolean($value));
 					} else
 						$this->_q_having = ' ' . $fields_cond . ' = ? ';
@@ -682,6 +715,9 @@ class UW_Database extends UW_Base {
 			foreach ($fields_cond as $k => $v) {
 				/* Check if there are any comments to block */
 				if ($enforce) {
+					/* Filter any previous escapes */
+					$k = str_replace('`', '', $k);
+
 					if ($this->_has_special($k)) {
 						header('HTTP/1.1 500 Internal Server Error');
 						die('having(): Enforced function shall not contain comments in it.');
@@ -697,29 +733,26 @@ class UW_Database extends UW_Base {
 				}
 
 				/* Check if there's already a comparator */
-				if (strpos($k, '=') || strpos($k, '>') || strpos($k, '<')) {
+				if (strpos($k, '=') !== false || strpos($k, '>') !== false || strpos($k, '<') !== false) {
 					/* Escape fields if enforce is set */
 					if ($enforce) {
 						/* NOTE: $k must have a space separating field name from comparator */
 						$c = explode(' ', $k);
 
-						$k = '`' . $c[0] . '`' . ' ' . $c[1];
+						$k = $this->_table_field_enforce($c[0]) . ' ' . $c[1];
 					}
 
 					$this->_q_having .= ' ' . $k . ' ? ';
 					array_push($this->_q_args, $this->_convert_boolean($v));
 				} else {
 					/* Escape fields if enforce is set */
-					if ($enforce)
-						$this->_q_having .= ' `' . $k . '` = ? '; /* If no comparator, assume = as default */
-					else
-						$this->_q_having .= ' ' . $k . ' = ? '; /* If no comparator, assume = as default */
+					$this->_q_having .= ' ' . ($enforce ? $this->_table_field_enforce($k) : $k) . ' = ? '; /* If no comparator, assume = as default */
 
 					array_push($this->_q_args, $this->_convert_boolean($v));
 				}
 			}
 
-			$this->_q_having .= ' HAVING ' . $this->_q_having;
+			$this->_q_having = ' HAVING ' . $this->_q_having;
 		}
 
 		return $this;
@@ -750,11 +783,14 @@ class UW_Database extends UW_Base {
 
 		/* Extra validation and escaping if $enforce is set */
 		if ($enforce) {
+			/* Filter any previous escapes */
+			$field = str_replace('`', '', $field);
+
 			if ($this->_has_special($field)) {
 				header('HTTP/1.1 500 Internal Server Error');
 				die('order_by(): Enforced function shall not contain comments in it.');
 			}
-			$this->_q_order_by .= ' `' . $field . '` ' . $order;
+			$this->_q_order_by .= ' ' . $this->_table_field_enforce($field) . ' ' . $order;
 		} else {
 			$this->_q_order_by .= ' ' . $field . ' ' . $order;
 		}
@@ -848,7 +884,7 @@ class UW_Database extends UW_Base {
 		} else {
 			/* $table shall not contain any whitespaces nor comments */
 			if ($enforce) {
-				if ($this->_has_special($table) || strstr($table, ' ')) {
+				if ($this->_has_special($table) || strpos($table, ' ') !== false) {
 					header('HTTP/1.1 500 Internal Server Error');
 					die('get_compiled_select(): Enforced functions shall not contain any comments in their protected arguments.');
 				}
@@ -889,7 +925,7 @@ class UW_Database extends UW_Base {
 		/* SELECT */
 		if ($enforce) {
 			/* $table shall not contain any whitespaces nor comments */
-			if ($this->_has_special($table) || strstr($table, ' ')) {
+			if ($this->_has_special($table) || strpos($table, ' ') !== false) {
 				header('HTTP/1.1 500 Internal Server Error');
 				die('get_where(): Enforced functions shall not contain any comments in their protected arguments.');
 			}
@@ -941,7 +977,7 @@ class UW_Database extends UW_Base {
 
 		if ($enforce) {
 			/* $table shall not contain any whitespaces nor comments */
-			if ($this->_has_special($table) || strstr($table, ' ')) {
+			if ($this->_has_special($table) || strpos($table, ' ') !== false) {
 				header('HTTP/1.1 500 Internal Server Error');
 				die('insert(): Enforced functions shall not contain any comments in their protected arguments.');
 			}
@@ -963,7 +999,7 @@ class UW_Database extends UW_Base {
 				die('insert(): Enforced functions shall not contain any comments in their protected arguments (K/V).');
 			}
 
-			$query .= '`' . $k . '`,';
+			$query .= ($enforce ? $this->_table_field_enforce($k) : $k) . ',';
 			$values .= '?,';
 			array_push($data, $this->_convert_boolean($v));
 		}
@@ -990,7 +1026,7 @@ class UW_Database extends UW_Base {
 
 		if ($enforce) {
 			/* $table shall not contain any whitespaces nor comments */
-			if ($this->_has_special($table) || strstr($table, ' ')) {
+			if ($this->_has_special($table) || strpos($table, ' ') !== false) {
 				header('HTTP/1.1 500 Internal Server Error');
 				die('update(): Enforced functions shall not contain any comments in their protected arguments.');
 			}
@@ -1010,7 +1046,7 @@ class UW_Database extends UW_Base {
 				die('update(): Enforced functions shall not contain any comments in their protected arguments (K/V).');
 			}
 
-			$query .= ' `' . $k . '` = ?,';
+			$query .= ($enforce ? $this->_table_field_enforce($k) : $k) . ' = ?,';
 			array_push($data, $this->_convert_boolean($v));
 		}
 
@@ -1037,7 +1073,7 @@ class UW_Database extends UW_Base {
 
 		if ($enforce) {
 			/* $table shall not contain any whitespaces nor comments */
-			if ($this->_has_special($table) || strstr($table, ' ')) {
+			if ($this->_has_special($table) || strpos($table, ' ') !== false) {
 				header('HTTP/1.1 500 Internal Server Error');
 				die('delete(): Enforced functions shall not contain any comments in their protected arguments.');
 			}
@@ -1266,7 +1302,7 @@ class UW_View extends UW_Base {
 		if ($enforce) {
 			foreach ($data as $k => $v) {
 				/* NOTE: This is only effective for string type values. Any other object won't be checked */
-				if (gettype($v) == "string" && strpos(str_replace(' ', '', strtolower($v)), '<script')) {
+				if (gettype($v) == "string" && strpos(str_replace(' ', '', strtolower($v)), '<script') !== false) {
 					header('HTTP/1.1 500 Internal Server Error');
 					die('load(): Unable to load views with <script> tags on their $data strings when $enforce is set to true (default).');
 				}
@@ -1282,7 +1318,7 @@ class UW_View extends UW_Base {
 
 		/* Validate filename */
 		if ($enforce) {
-			if (strpos($file, '../')) {
+			if (strpos($file, '../') !== false) {
 				header('HTTP/1.1 500 Internal Server Error');
 				die('load(): Unable to load view files with \'../\' string on their names.');
 			}
