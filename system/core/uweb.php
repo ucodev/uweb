@@ -302,8 +302,9 @@ class UW_Database extends UW_Base {
 
 		/* Escape field if enforce is set */
 		if ($enforce) {
-			/* $fields shall not contain any spaces ' ' */
-			$fields = str_replace(' ', '', $fields);
+			/* $fields shall not contain any spaces ' ' unless ' AS ' is used */
+			if (!strpos($fields, ' AS '))
+				$fields = str_replace(' ', '', $fields);
 
 			/* Boom */
 			$field_parsed = explode(',', $fields);
@@ -317,7 +318,19 @@ class UW_Database extends UW_Base {
 			}
 
 			/* Glue it */
-			$fields = '`' . implode('`,`', $field_parsed) . '`';
+			$fields = '';
+
+			foreach ($field_parsed as $f) {
+				/* Process special case AS (aliases) */
+				if (strpos($f, ' AS ')) {
+					$f_alias_parsed = explode(' AS ', $f);
+					$fields .= '`' . str_replace(' ', '', $f_alias_parsed[0]) . '` AS `' . str_replace(' ', '', $f_alias_parsed[1]) . '`,';
+				} else {
+					$fields .= '`' . $f . '`,';
+				}
+			}
+
+			$fields = rtrim($fields, ',');
 		}
 
 		$this->_q_select = 'SELECT ' . $fields . ' ';
@@ -756,11 +769,11 @@ class UW_Database extends UW_Base {
 		return $this;
 	}
 
-	public function get_compiled_select($table = NULL, $enforce = true) {
+	public function get_compiled_select($table = NULL, $enforce = true, $reset = true, $skip_objects = false) {
 		$query = NULL;
 		$data = NULL;
 
-		if ($this->_q_objects)
+		if ($this->_q_objects && !$skip_objects)
 			return $this->_q_objects;
 
 		if (!$table) {
@@ -810,7 +823,8 @@ class UW_Database extends UW_Base {
 			$data = $this->_q_args;
 
 			/* Reset query data */
-			$this->_q_reset_all();
+			if ($reset)
+				$this->_q_reset_all();
 		} else {
 			/* $table shall not contain any whitespaces nor comments */
 			if ($enforce) {
@@ -832,10 +846,10 @@ class UW_Database extends UW_Base {
 		return $this->_q_objects;
 	}
 
-	public function get_compiled_select_str($table = NULL, $enforce = true) {
-		$query_obj = $this->get_compiled_select($table, $enforce);
+	public function get_compiled_select_str($table = NULL, $enforce = true, $reset = true) {
+		$query_obj = $this->get_compiled_select($table, $enforce, $reset, true /* skip objects */);
 
-		return $this->_query_aggregate_args($query_obj[0], $query_obj[1]);
+		return $this->_query_aggregate_args($query_obj[0], $query_obj[1], $reset);
 	}
 
 	public function get($table = NULL, $enforce = true) {
