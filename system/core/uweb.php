@@ -259,7 +259,7 @@ class UW_Database extends UW_Base {
 		return false;
 	}
 
-	private function _table_fieild_enforce($field) {
+	private function _table_field_enforce($field) {
 		$field_enforced = NULL;
 
 		if (strpos($field, '.')) {
@@ -339,9 +339,9 @@ class UW_Database extends UW_Base {
 				/* Process special case AS (aliases) */
 				if (strpos($f, ' AS ')) { /* TODO: this validation should be case insensitive */
 					$f_alias_parsed = explode(' AS ', $f); /* TODO: case insensitive */
-					$fields .= str_replace(' ', '', $this->_table_fieild_enforce($f_alias_parsed[0])) . ' AS `' . str_replace(' ', '', $f_alias_parsed[1]) . '`,';
+					$fields .= str_replace(' ', '', $this->_table_field_enforce($f_alias_parsed[0])) . ' AS `' . str_replace(' ', '', $f_alias_parsed[1]) . '`,';
 				} else {
-					$fields .= $this->_table_fieild_enforce($f) . ',';
+					$fields .= $this->_table_field_enforce($f) . ',';
 				}
 			}
 
