@@ -297,7 +297,7 @@ class UW_Database extends UW_Base {
 			}
 
 			/* Aggregate data value to query */
-			$aggregate .= $q[$i] . '\'' . $data[$i] . '\'';
+			$aggregate .= $q[$i] . $this->quote($data[$i]);
 		}
 
 		return $aggregate;
@@ -309,6 +309,11 @@ class UW_Database extends UW_Base {
 		}
 
 		return $value;
+	}
+
+	public function quote($value) {
+		/* FIXME: TODO: Missing charset setup */
+		return $this->_db[$this->_cur_db]->quote($value);
 	}
 
 	public function select($fields = NULL, $enforce = true) {
@@ -515,7 +520,8 @@ class UW_Database extends UW_Base {
 		/* Push value into data array */
 		if ($in || $between) {
 			/* $value is an array */
-			$this->_q_args = array_merge($this->_q_args, $value);
+			foreach ($value as $v)
+				array_push($this->_q_args, $this->_convert_boolean($v));
 		} else {
 			/* $value is a string */
 			array_push($this->_q_args, $this->_convert_boolean($value));
