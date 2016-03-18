@@ -455,9 +455,9 @@ class UW_Database extends UW_Base {
 		if (!$this->_q_where)
 			$this->_q_where = ' WHERE ';
 		else if ($or)
-			$this->_q_where = ' OR ';
+			$this->_q_where .= ' OR ';
 		else
-			$this->_q_where = ' AND ';
+			$this->_q_where .= ' AND ';
 
 		/* Escape field if enforce is set */
 		if ($enforce) {
