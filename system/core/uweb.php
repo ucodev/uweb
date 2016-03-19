@@ -165,7 +165,7 @@ class UW_Session extends UW_Base {
 	}
 
 	public function set_userdata($variable, $value = NULL) {
-		if ($value) {
+		if ($value !== NULL) {
 			$this->set($variable, $value);
 		} else if (gettype($variable) == "array") {
 			$this->_session_data = $variable; /* $variable should be an array */
@@ -233,6 +233,8 @@ class UW_Database extends UW_Base {
 	private $_q_args = array();
 	private $_q_objects = NULL;
 	private $_trans_status_invoked = false; /* Used to indicate if trans_status() function was used prior to trans_commit() [Old API] */
+
+	public $database = NULL; /* Current loaded database name */
 
 	private function _q_reset_all() {
 		/* Reset query data */
@@ -808,11 +810,6 @@ class UW_Database extends UW_Base {
 	}
 
 	public function limit($limit, $offset = NULL, $enforce = true) {
-		if (!$limit) {
-			header('HTTP/1.1 500 Internal Server Error');
-			die('limit(): No limit was specified.');
-		}
-
 		if ($enforce) {
 			/* Validate fields */
 			if ($this->_has_special($limit) || $this->_has_special($offset)) {
@@ -825,7 +822,7 @@ class UW_Database extends UW_Base {
 		$limit = intval($limit);
 		$offset = intval($offset);
 
-		if ($offset) {
+		if ($offset !== NULL) {
 			$this->_q_limit = ' LIMIT ' . $offset . ', ' . $limit . ' ';
 		} else {
 			$this->_q_limit = ' LIMIT ' . $limit . ' ';
@@ -918,6 +915,12 @@ class UW_Database extends UW_Base {
 	}
 
 	public function get($table = NULL, $enforce = true) {
+		/* Basically, if from() wasn't called and get() receives a table, pass this table to from */
+		if ($table && $this->_q_where && !$this->_q_from) {
+			$this->from($table);
+			$table = NULL;
+		}
+
 		$query_data = $this->get_compiled_select($table, $enforce);
 
 		/* Reset all stored query elements */
@@ -953,9 +956,11 @@ class UW_Database extends UW_Base {
 		$query .= ' ' . $this->_q_where . ' ';
 
 		/* LIMIT */
-		$this->limit($limit, $offset);
+		if ($limit !== NULL) {
+			$this->limit($limit, $offset);
 
-		$query .= ' ' . $this->_q_limit . ' ';
+			$query .= ' ' . $this->_q_limit . ' ';
+		}
 
 		/* Reset all stored query elements */
 		$this->_q_reset_all();
@@ -1125,8 +1130,10 @@ class UW_Database extends UW_Base {
 		/* Iterate over the configured databases */
 		foreach ($config['database'] as $dbalias => $dbdata) {
 			/* Set default database (first ocurrence) */
-			if (!$this->_cur_db)
+			if (!$this->_cur_db) {
 				$this->_cur_db = $dbalias;
+				$this->database = $config['database'][$dbalias]['name'];
+			}
 
 			/* Try to connect to the database */
 			try {
@@ -1164,8 +1171,11 @@ class UW_Database extends UW_Base {
 	}
 
 	public function load($dbalias, $return_self = false) {
+		global $config;
+
 		if (isset($this->_db[$dbalias])) {
 			$this->_cur_db = $dbalias;
+			$this->database = $config['database'][$dbalias]['name'];
 
 			if ($return_self === true)
 				return $this;
@@ -1214,12 +1224,6 @@ class UW_Database extends UW_Base {
 			die('query(): No query was specified.');
 		}
 
-		/* Wipe out any previous statement */
-		if ($this->_stmt) {
-			$this->_stmt->closeCursor();
-			$this->_stmt = null;
-		}
-
 		if ($this->_cfg_use_stmt) {
 			try {
 				$this->_stmt = $this->_db[$this->_cur_db]->prepare($query);
@@ -1257,8 +1261,12 @@ class UW_Database extends UW_Base {
 		/* Reset query objects */
 		$this->_q_objects = NULL;
 
-		/* Return this object */
-		return $this;
+		/* Clone the PDOStatement object */
+		$q_stmt = clone $this;
+		$q_stmt->_stmt = $this->_stmt;
+
+		/* Return the cloned PDOStatement object */
+		return $q_stmt;
 	}
 	
 	public function fetchone($assoc = true) {
@@ -1358,7 +1366,7 @@ class UW_View extends UW_Base {
 
 		/* Check if there's anything to extract */
 		if ($data !== NULL)
-			extract($data, EXTR_PREFIX_SAME, "wddx");
+			extract($data, EXTR_PREFIX_SAME, "uw_");
 
 		/* Unset $data variable as it's no longer required */
 		unset($data);
