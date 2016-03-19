@@ -1125,7 +1125,7 @@ class UW_Database extends UW_Base {
 				/* FIXME: For MySQL and PostgreSQL drivers the following code will work fine.
 				 *        Currently unsupported drivers: SQLServer and Oracle
 				 */
-				$this->_db[$config['database'][$dbalias]['name']] =
+				$this->_db[$dbalias] =
 					new PDO(
 						$config['database'][$dbalias]['driver'] . ':' .
 						'host=' . $config['database'][$dbalias]['host'] . ';' .
