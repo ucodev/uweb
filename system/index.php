@@ -106,7 +106,7 @@ if (!$__controller)
 if ($__controller) {
 	include('application/controllers/' . $__controller . '.php');
 
-	eval('$__r_ = new UW_' . ucfirst($__controller) . ';');
+	eval('$__r_ = new ' . ucfirst($__controller) . ';');
 
 	/* Call requested function, if any */
 	if (!$__function)
