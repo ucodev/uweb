@@ -775,8 +775,10 @@ class UW_Database extends UW_Base {
 			die('order_by(): No fields were specified.');
 		}
 
+		$order = strtoupper($order);
+
 		/* Validate $order */
-		if (!$order != 'ASC' || $order != 'DESC') {
+		if ($order != 'ASC' && $order != 'DESC') {
 			header('HTTP/1.1 500 Internal Server Error');
 			die('order_by(): $order shall only assume ASC or DESC.');
 		}
@@ -962,8 +964,14 @@ class UW_Database extends UW_Base {
 		return $this->query($query, $data);
 	}
 
-	public function count_all_results($table) {
-		$this->get($table);
+	public function count_all_results($table = NULL) {
+		if (!$table) {
+			$this->get_compiled_select();
+			$this->query($this->_q_objects[0], $this->_q_objects[1]);
+		} else {
+			$this->get($table);
+		}
+
 		return $this->num_rows();
 	}
 
@@ -1156,7 +1164,7 @@ class UW_Database extends UW_Base {
 	}
 
 	public function load($dbalias, $return_self = false) {
-		if (in_array($dbalias, $this->_db)) {
+		if (isset($this->_db[$dbalias])) {
 			$this->_cur_db = $dbalias;
 
 			if ($return_self === true)
@@ -1167,6 +1175,37 @@ class UW_Database extends UW_Base {
 			error_log('$this->db->load(): Attempting to load a database that is not properly configured: ' . $dbalias);
 			return false;
 		}
+	}
+
+	public function describe_table($table) {
+		$q = $this->query('DESCRIBE `' . $table . '`');
+
+		$desc = array();
+
+		foreach ($q->result_array() as $row) {
+			$desc[$row['Field']]['name'] = $row['Field'];
+			$type = explode('(', rtrim($row['Type'], ')'));
+			$desc[$row['Field']]['type'] = $type[0];
+			$desc[$row['Field']]['max_length'] = $type[1];
+			$desc[$row['Field']]['null'] = $row['Null'] == 'YES' ? true : false;
+			$desc[$row['Field']]['primary_key'] = $row['Key'] == 'PRI' ? true : false;
+			$desc[$row['Field']]['key'] = $row['Key'];
+			$desc[$row['Field']]['default'] = $row['Default'];
+			$desc[$row['Field']]['extra'] = $row['Extra'];
+		}
+
+		return $desc;
+	}
+
+	public function list_fields($table) {
+		$desc = $this->describe_table($table);
+
+		$flist = array();
+
+		foreach ($desc as $field)
+			array_push($flist, $field['name']);
+
+		return $flist;
 	}
 
 	public function query($query, $data = NULL) {
