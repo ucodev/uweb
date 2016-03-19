@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 24/09/2014
+ * Date: 19/03/2016
  * License: GPLv3
  */
 
@@ -24,10 +24,17 @@
  *
  */
 
+function uri_remove_extra_slashes($value) {
+	while (strpos($value, '//') !== false)
+		$value = str_replace('//', '/', $value);
+
+	return $value;
+}
+
 function base_dir() {
 	global $__uri, $__a_koffset;
 
-	return implode('/', array_slice($__uri, 0, $__a_koffset));
+	return uri_remove_extra_slashes(implode('/', array_slice($__uri, 0, $__a_koffset)) . '/');
 }
 
 function base_url() {
@@ -39,5 +46,9 @@ function base_url() {
 		$server_port = ':' . $_SERVER['SERVER_PORT'];
 	}
 	
-	return 'http' . (isset($_SERVER['HTTPS']) ? 's' : '') . '://' . $_SERVER['SERVER_NAME'] . $server_port . '/' . base_dir();
+	return 'http' . (isset($_SERVER['HTTPS']) ? 's' : '') . '://' . $_SERVER['SERVER_NAME'] . $server_port . uri_remove_extra_slashes('/' . base_dir());
+}
+
+function redirect($directory) {
+	header('Location: ' . base_url() . uri_remove_extra_slashes('index.php/' . $directory));
 }

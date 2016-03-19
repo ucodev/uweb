@@ -404,7 +404,7 @@ class UW_Database extends UW_Base {
 
 		$type = strtoupper($type);
 
-		if ($type != "INNER" || $type != "LEFT" || $type != "RIGHT") {
+		if ($type != "INNER" && $type != "LEFT" && $type != "RIGHT") {
 			header('HTTP/1.1 500 Internal Server Error');
 			die('join(): $type must be one of INNER, LEFT or RIGHT.');
 		}
