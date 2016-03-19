@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 18/03/2016
+ * Date: 19/03/2016
  * License: GPLv3
  */
 
@@ -1115,29 +1115,29 @@ class UW_Database extends UW_Base {
 		parent::__construct();
 
 		/* Iterate over the configured databases */
-		foreach ($config['database'] as $dbname => $dbdata) {
+		foreach ($config['database'] as $dbalias => $dbdata) {
 			/* Set default database (first ocurrence) */
 			if (!$this->_cur_db)
-				$this->_cur_db = $dbname;
+				$this->_cur_db = $dbalias;
 
 			/* Try to connect to the database */
 			try {
 				/* FIXME: For MySQL and PostgreSQL drivers the following code will work fine.
 				 *        Currently unsupported drivers: SQLServer and Oracle
 				 */
-				$this->_db[$dbname] =
+				$this->_db[$config['database'][$dbalias]['name']] =
 					new PDO(
-						$config['database'][$dbname]['driver'] . ':' .
-						'host=' . $config['database'][$dbname]['host'] . ';' .
-						'port=' . $config['database'][$dbname]['port'] . ';' .
-						'dbname=' . $dbname . ';' .
-						'charset=' . $config['database'][$dbname]['charset'],
-						$config['database'][$dbname]['username'],
-						$config['database'][$dbname]['password']
+						$config['database'][$dbalias]['driver'] . ':' .
+						'host=' . $config['database'][$dbalias]['host'] . ';' .
+						'port=' . $config['database'][$dbalias]['port'] . ';' .
+						'dbname=' . $config['database'][$dbalias]['name'] . ';' .
+						'charset=' . $config['database'][$dbalias]['charset'],
+						$config['database'][$dbalias]['username'],
+						$config['database'][$dbalias]['password']
 					);
 			} catch (PDOException $e) {
 				/* Something went wrong ... */
-				error_log('Database connection error (dbname: ' . $dbname . '): ' . $e);
+				error_log('Database connection error (dbname: ' . $config['database'][$dbalias]['name'] . '): ' . $e);
 				header('HTTP/1.1 503 Service Unavailable');
 				die('Unable to connect to database.');
 			}
@@ -1146,8 +1146,8 @@ class UW_Database extends UW_Base {
 	
 	public function __destruct() {
 		/* Close connections */
-		foreach ($this->_db as $dbname => $dbconn) {
-			$this->_db[$dbname] = NULL;
+		foreach ($this->_db as $dbalias => $dbconn) {
+			$this->_db[$dbalias] = NULL;
 		}
 	}
 
@@ -1155,16 +1155,16 @@ class UW_Database extends UW_Base {
 		$this->__destruct();
 	}
 
-	public function load($dbname, $return_self = false) {
-		if (in_array($dbname, $this->_db)) {
-			$this->_cur_db = $dbname;
+	public function load($dbalias, $return_self = false) {
+		if (in_array($dbalias, $this->_db)) {
+			$this->_cur_db = $dbalias;
 
 			if ($return_self === true)
 				return $this;
 
 			return true;
 		} else {
-			error_log('$this->db->load(): Attempting to load a database that is not properly configured: ' . $dbname);
+			error_log('$this->db->load(): Attempting to load a database that is not properly configured: ' . $dbalias);
 			return false;
 		}
 	}
