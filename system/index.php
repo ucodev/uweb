@@ -35,6 +35,7 @@ $__controller = NULL;
 $__function = NULL;
 $__args = NULL;
 $__args_list = '';
+$__path_dir = '';
 
 /* Grant URI match the acceptable regex */
 if (!preg_match($config['base']['acceptable_uri_regex'], $_SERVER['REQUEST_URI'])) {
@@ -79,11 +80,6 @@ if (($__a_count >= 2) && $__uri[$__a_koffset + 2]) {
 /* Extract args */
 if (($__a_count >= 3) && $__uri[$__a_koffset + 3]) {
 	$__args = array_slice($__uri, $__a_koffset + 3);
-
-	foreach ($__args as $__arg)
-		$__args_list .= '\'' . str_replace('\'', '\\\'', $__arg) . '\',';
-
-	$__args_list = rtrim($__args_list, ',');
 }
 
 /* Include system utilities */
@@ -102,12 +98,24 @@ include('user/index.php');
 if (!$__controller)
 	$__controller = $config['base']['controller'];
 
-/* FIXME: TODO: Check for ../ on all arguments */
-
 /* Load requested controller, if any */
 if ($__controller) {
 	/* There is a special "controllers" named _static, which handles application/static/ files */
 	if ($__controller == '_static') {
+		/* Glue the path */
+		foreach ($__args as $__arg) {
+			/* Check for .. on all arguments to avoid ../ paths */
+			if (strstr($__arg, '..')) {
+				header('HTTP/1.1 403 Forbidden');
+				die('Static path contains ../ references, which are invalid.');
+			}
+
+			$__path_dir .= '\'' . str_replace('\'', '\\\'', $__arg) . '\'/';
+		}
+			
+
+		$__path_dir = rtrim($__path_dir, '/');
+
 		if (substr(end($__args), -4) == '.php') {
 			require_once('application/static/' . $__function . '/' . implode('/', $__args));
 		} else {
@@ -122,6 +130,12 @@ if ($__controller) {
 		/* Call requested function, if any */
 		if (!$__function)
 			$__function = 'index';
+
+		/* Glue the args */
+		foreach ($__args as $__arg)
+			$__args_list .= '\'' . str_replace('\'', '\\\'', $__arg) . '\',';
+
+		$__args_list = rtrim($__args_list, ',');
 
 		eval('$__r_->' . $__function . '(' . $__args_list . ');');
 	}
