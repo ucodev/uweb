@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 19/03/2016
+ * Date: 20/03/2016
  * License: GPLv3
  */
 
@@ -1135,6 +1135,13 @@ class UW_Database extends UW_Base {
 				$this->database = $config['database'][$dbalias]['name'];
 			}
 
+			/* FIXME: TODO: Remove the PDO() instantiation from this __construct().
+			 * Databases shall be loaded through load() method only.
+			 * Also implement the database autoload, or force the 'default' database to be loaded at start
+			 */
+
+			/* FIXME: TODO: Support presistent connections */
+
 			/* Try to connect to the database */
 			try {
 				/* FIXME: For MySQL and PostgreSQL drivers the following code will work fine.
@@ -1174,11 +1181,18 @@ class UW_Database extends UW_Base {
 		global $config;
 
 		if (isset($this->_db[$dbalias])) {
-			$this->_cur_db = $dbalias;
-			$this->database = $config['database'][$dbalias]['name'];
+			if ($return_self === true) {
+				/* Clone DB object and update it accordingly */
+				$db_ret = clone $this;
+				$db_ret->_cur_db = $dbalias;
+				$db_ret->database = $config['database'][$dbalias]['name'];
 
-			if ($return_self === true)
-				return $this;
+				/* Return the cloned and updated DB object */
+				return $db_ret;
+			} else {
+				$this->_cur_db = $dbalias;
+				$this->database = $config['database'][$dbalias]['name'];	
+			}
 
 			return true;
 		} else {
