@@ -883,10 +883,6 @@ class UW_Database extends UW_Base {
 				$query .= ' ' . $this->_q_limit . ' ';
 
 			$data = $this->_q_args;
-
-			/* Reset query data */
-			if ($reset)
-				$this->_q_reset_all();
 		} else {
 			/* $table shall not contain any whitespaces nor comments */
 			if ($enforce) {
@@ -900,6 +896,10 @@ class UW_Database extends UW_Base {
 				$query = 'SELECT * FROM ' . $table;
 			}
 		}
+
+		/* Reset query data */
+		if ($reset)
+			$this->_q_reset_all();
 
 		/* Store query objects */
 		$this->_q_objects = array($query, $data);
@@ -916,6 +916,7 @@ class UW_Database extends UW_Base {
 
 	public function get($table = NULL, $enforce = true) {
 		/* Basically, if from() wasn't called and get() receives a table, pass this table to from */
+		/* FIXME: This is dangerous... we need to check every _q_* and not just _q_where */
 		if ($table && $this->_q_where && !$this->_q_from) {
 			$this->from($table);
 			$table = NULL;
