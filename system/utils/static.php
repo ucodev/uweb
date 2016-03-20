@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 24/09/2014
+ * Date: 20/03/2016
  * License: GPLv3
  */
 
@@ -29,7 +29,7 @@ function static_base_dir() {
 }
 
 function static_base_url() {
-	return base_url() . '/application/static';
+	return base_url() . '/index.php/_static';
 }
 
 function static_css_dir() {

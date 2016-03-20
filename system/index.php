@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 17/03/2016
+ * Date: 20/03/2016
  * License: GPLv3
  */
 
@@ -102,17 +102,29 @@ include('user/index.php');
 if (!$__controller)
 	$__controller = $config['base']['controller'];
 
+/* FIXME: TODO: Check for ../ on all arguments */
+
 /* Load requested controller, if any */
 if ($__controller) {
-	include('application/controllers/' . $__controller . '.php');
+	/* There is a special "controllers" named _static, which handles application/static/ files */
+	if ($__controller == '_static') {
+		if (substr(end($__args), -4) == '.php') {
+			require_once('application/static/' . $__function . '/' . implode('/', $__args));
+		} else {
+			redirect('application/static/' . $__function . '/' . implode('/', $__args), false);
+		}
+	} else {
+		/* This is a real controller */
+		include('application/controllers/' . $__controller . '.php');
 
-	eval('$__r_ = new ' . ucfirst($__controller) . ';');
+		eval('$__r_ = new ' . ucfirst($__controller) . ';');
 
-	/* Call requested function, if any */
-	if (!$__function)
-		$__function = 'index';
+		/* Call requested function, if any */
+		if (!$__function)
+			$__function = 'index';
 
-	eval('$__r_->' . $__function . '(' . $__args_list . ');');
+		eval('$__r_->' . $__function . '(' . $__args_list . ');');
+	}
 } else {
 	header('HTTP/1.1 400 Bad Request');
 	die('No controller defined in the request. Nothing to process.<br />');
