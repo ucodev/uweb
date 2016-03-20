@@ -100,7 +100,7 @@ if (!$__controller)
 
 /* Load requested controller, if any */
 if ($__controller) {
-	/* There is a special "controllers" named _static, which handles application/static/ files */
+	/* There is a special "controller" (it doesn't really exists) named _static, which handles application/static/ files */
 	if ($__controller == '_static') {
 		/* Glue the path if there's any */
 		if ($__args) {
