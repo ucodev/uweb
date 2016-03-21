@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 19/03/2016
+ * Date: 21/03/2016
  * License: GPLv3
  */
 
@@ -32,6 +32,9 @@ class UW_Pagination {
 	}
 
 	public function initialize($config) {
+		/* Reset config */
+		$this->_config = array();
+
 		/* Required */
 		if (!isset($config['base_url']))
 			return false;
@@ -143,7 +146,7 @@ class UW_Pagination {
 		$links = '';
 		foreach ($page_list as $p) {
 			if ($p[2] === NULL) {
-				$links .= '<span id="uw_current_page">' . $p[1] . $this->_config['separator'] . '</span>';
+				$links .= '<span id="uw_current_page">' . $p[1] . '</span>' . $this->_config['separator'];
 				continue;
 			}
 

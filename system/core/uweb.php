@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 20/03/2016
+ * Date: 21/03/2016
  * License: GPLv3
  */
 
@@ -831,12 +831,9 @@ class UW_Database extends UW_Base {
 		return $this;
 	}
 
-	public function get_compiled_select($table = NULL, $enforce = true, $reset = true, $skip_objects = false) {
+	public function get_compiled_select($table = NULL, $enforce = true, $reset = true) {
 		$query = NULL;
 		$data = NULL;
-
-		if ($this->_q_objects && !$skip_objects)
-			return $this->_q_objects;
 
 		if (!$table) {
 			/* SELECT */
@@ -909,7 +906,7 @@ class UW_Database extends UW_Base {
 	}
 
 	public function get_compiled_select_str($table = NULL, $enforce = true, $reset = true) {
-		$query_obj = $this->get_compiled_select($table, $enforce, $reset, true /* skip objects */);
+		$query_obj = $this->get_compiled_select($table, $enforce, $reset);
 
 		return $this->_query_aggregate_args($query_obj[0], $query_obj[1], $reset);
 	}
@@ -1274,7 +1271,7 @@ class UW_Database extends UW_Base {
 		}
 
 		/* Reset query objects */
-		$this->_q_objects = NULL;
+		$this->_q_objects = NULL; /* FIXME: TODO: This shall be only used on get(), get_where(), insert(), update() and delete() */
 
 		/* Clone the PDOStatement object */
 		$q_stmt = clone $this;
