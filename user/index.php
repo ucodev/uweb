@@ -3,7 +3,7 @@
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
  * Date: 21/03/2016
- * License: APLv3
+ * License: AGPLv3
  */
 
 /*

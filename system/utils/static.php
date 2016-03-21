@@ -35,27 +35,27 @@ function static_base_url() {
 	return base_url() . '/index.php/_static';
 }
 
-function static_css_dir() {
-	return static_base_dir() . '/css';
+function static_css_dir($prefix = NULL) {
+	return static_base_dir() . ($prefix !== NULL ? ('/' . $prefix) : '') . '/css';
 }
 
-function static_css_url() {
-	return static_base_url() . '/css';
+function static_css_url($prefix = NULL) {
+	return static_base_url() . ($prefix !== NULL ? ('/' . $prefix) : '')  . '/css';
 }
 
-function static_images_dir() {
-	return static_base_dir() . '/images';
+function static_images_dir($prefix = NULL) {
+	return static_base_dir() . ($prefix !== NULL ? ('/' . $prefix) : '')  . '/images';
 }
 
-function static_images_url() {
-	return static_base_url() . '/images';
+function static_images_url($prefix = NULL) {
+	return static_base_url() . ($prefix !== NULL ? ('/' . $prefix) : '')  . '/images';
 }
 
-function static_js_dir() {
-	return static_base_dir() . '/js';
+function static_js_dir($prefix = NULL) {
+	return static_base_dir() . ($prefix !== NULL ? ('/' . $prefix) : '')  . '/js';
 }
 
-function static_js_url() {
-	return static_base_url() . '/js';
+function static_js_url($prefix = NULL) {
+	return static_base_url() . ($prefix !== NULL ? ('/' . $prefix) : '')  . '/js';
 }
 
