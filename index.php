@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 21/03/2016
+ * Date: 22/03/2016
  * License: AGPLv3
  */
 
@@ -28,6 +28,7 @@
  */
 
 define("FROM_BASE", "TRUE");
+define("SYSTEM_BASE_DIR", getcwd());
 
 include('system/index.php');
 
