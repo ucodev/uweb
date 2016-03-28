@@ -834,6 +834,15 @@ class UW_Database extends UW_Base {
 		return $this;
 	}
 
+	public function table_exists($table) {
+		$q = $this->query('SHOW TABLES LIKE \'' . $table . '\'');
+
+		if ($q->num_rows() > 0)
+			return true;
+
+		return false;
+	}
+
 	public function table_rename($table, $new_table) {
 		/* FIXME: MySQL/MariaDB only */
 		return $this->query('RENAME TABLE `' . $table . '` TO `' . $new_table . '`');
@@ -843,8 +852,17 @@ class UW_Database extends UW_Base {
 		return $this->query('CREATE TABLE `' . $table . '` (`' . $first_column . '` ' . $column_type . ($is_null ? ' NULL' : ' NOT NULL') . ($auto_increment ? ' AUTO_INCREMENT' : '') . ($primary_key ? ' PRIMARY KEY' : '') . ')');
 	}
 
-	public function table_drop($table) {
-		return $this->query('DROP TABLE `' . $table . '`');
+	public function table_drop($table, $if_exists = false) {
+		return $this->query('DROP TABLE' . ($if_exists ? ' IF EXISTS' : '') . ' `' . $table . '`');
+	}
+
+	public function table_column_exists($table, $column) {
+		$q = $this->query('SHOW COLUMNS FROM `' . $table . '` LIKE \'' . $column . '\'');
+
+		if ($q->num_rows() > 0)
+			return true;
+
+		return false;
 	}
 
 	public function table_column_create($table, $column, $type, $is_null = true, $default = 'NULL', $after = NULL) {
