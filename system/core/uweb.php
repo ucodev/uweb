@@ -836,11 +836,11 @@ class UW_Database extends UW_Base {
 
 	public function table_rename($table, $new_table) {
 		/* FIXME: MySQL/MariaDB only */
-		return $this->query('RENAME `' . $table . '` TO `' . $new_table . '`');
+		return $this->query('RENAME TABLE `' . $table . '` TO `' . $new_table . '`');
 	}
 
 	public function table_create($table, $first_column, $column_type, $is_null = false, $auto_increment = true, $primary_key = true) {
-		return $this->query('CREATE TABLE `' . $table . '` (`' . $column_name . '` ' . $type . ($is_null ? ' NULL' : ' NOT NULL') . ($auto_increment ? ' AUTO_INCREMENT' : '') . ($primary_key ? ' PRIMARY_KEY' : '') . ')');
+		return $this->query('CREATE TABLE `' . $table . '` (`' . $first_column . '` ' . $column_type . ($is_null ? ' NULL' : ' NOT NULL') . ($auto_increment ? ' AUTO_INCREMENT' : '') . ($primary_key ? ' PRIMARY KEY' : '') . ')');
 	}
 
 	public function table_drop($table) {
@@ -874,7 +874,13 @@ class UW_Database extends UW_Base {
 
 	public function table_key_column_foreign_drop($table, $column) {
 		/* FIXME: MySQL/MariaDB only */
-		return $this->query('ALTER TABLE `' . $table . '` DROP FOREIGN KEY uw_fk_' . $table . '_' . $column);
+		if (!$this->query('ALTER TABLE `' . $table . '` DROP FOREIGN KEY uw_fk_' . $table . '_' . $column))
+			return false;
+
+		if (!$this->query('ALTER TABLE `' . $table . '` DROP INDEX uw_fk_' . $table . '_' . $column))
+			return false;
+
+		return true;
 	}
 
 	public function get_compiled_select($table = NULL, $enforce = true, $reset = true) {
