@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 21/03/2016
+ * Date: 28/03/2016
  * License: AGPLv3
  */
 
@@ -834,6 +834,49 @@ class UW_Database extends UW_Base {
 		return $this;
 	}
 
+	public function table_rename($table, $new_table) {
+		/* FIXME: MySQL/MariaDB only */
+		return $this->query('RENAME `' . $table . '` TO `' . $new_table . '`');
+	}
+
+	public function table_create($table, $first_column, $column_type, $is_null = false, $auto_increment = true, $primary_key = true) {
+		return $this->query('CREATE TABLE `' . $table . '` (`' . $column_name . '` ' . $type . ($is_null ? ' NULL' : ' NOT NULL') . ($auto_increment ? ' AUTO_INCREMENT' : '') . ($primary_key ? ' PRIMARY_KEY' : '') . ')');
+	}
+
+	public function table_drop($table) {
+		return $this->query('DROP TABLE `' . $table . '`');
+	}
+
+	public function table_column_create($table, $column, $type, $is_null = true, $default = 'NULL', $after = NULL) {
+		return $this->query('ALTER TABLE `' . $table . '` ADD COLUMN `' . $column . '` ' . $type . ($is_null ? ' NULL' : ' NOT NULL') . ' DEFAULT ' . $default . ($after ? ' AFTER `' . $after . '`' : ''));
+	}
+
+	public function table_column_drop($table, $column) {
+		return $this->query('ALTER TABLE `' . $table . '` DROP COLUMN `' . $column . '`');
+	}
+
+	public function table_column_change($table, $column, $new_column, $type, $is_null = true, $default = 'NULL', $after = NULL) {
+		return $this->query('ALTER TABLE `' . $table . '` CHANGE COLUMN `' . $column . '` `' . $new_column . '` ' . $type . ($is_null ? ' NULL' : ' NOT NULL') . ' DEFAULT ' . $default . ($after ? ' AFTER `' . $after . '`' : ''));
+	}
+
+	public function table_column_unique_add($table, $column) {
+		return $this->query('ALTER TABLE `' . $table . '` ADD CONSTRAINT uw_unique_' . $table . '_' . $column . ' UNIQUE (`' . $column . '`)');
+	}
+
+	public function table_column_unique_drop($table, $column) {
+		/* FIXME: MySQL/MariaDB only */
+		return $this->query('ALTER TABLE `' . $table . '` DROP INDEX uw_unique_' . $table . '_' . $column);
+	}
+
+	public function table_key_column_foreign_add($table, $column, $foreign_table, $foreign_column, $cascade_delete = false, $cascade_update = false) {
+		return $this->query('ALTER TABLE `' . $table . '` ADD CONSTRAINT uw_fk_' . $table . '_' . $column . ' FOREIGN KEY (`' . $column . '`) REFERENCES `' . $foreign_table . '`(`' . $foreign_column . '`)' . ($cascade_delete ? ' ON DELETE CASCADE' : '') . ($cascade_update ? ' ON UPDATE CASCADE' : ''));
+	}
+
+	public function table_key_column_foreign_drop($table, $column) {
+		/* FIXME: MySQL/MariaDB only */
+		return $this->query('ALTER TABLE `' . $table . '` DROP FOREIGN KEY uw_fk_' . $table . '_' . $column);
+	}
+
 	public function get_compiled_select($table = NULL, $enforce = true, $reset = true) {
 		$query = NULL;
 		$data = NULL;
@@ -1369,7 +1412,7 @@ class UW_Database extends UW_Base {
 class UW_View extends UW_Base {
 	public function load($file, $data = NULL, $export_content = false, $enforce = true) {
 		/* If enforce is set, grant that no potential harmful tags are exported to the view */
-		if ($enforce) {
+		if ($enforce && $data) {
 			foreach ($data as $k => $v) {
 				/* NOTE: This is only effective for string type values. Any other object won't be checked */
 				if (gettype($v) == "string" && strpos(str_replace(' ', '', strtolower($v)), '<script') !== false) {
