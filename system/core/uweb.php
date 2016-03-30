@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 28/03/2016
+ * Date: 30/03/2016
  * License: AGPLv3
  */
 
@@ -475,7 +475,8 @@ class UW_Database extends UW_Base {
 				die('where(): Field names cannot contain comments nor special charaters when enfoce is used.');
 			}
 
-			/* Split and glue */
+			/* Split and glue - FIXME: Grant that if a ' ' exists, the seconds field is effectively a VALID comparator */
+			                 /* Also grant that there is a space between field and comparator (it currently may be joined) */
 			$field_cond_parsed = explode(' ', $field_cond); /* Expected to have 2 arguments (field name and comparator) */
 			$field_cond = $this->_table_field_enforce($field_cond_parsed[0]) . ' ' . implode(' ', array_slice($field_cond_parsed, 1));
 			$field_cond = rtrim($field_cond, ' ');
@@ -852,8 +853,20 @@ class UW_Database extends UW_Base {
 		return $this->query('CREATE TABLE `' . $table . '` (`' . $first_column . '` ' . $column_type . ($is_null ? ' NULL' : ' NOT NULL') . ($auto_increment ? ' AUTO_INCREMENT' : '') . ($primary_key ? ' PRIMARY KEY' : '') . ')');
 	}
 
-	public function table_drop($table, $if_exists = false) {
-		return $this->query('DROP TABLE' . ($if_exists ? ' IF EXISTS' : '') . ' `' . $table . '`');
+	public function table_drop($table, $if_exists = false, $force = false) {
+		if ($force) {
+			/* FIXME: MySQL/MariaDB Only */
+			$this->query('SET foreign_key_checks = 0');
+		}
+
+		$ret = $this->query('DROP TABLE' . ($if_exists ? ' IF EXISTS' : '') . ' `' . $table . '`');
+
+		if ($force) {
+			/* FIXME: MySQL/MariaDB Only */
+			$this->query('SET foreign_key_checks = 1');
+		}
+
+		return $ret;
 	}
 
 	public function table_column_exists($table, $column) {
@@ -1419,7 +1432,8 @@ class UW_Database extends UW_Base {
 		$this->_trans_status_invoked = false;
 
 		/* Perform the rollback */
-		$this->_db[$this->_cur_db]->rollBack();
+		if ($this->_db[$this->_cur_db]->inTransaction())
+			$this->_db[$this->_cur_db]->rollBack();
 	}
 
 	public function stmt_disable() {
