@@ -903,12 +903,15 @@ class UW_Database extends UW_Base {
 		return $this->query('ALTER TABLE `' . $table . '` ADD CONSTRAINT uw_fk_' . $table . '_' . $column . ' FOREIGN KEY (`' . $column . '`) REFERENCES `' . $foreign_table . '`(`' . $foreign_column . '`)' . ($cascade_delete ? ' ON DELETE CASCADE' : '') . ($cascade_update ? ' ON UPDATE CASCADE' : ''));
 	}
 
-	public function table_key_column_foreign_drop($table, $column) {
+	public function table_key_column_foreign_drop($table, $column, $index_name = NULL) {
+		if (!$index_name)
+			$index_name = 'uw_fk_' . $table . '_' . $column;
+
 		/* FIXME: MySQL/MariaDB only */
-		if (!$this->query('ALTER TABLE `' . $table . '` DROP FOREIGN KEY uw_fk_' . $table . '_' . $column))
+		if (!$this->query('ALTER TABLE `' . $table . '` DROP FOREIGN KEY ' . $index_name))
 			return false;
 
-		if (!$this->query('ALTER TABLE `' . $table . '` DROP INDEX uw_fk_' . $table . '_' . $column))
+		if (!$this->query('ALTER TABLE `' . $table . '` DROP INDEX ' . $index_name))
 			return false;
 
 		return true;
