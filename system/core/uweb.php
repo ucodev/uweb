@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 30/03/2016
+ * Date: 04/04/2016
  * License: AGPLv3
  */
 
@@ -764,9 +764,9 @@ class UW_Database extends UW_Base {
 					array_push($this->_q_args, $this->_convert_boolean($v));
 				}
 			}
-
-			$this->_q_having = ' HAVING ' . $this->_q_having;
 		}
+
+		$this->_q_having = ' HAVING ' . $this->_q_having;
 
 		return $this;
 	}
