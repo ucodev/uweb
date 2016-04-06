@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 04/04/2016
+ * Date: 06/04/2016
  * License: AGPLv3
  */
 
@@ -894,8 +894,15 @@ class UW_Database extends UW_Base {
 		return $this->query('ALTER TABLE `' . $table . '` ADD CONSTRAINT uw_unique_' . $table . '_' . $column . ' UNIQUE (`' . $column . '`)');
 	}
 
-	public function table_column_unique_drop($table, $column) {
+	public function table_column_unique_drop($table, $column, $if_exists = false) {
 		/* FIXME: MySQL/MariaDB only */
+		if ($if_exists) {
+			$q = $this->query('SHOW INDEX FROM `' . $table . '` WHERE KEY_NAME = \'uw_unique_' . $table . '_' . $column . '\'');
+
+			if (!$q->num_rows())
+				return true;
+		}
+
 		return $this->query('ALTER TABLE `' . $table . '` DROP INDEX uw_unique_' . $table . '_' . $column);
 	}
 
