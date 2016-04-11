@@ -1218,6 +1218,10 @@ class UW_Database extends UW_Base {
 
 		parent::__construct();
 
+		/* If no database is configured, do not try to load anything */
+		if (!isset($config['database']) || !count($config['database']))
+			return;
+
 		/* Iterate over the configured databases */
 		foreach ($config['database'] as $dbalias => $dbdata) {
 			/* Set default database (first ocurrence) */
@@ -1258,6 +1262,10 @@ class UW_Database extends UW_Base {
 	}
 	
 	public function __destruct() {
+		/* If there isn't anything loaded, do not try to close anything */
+		if (!count($this->_db))
+			return;
+
 		/* Close connections */
 		foreach ($this->_db as $dbalias => $dbconn) {
 			$this->_db[$dbalias] = NULL;
