@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 06/04/2016
+ * Date: 11/04/2016
  * License: AGPLv3
  */
 
@@ -1266,6 +1266,35 @@ class UW_Database extends UW_Base {
 
 	public function close() {
 		$this->__destruct();
+	}
+
+	public function test($host, $dbname, $dbuser, $dbpass, $port = '3306', $driver = 'mysql', $charset = 'utf8') {
+		$db_test = NULL;
+
+		try {
+			/* FIXME: For MySQL and PostgreSQL drivers the following code will work fine.
+			 *        Currently unsupported drivers: SQLServer and Oracle
+			 */
+			$db_test = new PDO(
+					$driver . ':' .
+					'host=' . $host . ';' .
+					'port=' . $port . ';' .
+					'dbname=' . $dbname . ';' .
+					'charset=' . $charset,
+					$dbuser,
+					$dbpass
+				);
+		} catch (PDOException $e) {
+			$db_test = NULL;
+			return false;
+		}
+
+		if ($db_test === NULL)
+			return false;
+
+		$db_test = NULL; // Destruct
+
+		return true;
 	}
 
 	public function load($dbalias, $return_self = false) {
