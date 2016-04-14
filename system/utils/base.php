@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 21/03/2016
+ * Date: 14/04/2016
  * License: AGPLv3
  */
 
@@ -50,6 +50,24 @@ function base_url() {
 	}
 	
 	return 'http' . (isset($_SERVER['HTTPS']) ? 's' : '') . '://' . $_SERVER['SERVER_NAME'] . $server_port . uri_remove_extra_slashes('/' . base_dir());
+}
+
+function current_url() {
+	$server_port = '';
+
+	if (!isset($_SERVER['HTTPS']) && $_SERVER['SERVER_PORT'] != '80') {
+		$server_port = ':' . $_SERVER['SERVER_PORT'];
+	} else if (isset($_SERVER['HTTPS']) && $_SERVER['SERVER_PORT'] != '443') {
+		$server_port = ':' . $_SERVER['SERVER_PORT'];
+	}
+
+	return 'http' . (isset($_SERVER['HTTPS']) ? 's' : '') . '://' . $_SERVER['SERVER_NAME'] . $server_port . $_SERVER['REQUEST_URI'];
+}
+
+function current_controller() {
+	global $__controller;
+
+	return $__controller;
 }
 
 function redirect($directory, $with_index = true) {
