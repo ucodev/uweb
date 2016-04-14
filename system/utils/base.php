@@ -70,6 +70,10 @@ function current_controller() {
 	return $__controller;
 }
 
-function redirect($directory, $with_index = true) {
-	header('Location: ' . base_url() . uri_remove_extra_slashes(($with_index ? 'index.php/' : '') . $directory));
+function redirect($directory, $with_index = true, $full_url = false) {
+	if ($full_url) {
+		header('Location: ' . $directory);
+	} else {
+		header('Location: ' . base_url() . uri_remove_extra_slashes(($with_index ? 'index.php/' : '') . $directory));
+	}
 }
