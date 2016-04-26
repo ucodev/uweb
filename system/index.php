@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 26/03/2016
+ * Date: 27/03/2016
  * License: GPLv3
  */
 
@@ -130,7 +130,12 @@ if ($__controller) {
 		}
 	} else {
 		/* This is a real controller */
-		include('application/controllers/' . $__controller . '.php');
+		if (!file_exists('application/controllers/' . $__controller . '.php')) {
+			header('HTTP/1.1 404 Not Found');
+			die('No such controller: ' . $__controller);
+		} else {
+			include('application/controllers/' . $__controller . '.php');
+		}
 
 		eval('$__r_ = new ' . ucfirst($__controller) . ';');
 
