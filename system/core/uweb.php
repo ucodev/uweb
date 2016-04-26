@@ -2,8 +2,8 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 11/04/2016
- * License: AGPLv3
+ * Date: 26/04/2016
+ * License: GPLv3
  */
 
 /*
@@ -13,16 +13,16 @@
  * Copyright (C) 2014-2016  Pedro A. Hortas
  *
  * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
+ * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU Affero General Public License
+ * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
@@ -894,10 +894,10 @@ class UW_Database extends UW_Base {
 		return $this->query('ALTER TABLE `' . $table . '` ADD CONSTRAINT uw_unique_' . $table . '_' . $column . ' UNIQUE (`' . $column . '`)');
 	}
 
-	public function table_column_unique_drop($table, $column, $if_exists = false) {
+	public function table_column_unique_drop($table, $column, $if_exists = false, $if_exists_from_table = NULL) {
 		/* FIXME: MySQL/MariaDB only */
 		if ($if_exists) {
-			$q = $this->query('SHOW INDEX FROM `' . $table . '` WHERE KEY_NAME = \'uw_unique_' . $table . '_' . $column . '\'');
+			$q = $this->query('SHOW INDEX FROM `' . ($if_exists_from_table !== NULL ? $if_exists_from_table : $table) . '` WHERE KEY_NAME = \'uw_unique_' . $table . '_' . $column . '\'');
 
 			if (!$q->num_rows())
 				return true;
