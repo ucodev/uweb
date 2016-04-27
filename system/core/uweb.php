@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 26/04/2016
+ * Date: 27/04/2016
  * License: GPLv3
  */
 
@@ -1424,7 +1424,7 @@ class UW_Database extends UW_Base {
 	}
 
 	public function fetchall($assoc = true) {
-		return ($assoc == true) ? $this->_stmt->fetchAll(PDO::FETCH_ASSOC) : $this->_stmt->fetchAll();
+		return ($assoc == true) ? $this->_stmt->fetchAll(PDO::FETCH_ASSOC) : $this->_stmt->fetchAll(PDO::FETCH_NUM);
 	}
 
 	public function result() {
@@ -1491,6 +1491,121 @@ class UW_Database extends UW_Base {
 	public function stmt_enable() {
 		/* Enable prepared statements (enabled by default) */
 		$this->_cfg_use_stmt = true;
+	}
+
+	public function dump($charset = 'utf8', $timezone = '+00:00', $newline = "\r\n") {
+		/* Database dump header */
+		$dump  = '--' . $newline;
+		$dump .= '-- uWeb - MySQL / MariaDB Database Dump' . $newline;
+		$dump .= '-- https://github.com/ucodev/uweb' . $newline;
+		$dump .= '--' . $newline;
+		$dump .= '-- Dump started at ' . date('Y-m-d H:i:s') . $newline;
+		$dump .= '--' . $newline;
+
+		/* Separator */
+		$dump .= $newline;
+
+		/* Pre-configuration of SQL dump (for MariaDB / MySQL) */
+		$dump .= '/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;' . $newline;
+		$dump .= '/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;' . $newline;
+		$dump .= '/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;' . $newline;
+		$dump .= '/*!40101 SET NAMES ' . $charset . ' */;' . $newline;
+		$dump .= '/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;' . $newline;
+		$dump .= '/*!40103 SET TIME_ZONE=\'' . $timezone . '\' */;' . $newline;
+		$dump .= '/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;' . $newline;
+		$dump .= '/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;' . $newline;
+		$dump .= '/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE=\'NO_AUTO_VALUE_ON_ZERO\' */;' . $newline;
+		$dump .= '/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;' . $newline;
+
+		/* Start dumping data */
+		foreach ($this->query('SHOW TABLES')->result_array() as $field => $value) {
+			foreach ($value as $header => $table) {
+				/* Inform (comment) to which table the following structure belongs */
+				$dump .= $newline;
+				$dump .= '--' . $newline;
+				$dump .= '-- Table structure for table `' . $table . '`' . $newline;
+				$dump .= '--' . $newline;
+				$dump .= $newline;
+
+				/* Drop any previously existing table */
+				$dump .= 'DROP TABLE IF EXISTS `' . $table . '`;' . $newline;
+
+				/* Save the current charset and set a new client charset */
+				$dump .= '/*!40101 SET @saved_cs_client     = @@character_set_client */;' . $newline;
+				$dump .= '/*!40101 SET character_set_client = ' . $charset . ' */;' . $newline;
+
+				/* Dump the table structure */
+				$dump .= $this->query('SHOW CREATE TABLE ' . $table)->row_array()['Create Table'] . ';' . $newline;
+
+				/* Load the previously saved charset */
+				$dump .= '/*!40101 SET character_set_client = @saved_cs_client */;' . $newline;
+
+				/* Fetch all table records */
+				$q = $this->get($table);
+
+				/* Check if there are any records and if so, dump them */
+				if ($q->num_rows()) {
+					/* Inform (comment) to which table the following data belongs */
+					$dump .= $newline;
+					$dump .= '--' . $newline;
+					$dump .= '-- Dumping data for table `' . $table . '`' . $newline;
+					$dump .= '--' . $newline;
+					$dump .= $newline;
+
+					/* Lock the current table for writing (before importing data) */
+					$dump .= 'LOCK TABLES `' . $table . '` WRITE;' . $newline;
+
+					/* Disable key constraints */
+					$dump .= '/*!40000 ALTER TABLE `' . $table . '` DISABLE KEYS */;' . $newline;
+
+
+					/* Dump table data */
+					$dump .= 'INSERT INTO `' . $table . '` VALUES ';
+
+					foreach ($q->result() as $row) {
+						/* Quote values */
+						$row_escaped = array();
+
+						for ($i = 0; $i < count($row); $i ++)
+							$row_escaped[$i] = $this->quote($row[$i]); /* Escape */
+
+						/* Merge escaped rows */
+						$dump .= '(' . implode(',', $row_escaped) . '),';
+					}
+
+					/* Remove the trailing , */
+					$dump = rtrim($dump, ',') . ';' . $newline;
+
+					/* Enable key constraints */
+					$dump .= '/*!40000 ALTER TABLE `' . $table . '` ENABLE KEYS */;' . $newline;
+
+					/* Unlock any previous lock */
+					$dump .= 'UNLOCK TABLES;' . $newline;
+				}
+			}
+		}
+
+		/* Separator */
+		$dump .= $newline;
+
+		/* Reload previously configured values */
+		$dump .= '/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;' . $newline;
+		$dump .= '/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;' . $newline;
+		$dump .= '/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;' . $newline;
+		$dump .= '/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;' . $newline;
+		$dump .= '/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;' . $newline;
+		$dump .= '/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;' . $newline;
+		$dump .= '/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;' . $newline;
+		$dump .= '/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;' . $newline;
+
+		/* Separator */
+		$dump .= $newline;
+
+		/* Dump completed */
+		$dump .= '-- Dump completed on ' . date('Y-m-d H:i:s') . $newline;
+
+		/* All good */
+		return $dump;
 	}
 }
 
