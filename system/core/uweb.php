@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 27/04/2016
+ * Date: 05/05/2016
  * License: GPLv3
  */
 
@@ -1494,6 +1494,13 @@ class UW_Database extends UW_Base {
 	}
 
 	public function dump($charset = 'utf8', $timezone = '+00:00', $newline = "\r\n") {
+		global $config;
+
+		if ($config['database'][$this->_cur_db]['driver'] != 'mysql') {
+			header('HTTP/1.1 500 Internal Server Error');
+			die('dump() is only available on database connectinos relying on mysql driver.');
+		}
+
 		/* Database dump header */
 		$dump  = '--' . $newline;
 		$dump .= '-- uWeb - MySQL / MariaDB Database Dump' . $newline;
@@ -1518,70 +1525,76 @@ class UW_Database extends UW_Base {
 		$dump .= '/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;' . $newline;
 
 		/* Start dumping data */
-		foreach ($this->query('SHOW TABLES')->result_array() as $field => $value) {
-			foreach ($value as $header => $table) {
-				/* Inform (comment) to which table the following structure belongs */
+		foreach ($this->query('SHOW FULL TABLES')->result_array() as $entry) {
+			/* Get table name and table type */
+			$table = $entry['Tables_in_' . $config['database'][$this->_cur_db]['name']];
+			$table_type = $entry['Table_type'];
+
+			/* Only dump BASE TABLE types. (Ignore VIEW types) */
+			if ($table_type != 'BASE TABLE')
+				continue;
+
+			/* Inform (comment) to which table the following structure belongs */
+			$dump .= $newline;
+			$dump .= '--' . $newline;
+			$dump .= '-- Table structure for table `' . $table . '`' . $newline;
+			$dump .= '--' . $newline;
+			$dump .= $newline;
+
+			/* Drop any previously existing table */
+			$dump .= 'DROP TABLE IF EXISTS `' . $table . '`;' . $newline;
+
+			/* Save the current charset and set a new client charset */
+			$dump .= '/*!40101 SET @saved_cs_client     = @@character_set_client */;' . $newline;
+			$dump .= '/*!40101 SET character_set_client = ' . $charset . ' */;' . $newline;
+
+			/* Dump the table structure */
+			$dump .= $this->query('SHOW CREATE TABLE ' . $table)->row_array()['Create Table'] . ';' . $newline;
+
+			/* Load the previously saved charset */
+			$dump .= '/*!40101 SET character_set_client = @saved_cs_client */;' . $newline;
+
+			/* Fetch all table records */
+			$q = $this->get($table);
+
+			/* Check if there are any records and if so, dump them */
+			if ($q->num_rows()) {
+				/* Inform (comment) to which table the following data belongs */
 				$dump .= $newline;
 				$dump .= '--' . $newline;
-				$dump .= '-- Table structure for table `' . $table . '`' . $newline;
+				$dump .= '-- Dumping data for table `' . $table . '`' . $newline;
 				$dump .= '--' . $newline;
 				$dump .= $newline;
 
-				/* Drop any previously existing table */
-				$dump .= 'DROP TABLE IF EXISTS `' . $table . '`;' . $newline;
+				/* Lock the current table for writing (before importing data) */
+				$dump .= 'LOCK TABLES `' . $table . '` WRITE;' . $newline;
 
-				/* Save the current charset and set a new client charset */
-				$dump .= '/*!40101 SET @saved_cs_client     = @@character_set_client */;' . $newline;
-				$dump .= '/*!40101 SET character_set_client = ' . $charset . ' */;' . $newline;
-
-				/* Dump the table structure */
-				$dump .= $this->query('SHOW CREATE TABLE ' . $table)->row_array()['Create Table'] . ';' . $newline;
-
-				/* Load the previously saved charset */
-				$dump .= '/*!40101 SET character_set_client = @saved_cs_client */;' . $newline;
-
-				/* Fetch all table records */
-				$q = $this->get($table);
-
-				/* Check if there are any records and if so, dump them */
-				if ($q->num_rows()) {
-					/* Inform (comment) to which table the following data belongs */
-					$dump .= $newline;
-					$dump .= '--' . $newline;
-					$dump .= '-- Dumping data for table `' . $table . '`' . $newline;
-					$dump .= '--' . $newline;
-					$dump .= $newline;
-
-					/* Lock the current table for writing (before importing data) */
-					$dump .= 'LOCK TABLES `' . $table . '` WRITE;' . $newline;
-
-					/* Disable key constraints */
-					$dump .= '/*!40000 ALTER TABLE `' . $table . '` DISABLE KEYS */;' . $newline;
+				/* Disable key constraints */
+				$dump .= '/*!40000 ALTER TABLE `' . $table . '` DISABLE KEYS */;' . $newline;
 
 
-					/* Dump table data */
-					$dump .= 'INSERT INTO `' . $table . '` VALUES ';
+				/* Dump table data */
+				$dump .= 'INSERT INTO `' . $table . '` VALUES ';
 
-					foreach ($q->result() as $row) {
-						/* Quote values */
-						$row_escaped = array();
+				foreach ($q->result() as $row) {
+					/* Quote values */
+					$row_escaped = array();
 
-						for ($i = 0; $i < count($row); $i ++)
-							$row_escaped[$i] = $this->quote($row[$i]); /* Escape */
+					for ($i = 0; $i < count($row); $i ++)
+						$row_escaped[$i] = $this->quote($row[$i]); /* Escape */
 
-						/* Merge escaped rows */
-						$dump .= '(' . implode(',', $row_escaped) . '),';
-					}
-
-					/* Remove the trailing , */
-					$dump = rtrim($dump, ',') . ';' . $newline;
-
-					/* Enable key constraints */
-					$dump .= '/*!40000 ALTER TABLE `' . $table . '` ENABLE KEYS */;' . $newline;
-
-					/* Unlock any previous lock */
-					$dump .= 'UNLOCK TABLES;' . $newline;
+					/* Merge escaped rows */
+					$dump .= '(' . implode(',', $row_escaped) . '),';
 				}
+
+				/* Remove the trailing , */
+				$dump = rtrim($dump, ',') . ';' . $newline;
+
+				/* Enable key constraints */
+				$dump .= '/*!40000 ALTER TABLE `' . $table . '` ENABLE KEYS */;' . $newline;
+
+				/* Unlock any previous lock */
+				$dump .= 'UNLOCK TABLES;' . $newline;
 			}
 		}
 
