@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 27/03/2016
+ * Date: 06/05/2016
  * License: GPLv3
  */
 
@@ -140,8 +140,12 @@ if ($__controller) {
 		eval('$__r_ = new ' . ucfirst($__controller) . ';');
 
 		/* Call requested function, if any */
-		if (!$__function)
+		if (!$__function) {
 			$__function = 'index';
+		} else if ($__function == '__construct') {
+			header('HTTP/1.1 403 Forbidden');
+			die('Calling __construct() methods directly from HTTP requests is not allowed.');
+		}
 
 		/* Glue the args if there's any */
 		if ($__args) {
