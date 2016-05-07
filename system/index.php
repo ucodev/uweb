@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 06/05/2016
+ * Date: 07/05/2016
  * License: GPLv3
  */
 
@@ -81,7 +81,7 @@ if (($__a_count >= 2) && $__uri[$__a_koffset + 2]) {
 }
 
 /* Extract args */
-if (($__a_count >= 3) && $__uri[$__a_koffset + 3]) {
+if (($__a_count >= 3) && isset($__uri[$__a_koffset + 3])) {
 	$__args = array_slice($__uri, $__a_koffset + 3);
 }
 

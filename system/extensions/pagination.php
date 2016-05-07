@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 26/04/2016
+ * Date: 06/05/2016
  * License: GPLv3
  */
 
@@ -46,6 +46,9 @@ class UW_Pagination {
 			return false;
 
 		/* Defaults */
+		if (!isset($config['onclick']))
+			$config['onclick'] = NULL;
+
 		if (!isset($config['url_var_page_nr']))
 			$config['url_var_page_nr'] = '@PAGE_NR@';
 
@@ -153,7 +156,7 @@ class UW_Pagination {
 				continue;
 			}
 
-			$links .= '<a href="' . str_replace($this->_config['url_var_row_nr'], $p[2], str_replace($this->_config['url_var_page_nr'], $p[1], $this->_config['base_url'])) . '">' . $p[0] . '</a>' . $this->_config['separator'];
+			$links .= '<a href="' . str_replace($this->_config['url_var_row_nr'], $p[2], str_replace($this->_config['url_var_page_nr'], $p[1], $this->_config['base_url'])) . '"' . ($this->_config['onclick'] ? ' onclick="' . str_replace($this->_config['url_var_row_nr'], $p[2], str_replace($this->_config['url_var_page_nr'], $p[1], $this->_config['onclick'])) . '"' : '') . '>' . $p[0] . '</a>' . $this->_config['separator'];
 		}
 
 		return $links;
