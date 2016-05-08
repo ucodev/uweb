@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 05/05/2016
+ * Date: 08/05/2016
  * License: GPLv3
  */
 
@@ -1252,6 +1252,9 @@ class UW_Database extends UW_Base {
 						$config['database'][$dbalias]['username'],
 						$config['database'][$dbalias]['password']
 					);
+
+					if ($config['database'][$dbalias]['strict'] === true)
+						$this->query('SET sql_mode = \'STRICT_ALL_TABLES\'');
 			} catch (PDOException $e) {
 				/* Something went wrong ... */
 				error_log('Database connection error (dbname: ' . $config['database'][$dbalias]['name'] . '): ' . $e);
