@@ -2,5 +2,5 @@
 
 /* Autoload settings */
 $autoload['libraries'] = array();
-$autoload['extensions'] = array('pagination', 'timezone');
+$autoload['extensions'] = array('pagination', 'timezone', 'truncate');
 $autoload['models'] = array();

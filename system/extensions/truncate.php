@@ -33,7 +33,7 @@ class UW_Truncate {
 			return $string;
 
 		$tstr = ''.
-			'<a href="javascript:void(0);" onclick="window.prompt(\'' . $prompt_title . '\', \'' . $string . '\');">' .
+			'<a href="javascript:void(0);" onclick="window.prompt(\'' . addslashes($prompt_title) . '\', \'' . addslashes($string) . '\');">' .
 				substr($string, 0, $len - 3 - $trailing) . '...' . substr($string, -$trailing) .
 			'</a>';
 
