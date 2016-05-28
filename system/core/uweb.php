@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 08/05/2016
+ * Date: 28/05/2016
  * License: GPLv3
  */
 
@@ -75,6 +75,151 @@ class UW_Encrypt extends UW_Base {
 	}
 }
 
+class UW_SessionHandlerDb implements SessionHandlerInterface {
+	private $db = NULL;
+
+	public function __construct($db = NULL) {
+		$this->db = $db;
+	}
+
+	public function open($save_path, $name) {
+		global $config;
+
+		$this->db->load($config['session']['sssh_db_alias']);
+
+		/* Although we're using transactions, using write lock doesn't hurt... */
+		$this->db->query('LOCK TABLES `' . $config['session']['sssh_db_table'] . '` WRITE');
+
+		return true;
+	}
+
+	public function close() {
+		/* Unlock any previous locks */
+		$this->db->query('UNLOCK TABLES');
+
+		return true;
+	}
+
+	public function read($session_id) {
+		global $config;
+
+		$this->db->select($config['session']['sssh_db_field_session_data'] . ' AS session_data');
+
+		$this->db->from($config['session']['sssh_db_table']);
+		$this->db->where($config['session']['sssh_db_field_session_id'], $session_id);
+		$this->db->where($config['session']['sssh_db_field_session_valid'], true);
+		//$this->db->is_null($config['session']['sssh_db_field_session_end_time']);
+		$q = $this->db->get();
+
+		if (!$q->num_rows())
+			return '';
+
+		$row = $q->row_array();
+
+		return $row['session_data'];
+	}
+
+	public function write($session_id, $session_data) {
+		global $config;
+
+		$this->db->trans_begin();
+
+		/* Check if session id already exists */
+		$this->db->select($config['session']['sssh_db_field_session_valid'] . ',' . $config['session']['sssh_db_field_session_end_time']);
+		$this->db->from($config['session']['sssh_db_table']);
+		$this->db->where($config['session']['sssh_db_field_session_id'], $session_id);
+		$q = $this->db->get();
+
+		if (!$q->num_rows()) {
+			/* Create the session */
+			$this->db->insert($config['session']['sssh_db_table'], array(
+				$config['session']['sssh_db_field_session_id'] => $session_id,
+				$config['session']['sssh_db_field_session_valid'] => true,
+				$config['session']['sssh_db_field_session_start_time'] => date('Y-m-d H:i:s'),
+				$config['session']['sssh_db_field_session_change_time'] => date('Y-m-d H:i:s'),
+				$config['session']['sssh_db_field_session_data'] => $session_data
+			));
+		} else {
+			$row = $q->row_array();
+
+			/* If the session is not valid or was already destroyed, return false */
+			if (!$row[$config['session']['sssh_db_field_session_valid']] || $row[$config['session']['sssh_db_field_session_end_time']]) {
+				$this->db->trans_rollback();
+				return false;
+			}
+
+			/* Update the current session data */
+			$this->db->where($config['session']['sssh_db_field_session_id'], $session_id);
+			$this->db->where($config['session']['sssh_db_field_session_valid'], true);
+			$this->db->is_null($config['session']['sssh_db_field_session_end_time']);
+
+			$uq = $this->db->update($config['session']['sssh_db_table'], array(
+				$config['session']['sssh_db_field_session_data'] => $session_data,
+				$config['session']['sssh_db_field_session_change_time'] => date('Y-m-d H:i:s')
+			));
+
+			/* If no rows were affected, this means that session is invalid... so return false */
+			if (!$uq->num_rows()) {
+				$this->db->trans_rollback();
+				return false;
+			}
+		}
+
+		if ($this->db->trans_status() === false) {
+			$this->db->trans_commit();
+			return false;
+		}
+
+		$this->db->trans_commit();
+
+		return true;
+	}
+
+	public function destroy($session_id) {
+		global $config;
+
+		$this->db->trans_begin();
+
+		$this->db->where($config['session']['sssh_db_field_session_id'], $session_id);
+
+		$this->db->update($config['session']['sssh_db_table'], array(
+			$config['session']['sssh_db_field_session_valid'] => false,
+			$config['session']['sssh_db_field_session_end_time'] => date('Y-m-d H:i:s')
+		));
+
+		if ($this->db->trans_status() === false) {
+			$this->db->trans_rollback();
+			return false;
+		}
+
+		$this->db->trans_commit();
+
+		return true;
+	}
+
+	public function gc($maxlifetime) {
+		global $config;
+
+		$this->db->trans_begin();
+
+		$this->db->where($config['session']['sssh_db_field_session_change_time'] . ' <', date('Y-m-d H:i:s', time() + $maxlifetime));
+
+		$this->db->update($config['session']['sssh_db_table'], array(
+			$config['session']['sssh_db_field_session_valid'] => false,
+			$config['session']['sssh_db_field_session_end_time'] => date('Y-m-d H:i:s')
+		));
+
+		if ($this->db->trans_status() === false) {
+			$this->db->trans_rollback();
+			return false;
+		}
+
+		$this->db->trans_commit();
+
+		return true;
+	}
+}
+
 class UW_Session extends UW_Base {
 	private $_session_id = NULL;
 	private $_session_data = array();
@@ -112,7 +257,6 @@ class UW_Session extends UW_Base {
 				$cipher = new UW_Encrypt;
 
 				$this->_session_data = json_decode($cipher->decrypt($_SESSION['data'], $config['encrypt']['key']), true);
-				$this->_session_data_serialize(false, false); /* Do not start nor close the session as it was/will be performed by __construct() */
 			} else {
 				/* Unencrypted session */
 				$this->_session_data = json_decode($_SESSION['data'], true);
@@ -120,7 +264,7 @@ class UW_Session extends UW_Base {
 		}
 	}
 
-	public function __construct() {
+	public function __construct($db = NULL) {
 		global $config;
 
 		/* Call the parent constructor */
@@ -134,6 +278,16 @@ class UW_Session extends UW_Base {
 		if (session_status() == PHP_SESSION_DISABLED) {
 			header("HTTP/1.1 403 Forbbiden");
 			die("PHP Sessions are disabled.");
+		}
+
+		/* Change session handlers if database session data is enabled */
+		if ($config['session']['sssh_db_enabled']) {
+			$sssh = new UW_SessionHandlerDb($db);
+
+			if (session_set_save_handler($sssh, true) === false) {
+				header('HTTP/1.1 500 Internal Server Error');
+				die('Unable to set session handler interface.');
+			}
 		}
 
 		/* Get the default cookie parameters */
@@ -1677,7 +1831,7 @@ class UW_Model {
 		$this->db = new UW_Database;
 		
 		/* Initialize system session controller */
-		$this->session = new UW_Session;
+		$this->session = new UW_Session($this->db);
 
 		/* Initialize system encryption controller */
 		$this->encrypt = new UW_Encrypt;
