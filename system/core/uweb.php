@@ -108,7 +108,7 @@ class UW_SessionHandlerDb implements SessionHandlerInterface {
 		$this->db->from($config['session']['sssh_db_table']);
 		$this->db->where($config['session']['sssh_db_field_session_id'], $session_id);
 		$this->db->where($config['session']['sssh_db_field_session_valid'], true);
-		//$this->db->is_null($config['session']['sssh_db_field_session_end_time']);
+
 		$q = $this->db->get();
 
 		if (!$q->num_rows())
@@ -143,7 +143,7 @@ class UW_SessionHandlerDb implements SessionHandlerInterface {
 			$row = $q->row_array();
 
 			/* If the session is not valid or was already destroyed, return false */
-			if (!$row[$config['session']['sssh_db_field_session_valid']] || $row[$config['session']['sssh_db_field_session_end_time']]) {
+			if (!$row[$config['session']['sssh_db_field_session_valid']]) {
 				$this->db->trans_rollback();
 				return false;
 			}
@@ -151,11 +151,10 @@ class UW_SessionHandlerDb implements SessionHandlerInterface {
 			/* Update the current session data */
 			$this->db->where($config['session']['sssh_db_field_session_id'], $session_id);
 			$this->db->where($config['session']['sssh_db_field_session_valid'], true);
-			$this->db->is_null($config['session']['sssh_db_field_session_end_time']);
 
 			$uq = $this->db->update($config['session']['sssh_db_table'], array(
-				$config['session']['sssh_db_field_session_data'] => $session_data,
-				$config['session']['sssh_db_field_session_change_time'] => date('Y-m-d H:i:s')
+				$config['session']['sssh_db_field_session_change_time'] => date('Y-m-d H:i:s'),
+				$config['session']['sssh_db_field_session_data'] => $session_data
 			));
 
 			/* If no rows were affected, this means that session is invalid... so return false */
@@ -183,8 +182,8 @@ class UW_SessionHandlerDb implements SessionHandlerInterface {
 		$this->db->where($config['session']['sssh_db_field_session_id'], $session_id);
 
 		$this->db->update($config['session']['sssh_db_table'], array(
-			$config['session']['sssh_db_field_session_valid'] => false,
-			$config['session']['sssh_db_field_session_end_time'] => date('Y-m-d H:i:s')
+			$config['session']['sssh_db_field_session_end_time'] => date('Y-m-d H:i:s'),
+			$config['session']['sssh_db_field_session_data'] => ''
 		));
 
 		if ($this->db->trans_status() === false) {
@@ -205,8 +204,8 @@ class UW_SessionHandlerDb implements SessionHandlerInterface {
 		$this->db->where($config['session']['sssh_db_field_session_change_time'] . ' <', date('Y-m-d H:i:s', time() + $maxlifetime));
 
 		$this->db->update($config['session']['sssh_db_table'], array(
-			$config['session']['sssh_db_field_session_valid'] => false,
-			$config['session']['sssh_db_field_session_end_time'] => date('Y-m-d H:i:s')
+			$config['session']['sssh_db_field_session_end_time'] => date('Y-m-d H:i:s'),
+			$config['session']['sssh_db_field_session_data'] => ''
 		));
 
 		if ($this->db->trans_status() === false) {
@@ -358,17 +357,22 @@ class UW_Session extends UW_Base {
 	}
 
 	public function cleanup() {
-		session_unset();
+		session_start();
+		$_SESSION = array();
+		session_unset(); /* Probably not required for newer versions of PHP */
+		session_write_close();
 	}
 	
-	public function regenerate() {
-		session_regenerate_id();
+	public function regenerate($destroy_old_session = false) {
+		session_start();
+		session_regenerate_id($destroy_old_session);
+		session_write_close();
 	}
 
 	public function destroy() {
-		session_unset();
-		session_regenerate_id(true);
+		session_start();
 		session_destroy();
+		session_write_close();
 	}
 }
 
