@@ -87,16 +87,10 @@ class UW_SessionHandlerDb implements SessionHandlerInterface {
 
 		$this->db->load($config['session']['sssh_db_alias']);
 
-		/* Although we're using transactions, using write lock doesn't hurt... */
-		$this->db->query('LOCK TABLES `' . $config['session']['sssh_db_table'] . '` WRITE');
-
 		return true;
 	}
 
 	public function close() {
-		/* Unlock any previous locks */
-		$this->db->query('UNLOCK TABLES');
-
 		return true;
 	}
 
@@ -224,9 +218,18 @@ class UW_Session extends UW_Base {
 	private $_session_data = array();
 	private $_encryption = false;
 
+	private function _session_start() {
+		session_start();
+	}
+
+	private function _session_close() {
+		session_write_close();
+	}
+
 	private function _session_data_serialize($session_start = true, $session_close = true) {
+		/* Start the session */
 		if ($session_start === true)
-			session_start();
+			$this->_session_start();
 
 		/* Encrypt session data if _encryption is enabled */
 		if ($this->_encryption) {
@@ -238,11 +241,16 @@ class UW_Session extends UW_Base {
 		}
 
 		if ($session_close === true)
-			session_write_close();
+			$this->_session_close();
 	}
 
-	private function _init_load() {
+	private function _session_data_unserialize($session_start = true, $session_close = true) {
 		global $config;
+
+		/* Start the session */
+		if ($session_start === true)
+			$this->_session_start();
+
 		$this->_session_id = session_id();
 
 		/* Evaluate if we're using encrypted sessions */
@@ -261,6 +269,10 @@ class UW_Session extends UW_Base {
 				$this->_session_data = json_decode($_SESSION['data'], true);
 			}
 		}
+
+		/* Close the session */
+		if ($session_close === true)
+			$this->_session_close();
 	}
 
 	public function __construct($db = NULL) {
@@ -303,29 +315,25 @@ class UW_Session extends UW_Base {
 
 		/* Name the session */
 		session_name($config['session']['name']);
-		
-		/* Start the session */
-		session_start();
-
-		/* Load session data */
-		$this->_init_load();
-
-		/* Close the session */
-		session_write_close();
 	}
 
 	public function set($variable, $value) {
+		$this->_session_data_unserialize(true, false); /* Start the session, but dont close it */
+
 		$this->_session_data[$variable] = $value;
 
-		$this->_session_data_serialize();
+		$this->_session_data_serialize(false, true); /* Close the session, without starting it */
 	}
 
 	public function set_userdata($variable, $value = NULL) {
 		if ($value !== NULL) {
 			$this->set($variable, $value);
 		} else if (gettype($variable) == "array") {
+			$this->_session_data_unserialize(true, false); /* Start the session, but dont close it */
+
 			$this->_session_data = $variable; /* $variable should be an array */
-			$this->_session_data_serialize();
+
+			$this->_session_data_serialize(false, true); /* Close the session, without starting it */
 		} else {
 			header("HTTP/1.1 500 Internal Server Error");
 			die("set_userdata(): First argument should be an array when no value is specified on second argument.");
@@ -333,6 +341,8 @@ class UW_Session extends UW_Base {
 	}
 
 	public function get($variable) {
+		$this->_session_data_unserialize();
+
 		if (!isset($this->_session_data[$variable]))
 			return NULL;
 
@@ -344,12 +354,17 @@ class UW_Session extends UW_Base {
 	}
 
 	public function all_userdata() {
+		$this->_session_data_unserialize();
+
 		return $this->_session_data;
 	}
 
 	public function clear($variable) {
+		$this->_session_data_unserialize(true, false); /* Start the session, but dont close it */
+
 		unset($this->_session_data[$variable]);
-		$this->_session_data_serialize();
+
+		$this->_session_data_serialize(false, true); /* Close the session, without starting it */
 	}
 
 	public function unset_userdata($variable) {
