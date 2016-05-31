@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 28/05/2016
+ * Date: 31/05/2016
  * License: GPLv3
  */
 
@@ -1408,7 +1408,15 @@ class UW_Database extends UW_Base {
 			 * Also implement the database autoload, or force the 'default' database to be loaded at start
 			 */
 
-			/* FIXME: TODO: Support presistent connections */
+			/* Initialize PDO attributes */
+			$attr = array();
+			
+			/* Use presistent connections? */
+			if (isset($config['database'][$dbalias]['persistent']) && $config['database'][$dbalias]['persistent'] === true)
+				$attr[PDO::ATTR_PERSISTENT] = true;
+
+			if (isset($config['database'][$dbalias]['strict']) && $config['database'][$dbalias]['strict'] === true && $config['database'][$dbalias]['driver'] == 'mysql')
+				$attr[PDO::MYSQL_ATTR_INIT_COMMAND] = 'SET sql_mode = "STRICT_ALL_TABLES"';
 
 			/* Try to connect to the database */
 			try {
@@ -1423,11 +1431,9 @@ class UW_Database extends UW_Base {
 						'dbname=' . $config['database'][$dbalias]['name'] . ';' .
 						'charset=' . $config['database'][$dbalias]['charset'],
 						$config['database'][$dbalias]['username'],
-						$config['database'][$dbalias]['password']
+						$config['database'][$dbalias]['password'],
+						$attr
 					);
-
-					if ($config['database'][$dbalias]['strict'] === true)
-						$this->query('SET sql_mode = \'STRICT_ALL_TABLES\'');
 			} catch (PDOException $e) {
 				/* Something went wrong ... */
 				error_log('Database connection error (dbname: ' . $config['database'][$dbalias]['name'] . '): ' . $e);

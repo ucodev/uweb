@@ -8,6 +8,7 @@ $database['default']['name']     = 'uweb';
 $database['default']['username'] = 'username';
 $database['default']['password'] = 'password';
 $database['default']['charset']  = 'utf8';
+$database['default']['persistent'] = true;
 $database['default']['strict']   = true;
 
 /* PgSQL
@@ -18,5 +19,6 @@ $database['another_database']['name']     = 'another_name';
 $database['another_database']['username'] = 'another_username';
 $database['another_database']['password'] = 'another_password';
 $database['another_database']['charset']  = 'utf8';
+$database['another_database']['persistent'] = true;
 $database['another_database']['strict']   = true;
 */
