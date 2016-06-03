@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 31/05/2016
+ * Date: 03/06/2016
  * License: GPLv3
  */
 
@@ -159,7 +159,7 @@ class UW_SessionHandlerDb implements SessionHandlerInterface {
 		}
 
 		if ($this->db->trans_status() === false) {
-			$this->db->trans_commit();
+			$this->db->trans_rollback();
 			return false;
 		}
 
@@ -244,7 +244,7 @@ class UW_Session extends UW_Base {
 			$this->_session_close();
 	}
 
-	private function _session_data_unserialize($session_start = true, $session_close = true) {
+	private function _session_data_unserialize($session_start = true, $session_close = true, $session_abort = false) {
 		global $config;
 
 		/* Start the session */
@@ -260,7 +260,6 @@ class UW_Session extends UW_Base {
 		if (array_key_exists('data', $_SESSION)) {
 			/* Decrypt session data if _encryption is enabled */
 			if ($this->_encryption === true) {
-				global $config;
 				$cipher = new UW_Encrypt;
 
 				$this->_session_data = json_decode($cipher->decrypt($_SESSION['data'], $config['encrypt']['key']), true);
@@ -270,8 +269,12 @@ class UW_Session extends UW_Base {
 			}
 		}
 
+		/* Abort session? */
+		if ($session_abort === true && $session_close === false)
+			session_abort();
+
 		/* Close the session */
-		if ($session_close === true)
+		if ($session_close === true && $session_abort === false)
 			$this->_session_close();
 	}
 
@@ -341,7 +344,7 @@ class UW_Session extends UW_Base {
 	}
 
 	public function get($variable) {
-		$this->_session_data_unserialize();
+		$this->_session_data_unserialize(true, false, true);
 
 		if (!isset($this->_session_data[$variable]))
 			return NULL;
@@ -354,7 +357,7 @@ class UW_Session extends UW_Base {
 	}
 
 	public function all_userdata() {
-		$this->_session_data_unserialize();
+		$this->_session_data_unserialize(true, false, true);
 
 		return $this->_session_data;
 	}
@@ -637,6 +640,25 @@ class UW_Database extends UW_Base {
 		else
 			$this->_q_where .= ' AND ';
 
+		$raw_value = false;
+
+		if ($enforce !== true && $enforce !== false) {
+			switch ($enforce) {
+				case 'raw': {
+					$enforce = false;
+					$raw_value = true;
+				} break;
+				case 'name_only': {
+					$enforce = true;
+					$raw_value = true;
+				} break;
+				default: {
+					header('HTTP/1.1 500 Internal Server Error');
+					die('where(): Invalid value for $enforce (only boolean true, boolean false, string \'raw\' and string \'name_only\' are accepted).');
+				}
+			}
+		}
+
 		/* Escape field if enforce is set */
 		if ($enforce) {
 			/* Filter any previous escapes */
@@ -675,11 +697,17 @@ class UW_Database extends UW_Base {
 			$this->_q_where .= ' NOT ';
 
 		if ($between) {
-			$this->_q_where .= ' BETWEEN ? AND ? ';
-
 			$value[0] = $this->_convert_boolean($value[0]);
 			$value[1] = $this->_convert_boolean($value[1]);
+
+			if ($raw_value) {
+				$this->_q_where .= ' BETWEEN ' . $value[0] . ' AND ' . $value[1] . ' '; /* Raw value. Won't be passed as argument to prepared statements */
+			} else {
+				$this->_q_where .= ' BETWEEN ? AND ? ';
+			}
 		} else if ($in) {
+			$raw_value = false; /* Currently, raw values are unsupported under IN clauses */
+
 			$this->_q_where .= ' IN (';
 			for ($i = 0; $i < count($value); $i ++) {
 				/* Convert booleans */
@@ -690,12 +718,28 @@ class UW_Database extends UW_Base {
 			}
 			$this->_q_where = rtrim($this->_q_where, ',') . ') ';
 		} else if ($like) {
-			$this->_q_where .= ' LIKE ? ';
+			if ($raw_value) {
+				$this->_q_where .= ' LIKE ' . $value . ' '; /* Raw value. Won't be passed as argument to prepared statements */
+			} else {
+				$this->_q_where .= ' LIKE ? ';
+			}
 		} else if (strpos($field_cond, '=') !== false || strpos($field_cond, '>') !== false || strpos($field_cond, '<') !== false) {
-			$this->_q_where .= ' ? ';
+			if ($raw_value) {
+				$this->_q_where .= ' ' . $value . ' '; /* Raw value. Won't be passed as argument to prepared statements */
+			} else {
+				$this->_q_where .= ' ? ';
+			}
 		} else {
-			$this->_q_where .= ' = ? ';
+			if ($raw_value) {
+				$this->_q_where .= ' = ' . $value . ' '; /* Raw value. Won't be passed as argument to prepared statements */
+			} else {
+				$this->_q_where .= ' = ? ';
+			}
 		}
+
+		/* If raw values are being used, we must not add them to query arguments */
+		if ($raw_value)
+			return $this;
 
 		/* Push value into data array */
 		if ($in || $between) {
@@ -1008,7 +1052,17 @@ class UW_Database extends UW_Base {
 		return $this;
 	}
 
-	public function table_exists($table) {
+	public function table_exists($table, $enforce = true) {
+		if ($enforce) {
+			/* Validate table name */
+			if ($this->_has_special($table)) {
+				header('HTTP/1.1 500 Internal Server Error');
+				die('table_exists(): Enforced function shall not contain comments in it.');
+			}
+
+			$table = str_replace('`', '', $table);
+		}
+
 		$q = $this->query('SHOW TABLES LIKE \'' . $table . '\'');
 
 		if ($q->num_rows() > 0)
@@ -1017,16 +1071,54 @@ class UW_Database extends UW_Base {
 		return false;
 	}
 
-	public function table_rename($table, $new_table) {
+	public function table_rename($table, $new_table, $enforce = true) {
+		if ($enforce) {
+			/* Validate table names */
+			if ($this->_has_special($table) || $this->_has_special($new_table)) {
+				header('HTTP/1.1 500 Internal Server Error');
+				die('table_rename(): Enforced function shall not contain comments in it.');
+			}
+
+			$table = str_replace('`', '', $table);
+			$new_table = str_replace('`', '', $new_table);
+		}
+
 		/* FIXME: MySQL/MariaDB only */
 		return $this->query('RENAME TABLE `' . $table . '` TO `' . $new_table . '`');
 	}
 
-	public function table_create($table, $first_column, $column_type, $is_null = false, $auto_increment = true, $primary_key = true) {
+	public function table_create($table, $first_column, $column_type, $is_null = false, $auto_increment = true, $primary_key = true, $enforce = true) {
+		if ($enforce) {
+			/* Validate table and column names */
+			if ($this->_has_special($table) || $this->_has_special($first_column)) {
+				header('HTTP/1.1 500 Internal Server Error');
+				die('table_create(): Enforced function shall not contain comments in it.');
+			}
+
+			/* Validate column type */
+			if (!preg_match('/^([a-zA-Z]+|[a-zA-Z]+\([0-9\,\.]+\))$/i', $column_type)) {
+				header('HTTP/1.1 500 Internal Server Error');
+				die('table_create(): Invalid format for column type.');
+			}
+
+			$table = str_replace('`', '', $table);
+			$first_column = str_replace('`', '', $first_column);
+		}
+
 		return $this->query('CREATE TABLE `' . $table . '` (`' . $first_column . '` ' . $column_type . ($is_null ? ' NULL' : ' NOT NULL') . ($auto_increment ? ' AUTO_INCREMENT' : '') . ($primary_key ? ' PRIMARY KEY' : '') . ')');
 	}
 
-	public function table_drop($table, $if_exists = false, $force = false) {
+	public function table_drop($table, $if_exists = false, $force = false, $enforce = true) {
+		if ($enforce) {
+			/* Validate table name */
+			if ($this->_has_special($table)) {
+				header('HTTP/1.1 500 Internal Server Error');
+				die('table_drop(): Enforced function shall not contain comments in it.');
+			}
+
+			$table = str_replace('`', '', $table);
+		}
+
 		if ($force) {
 			/* FIXME: MySQL/MariaDB Only */
 			$this->query('SET foreign_key_checks = 0');
@@ -1042,7 +1134,18 @@ class UW_Database extends UW_Base {
 		return $ret;
 	}
 
-	public function table_column_exists($table, $column) {
+	public function table_column_exists($table, $column, $enforce = true) {
+		if ($enforce) {
+			/* Validate table and column names */
+			if ($this->_has_special($table) || $this->_has_special($column)) {
+				header('HTTP/1.1 500 Internal Server Error');
+				die('table_column_exists(): Enforced function shall not contain comments in it.');
+			}
+
+			$table = str_replace('`', '', $table);
+			$column = str_replace('`', '', $column);
+		}
+
 		$q = $this->query('SHOW COLUMNS FROM `' . $table . '` LIKE \'' . $column . '\'');
 
 		if ($q->num_rows() > 0)
@@ -1051,23 +1154,137 @@ class UW_Database extends UW_Base {
 		return false;
 	}
 
-	public function table_column_create($table, $column, $type, $is_null = true, $default = 'NULL', $after = NULL) {
+	public function table_column_create($table, $column, $type, $is_null = true, $default = 'NULL', $after = NULL, $enforce = true) {
+		if ($enforce) {
+			/* Validate table and column names */
+			if ($this->_has_special($table) || $this->_has_special($column)) {
+				header('HTTP/1.1 500 Internal Server Error');
+				die('table_column_create(): Enforced function shall not contain comments in it.');
+			}
+
+			/* Validate column type */
+			if (!preg_match('/^([a-zA-Z]+|[a-zA-Z]+\([0-9\,\.]+\))$/i', $type)) {
+				header('HTTP/1.1 500 Internal Server Error');
+				die('table_column_create(): Invalid format for column type.');
+			}
+
+			/* Validate default value */
+			if ($default[0] != '\'') { /* If the default value isn't a quoted string ... */
+				if ($this->_has_special($default)) { /* ... and contains special characters in it ... */
+					header('HTTP/1.1 500 Internal Server Error');
+					die('table_column_create(): Default value isn\'t a quoted string but contains special characters on it.');
+				}
+			} else { /* If the default value is a quoted string ... */
+				if (substr($default[0], -1) != '\'') { /* ... and it does not end with a quote ... */
+					header('HTTP/1.1 500 Internal Server Error');
+					die('table_column_create(): Default value starts with a quote, indicating it\'s a quoted string, but it lacks a quote as its last character.');
+				}
+
+				/* Strip enclosing quotes from default value */
+				$default = trim($default, '\'');
+
+				/* Escape $default contents */
+				$default = '\'' . $this->quote($default) . '\'';
+			}
+				
+			$table = str_replace('`', '', $table);
+			$column = str_replace('`', '', $column);
+		}
+
 		return $this->query('ALTER TABLE `' . $table . '` ADD COLUMN `' . $column . '` ' . $type . ($is_null ? ' NULL' : ' NOT NULL') . ' DEFAULT ' . $default . ($after ? ' AFTER `' . $after . '`' : ''));
 	}
 
-	public function table_column_drop($table, $column) {
+	public function table_column_drop($table, $column, $enforce = true) {
+		if ($enforce) {
+			/* Validate table and column names */
+			if ($this->_has_special($table) || $this->_has_special($column)) {
+				header('HTTP/1.1 500 Internal Server Error');
+				die('table_column_drop(): Enforced function shall not contain comments in it.');
+			}
+
+			$table = str_replace('`', '', $table);
+			$column = str_replace('`', '', $column);
+		}
+
 		return $this->query('ALTER TABLE `' . $table . '` DROP COLUMN `' . $column . '`');
 	}
 
-	public function table_column_change($table, $column, $new_column, $type, $is_null = true, $default = 'NULL', $after = NULL) {
+	public function table_column_change($table, $column, $new_column, $type, $is_null = true, $default = 'NULL', $after = NULL, $enforce = true) {
+		if ($enforce) {
+			/* Validate table and column names */
+			if ($this->_has_special($table) || $this->_has_special($column) || $this->_has_special($new_column)) {
+				header('HTTP/1.1 500 Internal Server Error');
+				die('table_column_change(): Enforced function shall not contain comments in it.');
+			}
+
+			/* Validate column type */
+			if (!preg_match('/^([a-zA-Z]+|[a-zA-Z]+\([0-9\,\.]+\))$/i', $type)) {
+				header('HTTP/1.1 500 Internal Server Error');
+				die('table_column_change(): Invalid format for column type.');
+			}
+
+			/* Validate default value */
+			if ($default[0] != '\'') { /* If the default value isn't a quoted string ... */
+				if ($this->_has_special($default)) { /* ... and contains special characters in it ... */
+					header('HTTP/1.1 500 Internal Server Error');
+					die('table_column_change(): Default value isn\'t a quoted string but contains special characters on it.');
+				}
+			} else { /* If the default value is a quoted string ... */
+				if (substr($default[0], -1) != '\'') { /* ... and it does not end with a quote ... */
+					header('HTTP/1.1 500 Internal Server Error');
+					die('table_column_change(): Default value starts with a quote, indicating it\'s a quoted string, but it lacks a quote as its last character.');
+				}
+
+				/* Strip enclosing quotes from default value */
+				$default = trim($default, '\'');
+
+				/* Escape $default contents */
+				$default = '\'' . $this->quote($default) . '\'';
+			}
+				
+			$table = str_replace('`', '', $table);
+			$column = str_replace('`', '', $column);
+			$new_column = str_replace('`', '', $new_column);
+		}
+
 		return $this->query('ALTER TABLE `' . $table . '` CHANGE COLUMN `' . $column . '` `' . $new_column . '` ' . $type . ($is_null ? ' NULL' : ' NOT NULL') . ' DEFAULT ' . $default . ($after ? ' AFTER `' . $after . '`' : ''));
 	}
 
-	public function table_column_unique_add($table, $column) {
+	public function table_column_unique_add($table, $column, $enforce = true) {
+		if ($enforce) {
+			/* Validate table and column names */
+			if ($this->_has_special($table) || $this->_has_special($column)) {
+				header('HTTP/1.1 500 Internal Server Error');
+				die('table_column_unique_add(): Enforced function shall not contain comments in it.');
+			}
+
+			$table = str_replace('`', '', $table);
+			$column = str_replace('`', '', $column);
+		}
+
 		return $this->query('ALTER TABLE `' . $table . '` ADD CONSTRAINT uw_unique_' . $table . '_' . $column . ' UNIQUE (`' . $column . '`)');
 	}
 
-	public function table_column_unique_drop($table, $column, $if_exists = false, $if_exists_from_table = NULL) {
+	public function table_column_unique_drop($table, $column, $if_exists = false, $if_exists_from_table = NULL, $enforce = true) {
+		if ($enforce) {
+			/* Validate table and column names */
+			if ($this->_has_special($table) || $this->_has_special($column)) {
+				header('HTTP/1.1 500 Internal Server Error');
+				die('table_column_unique_drop(): Enforced function shall not contain comments in it.');
+			}
+
+			if ($if_exists_from_table !== NULL && $this->_has_special($if_exists_from_table)) {
+				header('HTTP/1.1 500 Internal Server Error');
+				die('table_column_unique_drop(): Enforced function shall not contain comments in it.');
+			}
+
+			$table = str_replace('`', '', $table);
+			$column = str_replace('`', '', $column);
+
+			if ($if_exists_from_table !== NULL)
+				$if_exists_from_table = str_replace('`', '', $if_exists_from_table);
+		}
+
 		/* FIXME: MySQL/MariaDB only */
 		if ($if_exists) {
 			$q = $this->query('SHOW INDEX FROM `' . ($if_exists_from_table !== NULL ? $if_exists_from_table : $table) . '` WHERE KEY_NAME = \'uw_unique_' . $table . '_' . $column . '\'');
@@ -1079,11 +1296,43 @@ class UW_Database extends UW_Base {
 		return $this->query('ALTER TABLE `' . $table . '` DROP INDEX uw_unique_' . $table . '_' . $column);
 	}
 
-	public function table_key_column_foreign_add($table, $column, $foreign_table, $foreign_column, $cascade_delete = false, $cascade_update = false) {
+	public function table_key_column_foreign_add($table, $column, $foreign_table, $foreign_column, $cascade_delete = false, $cascade_update = false, $enforce = true) {
+		if ($enforce) {
+			/* Validate table and column names */
+			if ($this->_has_special($table) || $this->_has_special($column) || $this->_has_special($foreign_table) || $this->_has_special($foreign_column)) {
+				header('HTTP/1.1 500 Internal Server Error');
+				die('table_key_column_foreign_add(): Enforced function shall not contain comments in it.');
+			}
+
+			$table = str_replace('`', '', $table);
+			$foreign_table = str_replace('`', '', $foreign_table);
+			$column = str_replace('`', '', $column);
+			$foreign_column = str_replace('`', '', $foreign_column);
+		}
+
 		return $this->query('ALTER TABLE `' . $table . '` ADD CONSTRAINT uw_fk_' . $table . '_' . $column . ' FOREIGN KEY (`' . $column . '`) REFERENCES `' . $foreign_table . '`(`' . $foreign_column . '`)' . ($cascade_delete ? ' ON DELETE CASCADE' : '') . ($cascade_update ? ' ON UPDATE CASCADE' : ''));
 	}
 
-	public function table_key_column_foreign_drop($table, $column, $index_name = NULL) {
+	public function table_key_column_foreign_drop($table, $column, $index_name = NULL, $enforce = true) {
+		if ($enforce) {
+			/* Validate table and column names */
+			if ($this->_has_special($table) || $this->_has_special($column)) {
+				header('HTTP/1.1 500 Internal Server Error');
+				die('table_key_column_foreign_drop(): Enforced function shall not contain comments in it.');
+			}
+
+			if ($index_name !== NULL && $this->_has_special($index_name)) {
+				header('HTTP/1.1 500 Internal Server Error');
+				die('table_key_column_foreign_drop(): Enforced function shall not contain comments in it.');
+			}
+
+			$table = str_replace('`', '', $table);
+			$column = str_replace('`', '', $column);
+
+			if ($index_name !== NULL)
+				$index_name = str_replace('`', '', $index_name);
+		}
+
 		if (!$index_name)
 			$index_name = 'uw_fk_' . $table . '_' . $column;
 
