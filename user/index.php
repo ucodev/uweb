@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 26/04/2016
+ * Date: 06/07/2016
  * License: GPLv3
  */
 
@@ -41,6 +41,10 @@ include('user/core/index.php');
 /* Include all user models */
 foreach (glob("user/models/*.php") as $user_model)
     include($user_model);
+
+/* Include all user modules */
+foreach (glob("user/modules/*.php") as $user_interface)
+    include($user_interface);
 
 /* Include user extensions */
 foreach (glob("user/extensions/*.php") as $user_ext)
