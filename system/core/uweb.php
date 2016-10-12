@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 06/07/2016
+ * Date: 28/09/2016
  * License: GPLv3
  */
 
@@ -83,9 +83,11 @@ class UW_Encrypt extends UW_Base {
 
 class UW_SessionHandlerDb implements SessionHandlerInterface {
 	private $db = NULL;
+	private $cache = NULL;
 
-	public function __construct($db = NULL) {
+	public function __construct($db = NULL, $cache = NULL) {
 		$this->db = $db;
+		$this->cache = $cache;
 	}
 
 	public function open($save_path, $name) {
@@ -103,6 +105,14 @@ class UW_SessionHandlerDb implements SessionHandlerInterface {
 	public function read($session_id) {
 		global $config;
 
+		/* Check if session data is cached */
+		if ($this->cache->is_active()) {
+			if ($this->cache->get('s_session_' . $session_id)) {
+				return $this->cache->get('d_session_' . $session_id);
+			}
+		}
+
+		/* Otherwise, fetch session data from database */
 		$this->db->select($config['session']['sssh_db_field_session_data'] . ' AS session_data');
 
 		$this->db->from($config['session']['sssh_db_table']);
@@ -116,11 +126,21 @@ class UW_SessionHandlerDb implements SessionHandlerInterface {
 
 		$row = $q->row_array();
 
+		/* Refresh cache */
+		if ($this->cache->is_active()) {
+			$this->cache->set('s_session_' . $session_id, true);
+			$this->cache->set('d_session_' . $session_id, $row['session_data']);
+		}
+
 		return $row['session_data'];
 	}
 
 	public function write($session_id, $session_data) {
 		global $config;
+
+		/* Invalidate cache entry, if any */
+		if ($this->cache->is_active())
+			$this->cache->delete('s_session_' . $session_id);
 
 		$this->db->trans_begin();
 
@@ -171,11 +191,21 @@ class UW_SessionHandlerDb implements SessionHandlerInterface {
 
 		$this->db->trans_commit();
 
+		/* Refresh cache */
+		if ($this->cache->is_active()) {
+			$this->cache->set('s_session_' . $session_id, true);
+			$this->cache->set('d_session_' . $session_id, $session_data);
+		}
+
 		return true;
 	}
 
 	public function destroy($session_id) {
 		global $config;
+
+		/* Invalidate cache entry, if any */
+		if ($this->cache->is_active())
+			$this->cache->delete('s_session_' . $session_id);
 
 		$this->db->trans_begin();
 
@@ -289,7 +319,7 @@ class UW_Session extends UW_Base {
 			$this->_session_close();
 	}
 
-	public function __construct($db = NULL) {
+	public function __construct($db = NULL, $cache = NULL) {
 		global $config;
 
 		/* Call the parent constructor */
@@ -307,7 +337,7 @@ class UW_Session extends UW_Base {
 
 		/* Change session handlers if database session data is enabled */
 		if ($config['session']['sssh_db_enabled']) {
-			$sssh = new UW_SessionHandlerDb($db);
+			$sssh = new UW_SessionHandlerDb($db, $cache);
 
 			if (session_set_save_handler($sssh, true) === false) {
 				header('HTTP/1.1 500 Internal Server Error');
@@ -402,6 +432,90 @@ class UW_Session extends UW_Base {
 		session_start();
 		session_destroy();
 		session_write_close();
+	}
+}
+
+class UW_Cache extends UW_Base {
+	private $_c = NULL;
+	private $_kp = '';
+
+	public function __construct() {
+		global $config;
+
+		parent::__construct();
+
+		/* If no cache system is configured, do not try to load it */
+		if (!isset($config['cache']) || !count($config['cache'])) {
+			$config['cache'] = array();
+			$config['cache']['active'] = false;
+			return;
+		}
+
+		/* If it is configured, but disabled, do not proceed */
+		if ($config['cache']['active'] !== true)
+			return;
+
+		/* Currently, only a single instance of memcached is supported */
+		if ($config['cache']['driver'] == 'memcached') {
+			$this->_c = new Memcached($config['cache']['key_prefix']);
+			$this->_c->setOption(Memcached::OPT_LIBKETAMA_COMPATIBLE, true);
+
+			/* Only add servers if the list is empty.
+			 * TODO: FIXME: Instead of counting, check for differences and change the server list accordingly.
+			 */
+			if (!count($this->_c->getServerList()))
+				$this->_c->addServer($config['cache']['host'], intval($config['cache']['port']));
+		}
+
+		$this->_kp = $config['cache']['key_prefix'];
+	}
+
+	public function is_active() {
+		global $config;
+
+		return $config['cache']['active'];
+	}
+
+	public function add($k, $v, $expiration = 0) {
+		if ($this->is_active() !== true)
+			return false;
+
+		return $this->_c->add($this->_kp . $k, $v, $expiration);
+	}
+
+	public function set($k, $v, $expiration = 0) {
+		if ($this->is_active() !== true)
+			return false;
+
+		return $this->_c->set($this->_kp . $k, $v, $expiration);
+	}
+
+	public function get($k) {
+		if ($this->is_active() !== true)
+			return false;
+
+		return $this->_c->get($this->_kp . $k);
+	}
+
+	public function delete($k, $time = 0) {
+		if ($this->is_active() !== true)
+			return false;
+
+		return $this->_c->delete($this->_kp . $k, $time);
+	}
+
+	public function flush($delay = 0) {
+		if ($this->is_active() !== true)
+			return false;
+
+		return $this->_c->flush($delay);
+	}
+
+	public function result() {
+		if ($this->is_active() !== true)
+			return false;
+
+		return $this->_c->getResultCode();
 	}
 }
 
@@ -1808,8 +1922,6 @@ class UW_Database extends UW_Base {
 			die('query(): No query was specified.');
 		}
 
-		error_log($query);
-
 		if ($this->_cfg_use_stmt) {
 			try {
 				$this->_stmt = $this->_db[$this->_cur_db]->prepare($query);
@@ -2109,30 +2221,50 @@ class UW_View extends UW_Base {
 }
 
 class UW_Model {
+	public $cache = NULL;
 	public $db = NULL;
 	public $session = NULL;
 	public $encrypt = NULL;
 
 	public function __construct() {
+		/* Initialize system cache controller */
+		$this->cache = new UW_Cache;
+
 		/* Initialize system database controller */
 		$this->db = new UW_Database;
 		
 		/* Initialize system session controller */
-		$this->session = new UW_Session($this->db);
+		$this->session = new UW_Session($this->db, $this->cache);
 
 		/* Initialize system encryption controller */
 		$this->encrypt = new UW_Encrypt;
 	}
 	
 	public function load($model, $is_library = false, $tolower = false) {
+		global $__objects;
+
 		if (!preg_match('/^[a-zA-Z0-9_]+$/', $model))
 			return false;
 
 		if ($is_library === true) {
 			/* We're loading a library */
-			eval('$this->' . ($tolower ? strtolower($model) : $model) . ' = new ' . $model . ';');
+			eval('$this->' . ($tolower ? strtolower($model) : $model) . ' = new ' . $model . '();');
 		} else {
-			eval('$this->' . $model . ' = new UW_' . ucfirst($model) . ';');
+			/* Be default, model objects are instantiated only once and, on subsequent calls, a reference to the existing
+			 * (instantiated) object is passed.
+			 */
+			if ($__objects['enabled'] === true) {
+				if (isset($__objects['autoload'][$model])) {
+					eval('$this->' . $model . ' = &$__objects[\'autoload\'][\'' . $model . '\'];');
+				} else if (isset($__objects['adhoc'][$model])) {
+					eval('$this->' . $model . ' = &$__objects[\'adhoc\'][\'' . $model . '\'];');
+				} else {
+					eval('$__objects[\'adhoc\'][\'' . $model . '\'] = new UW_' . ucfirst($model) . '();');
+					eval('$this->' . $model . ' = &$__objects[\'adhoc\'][\'' . $model . '\'];');
+				}
+			} else {
+				eval('$this->' . $model . ' = new UW_' . ucfirst($model) . '();');
+			}
 		}
 
 		return true;
@@ -2141,7 +2273,7 @@ class UW_Model {
 
 /* Alias class for loading methods (Old API compatibility) */
 class UW_Load extends UW_Model {
-	private $_db = NULL;
+	private $_database = NULL;
 	private $_view = NULL;
 	private $_model = NULL;
 	private $_extension = NULL;
@@ -2169,11 +2301,11 @@ class UW_Load extends UW_Model {
 	}
 
 	public function model($model) {
-		return $this->_model->load($model);
+		return $this->_model->load($model, false, false);
 	}
 
 	public function module($module) {
-		return $this->_model->load($module);
+		return $this->_model->load($module, false, false);
 	}
 
 	public function database($database, $return_self = false) {

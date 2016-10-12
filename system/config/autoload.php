@@ -5,4 +5,3 @@ $autoload['libraries'] = array();
 $autoload['extensions'] = array('pagination', 'timezone');
 $autoload['models'] = array();
 $autoload['modules'] = array();
-

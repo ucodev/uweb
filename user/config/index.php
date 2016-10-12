@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 26/04/2016
+ * Date: 26/09/2016
  * License: GPLv3
  */
 
@@ -32,21 +32,25 @@
 $config = array();
 
 /* Autoload settings */
-include('user/config/autoload.php');
+include('system/config/autoload.php');
 $config['autoload'] = $autoload;
 
 /* Base settings */
-include('user/config/base.php');
+include('system/config/base.php');
 $config['base'] = $base;
 
+/* Cache settings */
+include('system/config/cache.php');
+$config['cache'] = $cache;
+
 /* Database settings */
-include('user/config/database.php');
+include('system/config/database.php');
 $config['database'] = $database;
 
 /* Encryption settings */
-include('user/config/encrypt.php');
+include('system/config/encrypt.php');
 $config['encrypt'] = $encrypt;
 
 /* Session settings */
-include('user/config/session.php');
+include('system/config/session.php');
 $config['session'] = $session;

@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 26/09/2016
+ * Date: 27/07/2016
  * License: GPLv3
  */
 
@@ -27,30 +27,10 @@
  *
  */
 
-/** THIS FILE IS LOADED FROM system/index.php **/
+function core_object_cache_enable() {
+	$GLOBALS['__objects']['enabled'] = true;
+}
 
-$config = array();
-
-/* Autoload settings */
-include('system/config/autoload.php');
-$config['autoload'] = $autoload;
-
-/* Base settings */
-include('system/config/base.php');
-$config['base'] = $base;
-
-/* Cache settings */
-include('system/config/cache.php');
-$config['cache'] = $cache;
-
-/* Database settings */
-include('system/config/database.php');
-$config['database'] = $database;
-
-/* Encryption settings */
-include('system/config/encrypt.php');
-$config['encrypt'] = $encrypt;
-
-/* Session settings */
-include('system/config/session.php');
-$config['session'] = $session;
+function core_object_cache_disable() {
+	$GLOBALS['__objects']['enabled'] = false;
+}
