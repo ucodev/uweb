@@ -32,25 +32,25 @@
 $config = array();
 
 /* Autoload settings */
-include('system/config/autoload.php');
+include('user/config/autoload.php');
 $config['autoload'] = $autoload;
 
 /* Base settings */
-include('system/config/base.php');
+include('user/config/base.php');
 $config['base'] = $base;
 
 /* Cache settings */
-include('system/config/cache.php');
+include('user/config/cache.php');
 $config['cache'] = $cache;
 
 /* Database settings */
-include('system/config/database.php');
+include('user/config/database.php');
 $config['database'] = $database;
 
 /* Encryption settings */
-include('system/config/encrypt.php');
+include('user/config/encrypt.php');
 $config['encrypt'] = $encrypt;
 
 /* Session settings */
-include('system/config/session.php');
+include('user/config/session.php');
 $config['session'] = $session;

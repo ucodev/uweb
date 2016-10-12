@@ -5,7 +5,7 @@
  * Date: 11/03/2016
  */
 
-class UW_Test extends UW_Controller {
+class Test extends UW_Controller {
 	private function test_model() {
 		$this->model->load('dummy');
 		return $this->dummy->test();
