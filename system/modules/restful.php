@@ -120,7 +120,7 @@ class UW_Restful extends UW_Module {
 			$this->error('Only application/json is acceptable as the Content-Type.');
 
 			/* Not acceptable */
-			$this->output('406', $data);
+			$this->output('406');
 		}
 
 		/* Fetch raw data */
