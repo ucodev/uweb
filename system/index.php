@@ -149,6 +149,13 @@ if ($__controller) {
 		} else if ($__function == '__construct') {
 			header('HTTP/1.1 403 Forbidden');
 			die('Calling __construct() methods directly from HTTP requests is not allowed.');
+		} else if (ctype_digit($__function)) {
+			/* If the function name is a string of digits only, assume index as the function and prepend the digits argument
+			 * to the args. This is useful for RESTful interfaces, when omitting 'index' function name is preferable in order
+			 * to minimize the URL.
+			 */
+			$__args = array_merge(array($__function), $__args ? $__args : array());
+			$__function = 'index';
 		}
 
 		/* Glue the args if there's any */

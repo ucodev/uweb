@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 06/07/2016
+ * Date: 13/10/2016
  * License: GPLv3
  */
 
@@ -82,4 +82,8 @@ function redirect($directory, $with_index = true, $full_url = false) {
 	} else {
 		header('Location: ' . base_url() . uri_remove_extra_slashes(($with_index ? 'index.php/' : '') . $directory));
 	}
+}
+
+function request_method() {
+	return $_SERVER['REQUEST_METHOD'];
 }
