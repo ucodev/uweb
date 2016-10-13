@@ -51,6 +51,14 @@ class UW_Restful extends UW_Module {
 		'DELETE'
 	);
 
+	private $_info = array(
+		'data' => false,
+		'errors' => false,
+		'method' => 'NONE',
+		'code' => '500',
+		'message' => NULL,
+	);
+
 	private $_headers = array();
 
 	private function _headers_collect() {
@@ -70,8 +78,15 @@ class UW_Restful extends UW_Module {
 
 	/** Public **/
 
-	public function method() {
-		return request_method();
+	public function code($code, $protocol = 'HTTP/1.1') {
+		$this->_info['code'] = $code;
+
+		header($protocol . ' ' . $code . ' ' . $this->_codes[$code]);
+	}
+
+	public function error($message) {
+		$this->_info['errors'] = true;
+		$this->_info['message'] = $message;
 	}
 
 	public function header($key = NULL, $value = NULL, $replace = true) {
@@ -92,10 +107,21 @@ class UW_Restful extends UW_Module {
 		}
 	}
 
+	public function method() {
+		$this->_info['method'] = request_method();
+
+		return $this->_info['method'];
+	}
+
 	public function input() {
 		/* If the content type isn't set as application/json, we'll not accept this request */
-		if (header('Content-Type') != 'application/json')
-			$this->output('406');
+		if (header('Content-Type') != 'application/json') {
+			/* Content type is not acceptable here */
+			$this->error('Only application/json is acceptable as the Content-Type.');
+
+			/* Not acceptable */
+			$this->output('406', $data);
+		}
 
 		/* Fetch raw data */
 		$raw_data = file_get_contents('php://input');
@@ -104,34 +130,61 @@ class UW_Restful extends UW_Module {
 		$json_data = json_decode($raw_data, true);
 
 		/* If we're unable to decode the JSON data, this is a bad request */
-		if ($json_data === NULL)
+		if ($json_data === NULL) {
+			/* Cannot decode JSON data */
+			$this->error('Cannot decode JSON data.');
+
+			/* Bad request */
 			$this->output('400');
+		}
 
 		/* Return the decoded data */
 		return $json_data;
 	}
 
-	public function code($code, $protocol = 'HTTP/1.1') {
-		header($protocol . ' ' . $code . ' ' . $this->_codes[$code]);
-	}
-
-	public function output($code, $entity = NULL) {
+	public function output($code, $data = NULL) {
+		/* Set status code */
 		$this->code($code);
 
+		/* Data section is present? */
+		$this->_info['data'] = ($data !== NULL);
+
+		/* Add info section to the response */
+		$body['info'] = $this->_info;
+
 		/* Check if there's data to be sent as the response body */
-		if ($entity !== NULL) {
+		if ($data !== NULL) {
+			/* Set the response content type to JSON */
 			$this->header('Content-Type', 'application/json');
-			echo($entity);
+
+			/* Add the data section */
+			if (is_array($data)) {
+				$body['data'] = $data;
+			} else {
+				/* Try to decode JSON data */
+				$json_data = json_decode($data, true);
+
+				if ($json_data !== NULL) {
+					$body['data'] = $json_data; /* JSON data */
+				} else {
+					$body['data'] = $data; /* Raw data */
+				}
+			}
 		}
 
-		/* Terminate execution */
-		exit();
+		/* Send the body contents and terminate execution */
+		exit(json_encode($body));
 	}
 
 	public function process(&$ctrl, $arg = NULL) {
 		/* Check if this is an allowed method */
-		if (!in_array($this->method(), $this->_methods))
-			$this->output('405'); /* Method not allowed */
+		if (!in_array($this->method(), $this->_methods)) {
+			/* Method is not present in the allowed methods array */
+			$this->error('Method ' . $this->method() . ' is not allowed.');
+
+			/* Method not allowed */
+			$this->output('405');
+		}
 
 		switch ($this->method()) {
 			case 'GET': {
@@ -140,7 +193,10 @@ class UW_Restful extends UW_Module {
 					if (method_exists($ctrl, 'listing')) {
 						$ctrl->listing();
 					} else {
-						/* Method is not implemented */
+						/* Object method is not implemented (no handler declared) */
+						$this->error('No handler declared for GET (view).');
+
+						/* Not found */
 						$this->output('404');
 					}
 				} else {
@@ -148,7 +204,10 @@ class UW_Restful extends UW_Module {
 					if (method_exists($ctrl, 'view')) {
 						$ctrl->view($arg);
 					} else {
-						/* Method is not implemented */
+						/* Object method is not implemented (no handler declared) */
+						$this->error('No handler declared for GET (view).');
+
+						/* Not found */
 						$this->output('404');
 					}
 				}
@@ -159,24 +218,36 @@ class UW_Restful extends UW_Module {
 					if (method_exists($ctrl, 'insert')) {
 						$ctrl->insert();
 					} else {
-						/* Method is not implemented */
+						/* Object method is not implemented (no handler declared) */
+						$this->error('No handler declared for POST (insert).');
+
+						/* Not found */
 						$this->output('404');
 					}
 				} else {
 					/* We don't allow inserts of a specific id */
-					$this->output('404');
+					$this->error('Specifying an ID for POST (insert) methods is not allowed.');
+					
+					/* Forbidden */
+					$this->output('403');
 				}
 			} break;
 
 			case 'PATCH': {
 				if ($arg == NULL) {
 					/* We don't allow modifications on entire collections */
-					$this->output('404');
+					$this->error('Modifying an entire collection is not allowed.');
+
+					/* Forbidden */
+					$this->output('403');
 				} else {
 					if (method_exists($ctrl, 'modify')) {
 						$ctrl->modify($arg);
 					} else {
-						/* Method is not implemented */
+						/* Object method is not implemented (no handler declared) */
+						$this->error('No handler declared for PATCH (modify).');
+
+						/* Not found */
 						$this->output('404');
 					}
 				}
@@ -185,12 +256,18 @@ class UW_Restful extends UW_Module {
 			case 'PUT': {
 				if ($arg == NULL) {
 					/* We don't allow updates on entire collections */
-					$this->output('404');
+					$this->error('Updating an entire collection is not allowed.');
+
+					/* Forbidden */
+					$this->output('403');
 				} else {
 					if (method_exists($ctrl, 'update')) {
 						$ctrl->update($arg);
 					} else {
-						/* Method is not implemented */
+						/* Object method is not implemented (no handler declared) */
+						$this->error('No handler declared for PUT (update).');
+
+						/* Not found */
 						$this->output('404');
 					}
 				}
@@ -199,12 +276,18 @@ class UW_Restful extends UW_Module {
 			case 'DELETE': {
 				if ($arg == NULL) {
 					/* We don't allow deletes on entire collections */
-					$this->output('404');
+					$this->error('Deleting an entire collection is not allowed.');
+
+					/* Forbidden */
+					$this->output('403');
 				} else {
 					if (method_exists($ctrl, 'delete')) {
 						$ctrl->delete($arg);
 					} else {
-						/* Method is not implemented */
+						/* Object method is not implemented (no handler declared) */
+						$this->error('No handler declared for DELETE (delete).');
+
+						/* Not found */
 						$this->output('404');
 					}
 				}
