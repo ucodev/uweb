@@ -42,6 +42,7 @@ $__controller = NULL;
 $__function = NULL;
 $__args = NULL;
 $__args_list = '';
+$__argv = NULL;
 $__path_dir = '';
 
 /* Grant URI match the acceptable regex */
@@ -149,17 +150,17 @@ if ($__controller) {
 		} else if ($__function == '__construct') {
 			header('HTTP/1.1 403 Forbidden');
 			die('Calling __construct() methods directly from HTTP requests is not allowed.');
-		} else if (ctype_digit($__function)) {
-			/* If the function name is a string of digits only, assume index as the function and prepend the digits argument
-			 * to the args. This is useful for RESTful interfaces, when omitting 'index' function name is preferable in order
+		} else if (ctype_digit($__function[0])) {
+			/* If the first character of function name string is a digit, assume index as the function and prepend the argument
+			 * to the argv. This is useful for RESTful interfaces, when omitting 'index' function name is preferable in order
 			 * to minimize the URL.
 			 */
-			$__args = array_merge(array($__function), $__args ? $__args : array());
+			$__argv = array_merge(array($__function), $__args ? $__args : array()); /* Use the argument vector */
 			$__function = 'index';
 		}
 
 		/* Glue the args if there's any */
-		if ($__args) {
+		if ($__args && $__argv === NULL) {
 			foreach ($__args as $__arg)
 				$__args_list .= '\'' . str_replace('\'', '\\\'', $__arg) . '\',';
 
@@ -167,8 +168,13 @@ if ($__controller) {
 			$__args_list = rtrim($__args_list, ',');
 		}
 
-		/* Invoke the function with the arguments */
-		eval('$__r_->' . $__function . '(' . $__args_list . ');');
+		if ($__argv === NULL) {
+			/* Invoke the function with the multiple arguments */
+			eval('$__r_->' . $__function . '(' . $__args_list . ');');
+		} else {
+			/* Invoke the function wht the argument vector */
+			eval('$__r_->' . $__function . '($__argv);');
+		}
 	}
 } else {
 	header('HTTP/1.1 400 Bad Request');

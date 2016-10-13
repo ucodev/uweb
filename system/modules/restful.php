@@ -185,7 +185,7 @@ class UW_Restful extends UW_Module {
 		exit(json_encode($body));
 	}
 
-	public function process(&$ctrl, $arg = NULL) {
+	public function validate() {
 		/* Check if this is an allowed method */
 		if (!in_array($this->method(), $this->_methods)) {
 			/* Method is not present in the allowed methods array */
@@ -194,16 +194,22 @@ class UW_Restful extends UW_Module {
 			/* Method not allowed */
 			$this->output('405');
 		}
+	}
 
+	public function process(&$ctrl, $argv = NULL) {
+		/* Validate RESTful request */
+		$this->validate();
+
+		/* Process method */
 		switch ($this->method()) {
 			case 'GET': {
-				if ($arg == NULL) {
+				if ($argv == NULL) {
 					/* If no argument, we'll target the collection */
 					if (method_exists($ctrl, 'listing')) {
 						$ctrl->listing();
 					} else {
 						/* Object method is not implemented (no handler declared) */
-						$this->error('No handler declared for GET (view).');
+						$this->error('No handler declared for GET (listing).');
 
 						/* Not found */
 						$this->output('404');
@@ -211,7 +217,7 @@ class UW_Restful extends UW_Module {
 				} else {
 					/* Otherwise, we'll target the collection item identified by the argument */
 					if (method_exists($ctrl, 'view')) {
-						$ctrl->view($arg);
+						$ctrl->view($argv);
 					} else {
 						/* Object method is not implemented (no handler declared) */
 						$this->error('No handler declared for GET (view).');
@@ -223,84 +229,51 @@ class UW_Restful extends UW_Module {
 			} break;
 
 			case 'POST': {
-				if ($arg == NULL) {
-					if (method_exists($ctrl, 'insert')) {
-						$ctrl->insert();
-					} else {
-						/* Object method is not implemented (no handler declared) */
-						$this->error('No handler declared for POST (insert).');
-
-						/* Not found */
-						$this->output('404');
-					}
+				if (method_exists($ctrl, 'insert')) {
+					$ctrl->insert($argv);
 				} else {
-					/* We don't allow inserts of a specific id */
-					$this->error('Specifying an ID for POST (insert) methods is not allowed.');
-					
-					/* Forbidden */
-					$this->output('403');
+					/* Object method is not implemented (no handler declared) */
+					$this->error('No handler declared for POST (insert).');
+
+					/* Not found */
+					$this->output('404');
 				}
 			} break;
 
 			case 'PATCH': {
-				if ($arg == NULL) {
-					/* We don't allow modifications on entire collections */
-					$this->error('Modifying an entire collection is not allowed.');
-
-					/* Forbidden */
-					$this->output('403');
+				if (method_exists($ctrl, 'modify')) {
+					$ctrl->modify($argv);
 				} else {
-					if (method_exists($ctrl, 'modify')) {
-						$ctrl->modify($arg);
-					} else {
-						/* Object method is not implemented (no handler declared) */
-						$this->error('No handler declared for PATCH (modify).');
+					/* Object method is not implemented (no handler declared) */
+					$this->error('No handler declared for PATCH (modify).');
 
-						/* Not found */
-						$this->output('404');
-					}
+					/* Not found */
+					$this->output('404');
 				}
 			} break;
 
 			case 'PUT': {
-				if ($arg == NULL) {
-					/* We don't allow updates on entire collections */
-					$this->error('Updating an entire collection is not allowed.');
-
-					/* Forbidden */
-					$this->output('403');
+				if (method_exists($ctrl, 'update')) {
+					$ctrl->update($argv);
 				} else {
-					if (method_exists($ctrl, 'update')) {
-						$ctrl->update($arg);
-					} else {
-						/* Object method is not implemented (no handler declared) */
-						$this->error('No handler declared for PUT (update).');
+					/* Object method is not implemented (no handler declared) */
+					$this->error('No handler declared for PUT (update).');
 
-						/* Not found */
-						$this->output('404');
-					}
+					/* Not found */
+					$this->output('404');
 				}
 			} break;
 
 			case 'DELETE': {
-				if ($arg == NULL) {
-					/* We don't allow deletes on entire collections */
-					$this->error('Deleting an entire collection is not allowed.');
-
-					/* Forbidden */
-					$this->output('403');
+				if (method_exists($ctrl, 'delete')) {
+					$ctrl->delete($argv);
 				} else {
-					if (method_exists($ctrl, 'delete')) {
-						$ctrl->delete($arg);
-					} else {
-						/* Object method is not implemented (no handler declared) */
-						$this->error('No handler declared for DELETE (delete).');
+					/* Object method is not implemented (no handler declared) */
+					$this->error('No handler declared for DELETE (delete).');
 
-						/* Not found */
-						$this->output('404');
-					}
+					/* Not found */
+					$this->output('404');
 				}
-					
 			} break;
 		}
 	}
