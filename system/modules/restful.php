@@ -55,8 +55,11 @@ class UW_Restful extends UW_Module {
 		'data' => false,
 		'errors' => false,
 		'method' => 'NONE',
-		'code' => '500',
-		'message' => NULL,
+		'code' => '500'
+	);
+
+	private $_errors = array(
+		'message' => NULL
 	);
 
 	private $_headers = array();
@@ -86,7 +89,7 @@ class UW_Restful extends UW_Module {
 
 	public function error($message) {
 		$this->_info['errors'] = true;
-		$this->_info['message'] = $message;
+		$this->_errors['message'] = $message;
 	}
 
 	public function header($key = NULL, $value = NULL, $replace = true) {
@@ -151,6 +154,10 @@ class UW_Restful extends UW_Module {
 
 		/* Add info section to the response */
 		$body['info'] = $this->_info;
+
+		/* Add errors section if any error was set */
+		if ($this->_info['errors'])
+			$body['errors'] = $this->_errors;
 
 		/* Check if there's data to be sent as the response body */
 		if ($data !== NULL) {
