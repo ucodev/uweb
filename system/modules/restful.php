@@ -66,7 +66,7 @@ class UW_Restful extends UW_Module {
 
 	private $_headers = array();
 
-	private function _headers_collect() {
+	private function _headers_http_collect() {
 		if (count($this->_headers))
 			return $this->_headers;
 
@@ -99,14 +99,17 @@ class UW_Restful extends UW_Module {
 		if ($value !== NULL) {
 			header($key . ': ' . $value, $replace);
 		} else if ($key !== NULL) { /* If a $key is set, but not a $value, return the value of $key */
-			$this->_headers_collect();
+			$this->_headers_http_collect();
 
-			if (isset($this->_headers[$header]))
-				return $this->_headers[$header];
+			if (isset($this->_headers[$key])) { /* Check if the key is present in the HTTP headers*/
+				return $this->_headers[$key];
+			} else if (isset($_SERVER[strtoupper(str_replace('-', '_', $key))])) { /* Check if the key is present on the $_SERVER global */
+				return $_SERVER[strtoupper(str_replace('-', '_', $key))];
+			}
 
 			return NULL;
 		} else { /* If not $key nor $value is set, return all the headers */
-			$this->_headers_collect();
+			$this->_headers_http_collect();
 
 			return $this->_headers;
 		}
@@ -120,7 +123,7 @@ class UW_Restful extends UW_Module {
 
 	public function input() {
 		/* If the content type isn't set as application/json, we'll not accept this request */
-		if (header('Content-Type') != 'application/json') {
+		if (strstr($this->header('Content-Type'), 'application/json') === false) {
 			/* Content type is not acceptable here */
 			$this->error('Only application/json is acceptable as the Content-Type.');
 
@@ -186,7 +189,16 @@ class UW_Restful extends UW_Module {
 	}
 
 	public function validate() {
-		/* Check if this is an allowed method */
+		/* If the client does not accept application/json content, we'll not accept this request */
+		if (strstr($this->header('Accept'), 'application/json') === false) {
+			/* Content type is not acceptable here */
+			$this->error('Accept header must contain the application/json content type.');
+
+			/* Not acceptable */
+			$this->output('406');
+		}
+
+ 		/* Check if this is an allowed method */
 		if (!in_array($this->method(), $this->_methods)) {
 			/* Method is not present in the allowed methods array */
 			$this->error('Method ' . $this->method() . ' is not allowed.');
