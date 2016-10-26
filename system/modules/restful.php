@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 13/10/2016
+ * Date: 26/10/2016
  * License: GPLv3
  */
 
@@ -42,7 +42,8 @@ class UW_Restful extends UW_Module {
 		'404' => 'Not Found',
 		'405' => 'Method Not Allowed',
 		'406' => 'Not Acceptable',
-		'409' => 'Conflict'
+		'409' => 'Conflict',
+		'500' => 'Internal Server Error'
 	);
 
 	private $_methods = array(
