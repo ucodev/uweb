@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 26/10/2016
+ * Date: 29/10/2016
  * License: GPLv3
  */
 
@@ -27,7 +27,7 @@
  *
  */
 
-class UW_Restful extends UW_Module {
+class UW_Restful extends UW_Model {
 	/** Private **/
 
 	private $_codes = array(
@@ -51,7 +51,8 @@ class UW_Restful extends UW_Module {
 		'POST',
 		'PUT',
 		'PATCH',
-		'DELETE'
+		'DELETE',
+		'OPTIONS'
 	);
 
 	private $_info = array(
@@ -288,6 +289,39 @@ class UW_Restful extends UW_Module {
 					$this->output('404');
 				}
 			} break;
+
+			case 'OPTIONS': {
+				$allow = array();
+
+				/* Populate allow array */
+
+				if (method_exists($ctrl, 'listing') || method_exists($ctrl, 'view'))
+					array_push($allow, 'GET');
+
+				if (method_exists($ctrl, 'insert'))
+					array_push($allow, 'POST');
+
+				if (method_exists($ctrl, 'modify'))
+					array_push($allow, 'PATCH');
+
+				if (method_exists($ctrl, 'update'))
+					array_push($allow, 'PUT');
+
+				if (method_exists($ctrl, 'delete'))
+					array_push($allow, 'DELETE');
+
+				/* Set the Allow header with the allowed methods */
+				$this->header('Allow', implode(', ', $allow));
+
+				/* If there is a options() method defined on this controller, call it */
+				if (method_exists($ctrl, 'options')) {
+					$ctrl->options();
+				} else {
+					/* Otherwise just return 200 OK */
+					$this->output('200');
+				}
+			}
 		}
 	}
 }
+
