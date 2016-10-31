@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 13/10/2016
+ * Date: 31/10/2016
  * License: GPLv3
  */
 
@@ -87,3 +87,17 @@ function redirect($directory, $with_index = true, $full_url = false) {
 function request_method() {
 	return $_SERVER['REQUEST_METHOD'];
 }
+
+function remote_addr() {
+	if (isset($_SERVER['HTTP_X_CLIENT_IP']) && !empty($_SERVER['HTTP_X_CLIENT_IP']))
+		return $_SERVER['HTTP_X_CLIENT_IP'];
+
+	if (isset($_SERVER['HTTP_X_REAL_IP']) && !empty($_SERVER['HTTP_X_REAL_IP']))
+		return $_SERVER['HTTP_X_REAL_IP'];
+
+	if (isset($_SERVER['HTTP_X_FORWARDED_FOR']) && !empty($_SERVER['HTTP_X_FORWARDED_FOR']))
+		return trim(explode(',', $_SERVER['HTTP_X_REAL_IP'])[0]);
+
+	return $_SERVER['REMOTE_ADDR'];
+}
+
