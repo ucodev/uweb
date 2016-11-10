@@ -469,4 +469,373 @@ class UW_ND extends UW_Module {
 		/* All good */
 		return $data;
 	}
+
+
+	/** ND WebAPI interfaces **/
+
+	public function view($ctrl, $argv = NULL, $fields_mapped = array(), $fields_visible = array()) {
+		/* Retrieve authentication and session data from headers */
+		$session = $this->session_init();
+
+		/* Grant that entry ID is set */
+		if ($argv === NULL || (count($argv) != 1) || !is_numeric($argv[0])) {
+			$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Missing or invalid entry ID.', $session);
+			$this->restful->error('Missing or invalid entry ID.');
+			$this->restful->output('400'); /* Bad request */
+		}
+
+		/* Forward request to backend engine (nd-php) */
+		$nd_data = $this->request('/' . $ctrl . '/view/' . $argv[0], NULL, $session);
+
+		/* Check if the entry was found */
+		if (!isset($nd_data['fields']) || !count($nd_data['fields'])) {
+			/* Not found */
+			$this->log('204', __FILE__, __LINE__, __FUNCTION__, 'Entry exists, but no usable data was found.', $session);
+			$this->restful->error('Entry exists, but no usable data was found.');
+			$this->restful->output('204'); /* No Content */
+		}
+
+		/** Aggregate fields **/
+
+		/* Set basic fields */
+		$fields = $nd_data['fields'][0];
+
+		/* Aggregate multiple relationship fields */
+		if (isset($nd_data['rel'])) {
+			foreach ($nd_data['rel'] as $k => $v) {
+				$fields[$k] = $v;
+			}
+		}
+
+		/* Aggregate mixed fields */
+		if (isset($nd_data['mixed'])) {
+			foreach ($nd_data['mixed'] as $k => $v) {
+				$fields[$k] = $v;
+			}
+		}
+
+		/** Mangle results according to $fields_mapped and $fields_visible **/
+
+		/* Set a temporary row to be safely iterated */
+		$row = $fields;
+
+		/* Iterate the row and make any required changes in the $fields array */
+		foreach ($row as $k => $v) {
+			/* If $fields_visible is set, filter out fields not present in the array */
+			if (count($fields_visible) && !in_array($k, $fields_visible)) {
+				unset($fields[$k]);
+				continue;
+			}
+
+			/* If there the field is mapped, renamed it */
+			if (in_array($k, $fields_mapped)) {
+				unset($fields[$k]);
+				$fields[$fields_mapped[$k]] = $v;
+			}
+		}
+
+		/* All good */
+		return $fields;
+	}
+
+
+	public function list_default($ctrl, $fields_mapped = array(), $fields_visible = array()) {
+		/* Retrieve authentication and session data from headers */
+		$session = $this->session_init();
+
+		/* Forward request to backend engine (nd-php) */
+		$nd_data = $this->request('/' . $ctrl . '/list_default', NULL, $session);
+
+		/* If $fields_mapped or $fields_visible are set, iterate the results and:
+		 *  - Perform any required renames based on $fields_mapped (if set)
+		 *  - Filter any fields that are not present in $fields_visible (is set)
+		 */
+		if (count($fields_mapped) || count($fields_visible)) {
+			for ($i = 0; $i < count($nd_data); $i ++) {
+				/* Set a temporary row to be safely iterated */
+				$row = $nd_data[$i];
+
+				/* Mangle data, if required */
+				foreach ($row as $k => $v) {
+					/* Filter fields that are not present in $fields_visible */
+					if (count($fields_visible) && !in_array($k, $fields_visible)) {
+						unset($nd_data[$i][$k]);
+						continue;
+					}
+
+					/* Rename fields that are set in $fields_mapped */
+					if (in_array($k, $fields_mapped)) {
+						unset($nd_data[$i][$k]);
+						$nd_data[$i][$fields_mapped[$k]] = $v;
+					}
+				}
+			}
+		}
+
+		/* All good */
+		return $nd_data;
+	}
+
+
+	public function insert($ctrl, $argv = NULL, $fields_accepted = array(), $fields_mapped = array()) {
+		/* Retrieve authentication and session data from headers */
+		$session = $this->session_init();
+
+		/* Validate arguments, if any */
+		if ($argv !== NULL) {
+			$this->log('403', __FILE__, __LINE__, __FUNCTION__, 'Cannot insert with the specified ID.', $session);
+			$this->restful->error('Cannot insert with the specified ID.');
+			$this->restful->output('403'); /* Forbidden */
+		}
+
+		/* Get input data */
+		$input = $this->restful->input();
+
+		/* Check if there's any input */
+		if (!count($input)) {
+			$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'No input data fields could found.', $session);
+			$this->restful->error('No input data fields could be found.');
+			$this->restful->output('400'); /* Bad Request */
+		}
+
+		/* Sanitize input */
+		$entry = array();
+		$reqbody = array();
+
+		foreach ($input as $k => $v) {
+			/* Any field not present in $fields_accepted will cause a bad request */
+			if (!in_array($k, $fields_accepted)) {
+				$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Unacceptable field: ' . $k, $session);
+				$this->restful->error('Unacceptable field: ' . $k);
+				$this->restful->output('400'); /* Bad request */
+			}
+
+			/* Check if key is mapped to something else... */
+			if (in_array($k, $fields_mapped)) {
+				$entry[$fields_map[$k]] = $v;
+			} else {
+				$entry[$k] = $v;
+			}
+		}
+
+		/* Set request data for the backend engine (nd-php) */
+		$reqbody['_userid'] = $session['user_id'];
+		$reqbody['_apikey'] = $session['token'];
+		$reqbody['data'] = $entry;
+
+		/* Forward the insert request to the backend engine (nd-php) */
+		$nd_data = $this->request('/' . $ctrl . '/insert', $reqbody, $session);
+
+		/* Check if the entry was successfully updated */
+		if (!isset($nd_data['inserted']) || ($nd_data['inserted'] !== true)) {
+			$this->log('403', __FILE__, __LINE__, __FUNCTION__, 'Update failed: Unable to insert entry.', $session);
+			$this->restful->error('Unable to insert entry.');
+			$this->restful->output('403'); /* Forbidden */
+		}
+
+		/* Set inserted id */
+		$data['id'] = $nd_data['insert_id'];
+
+		/* All good */
+		return $data;
+	}
+
+
+	public function update($ctrl, $argv = NULL, $fields_accepted = array(), $fields_mapped = array()) {
+		/* Retrieve authentication and session data from headers */
+		$session = $this->session_init();
+
+		/* Validate arguments, if any */
+		if ($argv === NULL || (count($argv) != 1) || !is_numeric($argv[0])) {
+			$this->log('403', __FILE__, __LINE__, __FUNCTION__, 'Cannot modify the entire collection.', $session);
+			$this->restful->error('Cannot modify the entire collection.');
+			$this->restful->output('403'); /* Forbidden */
+		}
+
+		/* Get input data */
+		$input = $this->restful->input();
+
+		/* Check if there's any input */
+		if (!count($input)) {
+			$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'No input data fields could found.', $session);
+			$this->restful->error('No input data fields could be found.');
+			$this->restful->output('400'); /* Bad Request */
+		}
+
+		/* Sanitize input */
+		$entry = array();
+		$reqbody = array();
+
+		foreach ($input as $k => $v) {
+			if (!in_array($k, $fields_accepted)) {
+				/* Any field not present in $fields_accepted will cause a bad request */
+				$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Unacceptable field: ' . $k, $session);
+				$this->restful->error('Unacceptable field: ' . $k);
+				$this->restful->output('400'); /* Bad request */
+			}
+
+			/* Check if key is mapped to something else... */
+			if (in_array($k, $fields_mapped)) {
+				$entry[$fields_map[$k]] = $v;
+			} else {
+				$entry[$k] = $v;
+			}
+		}
+
+		/* Set request data for the backend engine (nd-php) */
+		$reqbody['_userid'] = $session['user_id'];
+		$reqbody['_apikey'] = $session['token'];
+		$reqbody['data'] = $entry;
+
+		/* Forward the update request to the backend engine (nd-php) */
+		$nd_data = $this->request('/' . $ctrl . '/update/' . $argv[0], $reqbody, $session);
+
+		/* Check if the entry was successfully updated */
+		if (!isset($nd_data['updated']) || ($nd_data['updated'] !== true)) {
+			$this->log('403', __FILE__, __LINE__, __FUNCTION__, 'Update failed: Unable to update entry.', $session);
+			$this->restful->error('Unable to update entry.');
+			$this->restful->output('403'); /* Forbidden */
+		}
+
+		/* All good */
+		return;
+	}
+
+
+	public function delete($ctrl, $argv = NULL) {
+		/* Retrieve authentication and session data from headers */
+		$session = $this->session_init();
+
+		/* Validate arguments, if any */
+		if ($argv === NULL || (count($argv) != 1) || !is_numeric($argv[0])) {
+			$this->log('403', __FILE__, __LINE__, __FUNCTION__, 'Cannot delete the entire collection.', $session);
+			$this->restful->error('Cannot delete the entire collection.');
+			$this->restful->output('403'); /* Forbidden */
+		}
+
+		/* Forward request to backend engine (nd-php) */
+		$nd_data = $this->request('/' . $ctrl . '/delete/' . $argv[0], NULL, $session);
+
+		/* Check if the entry was successfully deleted */
+		if (!isset($nd_data['deleted']) || ($nd_data['deleted'] !== true)) {
+			$this->log('403', __FILE__, __LINE__, __FUNCTION__, 'Delete failed: Unable to delete entry.', $session);
+			$this->restful->error('Unable to delete entry.');
+			$this->restful->output('403'); /* Forbidden */
+		}
+
+		/* All good */
+		return ;
+	}
+
+
+	public function search($ctrl, $fields_accepted = array(), $fields_mapped_pre = array(), $fields_mapped_post = array(), $fields_visible = array()) {
+		/* Retrieve authentication and session data from headers */
+		$session = $this->session_init();
+
+		/* Only POST method is accepted for this call */
+		if ($this->restful->method() != 'POST') {
+			$this->log('405', __FILE__, __LINE__, __FUNCTION__, 'Only POST method is allowed to be used for searches.', $session);
+			$this->restful->error('Only POST method is allowed to be used for searches.');
+			$this->restful->output('405'); /* Method Not Allowed */
+		}
+
+		/* Get input data */
+		$input = $this->restful->input();
+
+		/* Check if there's any input */
+		if (!count($input) || !isset($input['query'])) {
+			$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'No input data fields could found or search query is missing.', $session);
+			$this->restful->error('No input data fields could be found or search query is missing.');
+			$this->restful->output('400'); /* Bad Request */
+		}
+
+		/* Sanitize input and rename any mapped fields */
+		$query = array();
+
+		foreach ($input['query'] as $k => $v) {
+			/* If $fields_accepted is set, grant that the search query only targets the accepted fields  */
+			if (count($fields_accepted) && !in_array($k, $fields_accepted)) {
+				$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Unacceptable field: ' . $k, $session);
+				$this->restful->error('Unacceptable field: ' . $k);
+				$this->restful->output('400'); /* Bad Request */
+			}
+
+			/* Check if key is mapped to something else... */
+			if (in_array($k, $fields_mapped_pre)) {
+				$query[$fields_mapped_pre[$k]] = $v;
+			} else {
+				$query[$k] = $v;
+			}
+		}
+
+		/* Set the new query array */
+		$input['query'] = $query;
+
+		/* If both $fields_visible and 'show' array are set:
+		 *  - Unset any fields from 'show' array that are not set in $fields_visible.
+		 *
+		 * Also rename any fields that are mapped by $fields_mapped_pre array.
+		 *
+		 */
+		if (isset($input['show'])) {
+			/* Initialize a new show array */
+			$show = array();
+
+			/* Iterate show array, filtering out any fields not present in $fields_visible (is set) */
+			foreach ($input['show'] as $v) {
+				if (count($fields_visible) && !in_array($v, $fields_visible))
+					continue;
+
+				/* Rename the field, if it's mapped... */
+				if (in_array($v, $fields_mapped_pre)) {
+					array_push($show, $fields_mapped_pre[$v]);
+				} else {
+					/* Otherwise, just set the original name */
+					array_push($show, $v);
+				}
+			}
+
+			/* Set the new show array */
+			$input['show'] = $show;
+		}
+
+		/* Set request data */
+		$reqbody['_userid'] = $session['user_id'];
+		$reqbody['_apikey'] = $session['token'];
+		$reqbody['data'] = $this->search_ndsl($input, $session);
+
+		/* Forward the update request to the backend engine (nd-php) */
+		$nd_data = $this->request('/' . $ctrl . '/result/basic', $reqbody, $session);
+
+		/* Check if the received type is what we're expecting */
+		if (gettype($nd_data) != 'array') {
+			$this->log('500', __FILE__, __LINE__, __FUNCTION__, 'Invalid data received from the underlying layer: Unexpected type (Expecting array).', $session);
+			$this->restful->error('An error ocurred while retrieving data from the backend. Data type is invalid. Please contact support.');
+			$this->restful->output('500'); /* Internal Server Error */
+		}
+
+		/* If we've received an empty array, the search succeded, but no results were found... */
+		if (!count($nd_data))
+			$this->restful->output('204'); /* No Content */	
+
+
+		/* if $fields_mapped_post is set, iterate the results and perform any required renames based on $fields_mapped */
+		if (count($fields_mapped_post)) {
+			for ($i = 0; $i < count($nd_data); $i ++) {
+				/* Set a temporary row to be safely iterated */
+				$row = $nd_data[$i];
+
+				/* Mangle that, if required... */
+				foreach ($row as $k => $v) {
+					if (in_array($k, $fields_mapped_post)) {
+						unset($nd_data[$i][$k]);
+						$nd_data[$i][$fields_mapped_post[$k]] = $v;
+					}
+				}
+			}
+		}
+
+		/* Deliver results */
+		return $nd_data;
+	}
 }
