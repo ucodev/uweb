@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 29/10/2016
+ * Date: 11/11/2016
  * License: GPLv3
  */
 
@@ -473,7 +473,10 @@ class UW_ND extends UW_Module {
 
 	/** ND WebAPI interfaces **/
 
-	public function view($ctrl, $argv = NULL, $fields_mapped = array(), $fields_visible = array()) {
+	public function view($ctrl, $argv = NULL, $fields = array()) {
+		$fields_mapped  = isset($fields['mapped']) ? $fields['mapped'] : array();
+		$fields_visible = isset($fields['visible']) ? $fields['visible'] : array();
+
 		/* Retrieve authentication and session data from headers */
 		$session = $this->session_init();
 
@@ -498,19 +501,19 @@ class UW_ND extends UW_Module {
 		/** Aggregate fields **/
 
 		/* Set basic fields */
-		$fields = $nd_data['fields'][0];
+		$entry = $nd_data['fields'][0];
 
 		/* Aggregate multiple relationship fields */
 		if (isset($nd_data['rel'])) {
 			foreach ($nd_data['rel'] as $k => $v) {
-				$fields[$k] = $v;
+				$entry[$k] = $v;
 			}
 		}
 
 		/* Aggregate mixed fields */
 		if (isset($nd_data['mixed'])) {
 			foreach ($nd_data['mixed'] as $k => $v) {
-				$fields[$k] = $v;
+				$entry[$k] = $v;
 			}
 		}
 
@@ -523,23 +526,26 @@ class UW_ND extends UW_Module {
 		foreach ($row as $k => $v) {
 			/* If $fields_visible is set, filter out fields not present in the array */
 			if (count($fields_visible) && !in_array($k, $fields_visible)) {
-				unset($fields[$k]);
+				unset($entry[$k]);
 				continue;
 			}
 
 			/* If there the field is mapped, renamed it */
 			if (in_array($k, $fields_mapped)) {
-				unset($fields[$k]);
-				$fields[$fields_mapped[$k]] = $v;
+				unset($entry[$k]);
+				$entry[$fields_mapped[$k]] = $v;
 			}
 		}
 
 		/* All good */
-		return $fields;
+		return $entry;
 	}
 
 
-	public function list_default($ctrl, $fields_mapped = array(), $fields_visible = array()) {
+	public function list_default($ctrl, $argv = NULL, $fields = array()) {
+		$fields_mapped  = isset($fields['mapped']) ? $fields['mapped'] : array();
+		$fields_visible = isset($fields['visible']) ? $fields['visible'] : array();
+
 		/* Retrieve authentication and session data from headers */
 		$session = $this->session_init();
 
@@ -577,7 +583,11 @@ class UW_ND extends UW_Module {
 	}
 
 
-	public function insert($ctrl, $argv = NULL, $fields_accepted = array(), $fields_mapped = array()) {
+	public function insert($ctrl, $argv = NULL, $input = array(), $fields = array()) {
+		$fields_accepted = isset($fields['accepted']) ? $fields['accepted'] : array();
+		$fields_mapped   = isset($fields['mapped']) ? $fields['mapped'] : array();
+		$fields_required = isset($fields['required']) ? $fields['required'] : array();
+
 		/* Retrieve authentication and session data from headers */
 		$session = $this->session_init();
 
@@ -588,14 +598,20 @@ class UW_ND extends UW_Module {
 			$this->restful->output('403'); /* Forbidden */
 		}
 
-		/* Get input data */
-		$input = $this->restful->input();
-
 		/* Check if there's any input */
 		if (!count($input)) {
 			$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'No input data fields could found.', $session);
 			$this->restful->error('No input data fields could be found.');
 			$this->restful->output('400'); /* Bad Request */
+		}
+
+		/* Check if the required fields are present */
+		foreach ($fields_required as $rfield) {
+			if (!in_array($rfield, $input)) {
+				$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Missing required field: ' . $k, $session);
+				$this->restful->error('Missing required field: ' . $k);
+				$this->restful->output('400'); /* Bad request */
+			}
 		}
 
 		/* Sanitize input */
@@ -641,7 +657,10 @@ class UW_ND extends UW_Module {
 	}
 
 
-	public function update($ctrl, $argv = NULL, $fields_accepted = array(), $fields_mapped = array()) {
+	public function update($ctrl, $argv = NULL, $input = array(), $fields = array()) {
+		$fields_accepted = isset($fields['accepted']) ? $fields['accepted'] : array();
+		$fields_mapped   = isset($fields['mapped']) ? $fields['mapped'] : array();
+
 		/* Retrieve authentication and session data from headers */
 		$session = $this->session_init();
 
@@ -651,9 +670,6 @@ class UW_ND extends UW_Module {
 			$this->restful->error('Cannot modify the entire collection.');
 			$this->restful->output('403'); /* Forbidden */
 		}
-
-		/* Get input data */
-		$input = $this->restful->input();
 
 		/* Check if there's any input */
 		if (!count($input)) {
@@ -728,7 +744,12 @@ class UW_ND extends UW_Module {
 	}
 
 
-	public function search($ctrl, $fields_accepted = array(), $fields_mapped_pre = array(), $fields_mapped_post = array(), $fields_visible = array()) {
+	public function search($ctrl, $input = array(), $fields = array()) {
+		$fields_accepted    = isset($fields['accepted']) ? $fields['accepted'] : array();
+		$fields_mapped_pre  = isset($fields['mapped_pre']) ? $fields['mapped_pre'] : array();
+		$fields_mapped_post = isset($fields['mapped_post']) ? $fields['mapped_post'] : array();
+		$fields_visible     = isset($fields['visible']) ? $fields['visible'] : array();
+
 		/* Retrieve authentication and session data from headers */
 		$session = $this->session_init();
 
@@ -738,9 +759,6 @@ class UW_ND extends UW_Module {
 			$this->restful->error('Only POST method is allowed to be used for searches.');
 			$this->restful->output('405'); /* Method Not Allowed */
 		}
-
-		/* Get input data */
-		$input = $this->restful->input();
 
 		/* Check if there's any input */
 		if (!count($input) || !isset($input['query'])) {
@@ -802,7 +820,7 @@ class UW_ND extends UW_Module {
 		/* Set request data */
 		$reqbody['_userid'] = $session['user_id'];
 		$reqbody['_apikey'] = $session['token'];
-		$reqbody['data'] = $this->search_ndsl($input, $session);
+		$reqbody['data']    = $this->search_ndsl($input, $session);
 
 		/* Forward the update request to the backend engine (nd-php) */
 		$nd_data = $this->request('/' . $ctrl . '/result/basic', $reqbody, $session);
@@ -837,5 +855,55 @@ class UW_ND extends UW_Module {
 
 		/* Deliver results */
 		return $nd_data;
+	}
+
+
+	public function register($argv = NULL, $input = array(), $fields = array()) {
+		$fields_accepted = isset($fields['accepted']) ? $fields['accepted'] : array();
+		$fields_mapped   = isset($fields['mapped']) ? $fields['mapped'] : array();
+		$fields_required = isset($fields['required']) ? $fields['required'] : array();
+
+		/* Validate argument vector */
+		if ($argv !== NULL) {
+			$this->log('403', __FILE__, __LINE__, __FUNCTION__, 'Cannot register with the specified ID.');
+			$this->restful->error('Cannot register with the specified ID.');
+			$this->restful->output('403'); /* Forbidden */
+		}
+
+		/** Sanitize input. TODO: Although the underlying layer already sanitize the fields, we shall perform some pre-checks here. **/
+
+		/* Check required fields */
+		foreach ($fields_required as $rfield) {
+			if (!in_array($rfield, $input)) {
+				$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Missing required field: ' . $k);
+				$this->restful->error('Missing required field: ' . $k);
+				$this->restful->output('400'); /* Bad Request */
+			}
+		}
+
+		/* Check accepted fields and process field mappings */
+		foreach ($input as $k => $v) {
+			if (!in_array($k, $fields_accepted)) {
+				$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Unacceptable field: ' . $k);
+				$this->restful->error('Unacceptable field: ' . $k);
+				$this->restful->output('400'); /* Bad Request */
+			}
+
+			/* Check if key is mapped to something else... */
+			if (in_array($k, $fields_mapped)) {
+				$register[$fields_mapped[$k]] = $v;
+			} else {
+				$register[$k] = $v;
+			}
+		}
+		
+		/* Replicate the password value to password check value (field required by nd-php) */
+		$register['password_check'] = $register['password'];
+
+		/* Register user */
+		$data = $this->user_register($register);
+
+		/* All good */
+		return $data;
 	}
 }

@@ -1,11 +1,6 @@
 <?php if (!defined('FROM_BASE')) { header('HTTP/1.1 403 Forbidden'); die('Invalid requested path.'); }
 
-/* Author: Pedro A. Hortas
- * Email: pah@ucodev.org
- * Date: 14/10/2016
- */
-
-class Dummy_rest extends UW_Controller {
+class Dummy extends UW_Controller {
 	/** Entry Point **/
 
 	public function index($argv = NULL) {
@@ -21,7 +16,7 @@ class Dummy_rest extends UW_Controller {
 		$this->restful->output('200', 'Viewing item ' . $argv[0]);
 	}
 
-	public function listing() {
+	public function listing($argv = NULL) {
 		/* GET */
 		$this->restful->output('200', 'Listing collection');
 	}
@@ -78,7 +73,7 @@ class Dummy_rest extends UW_Controller {
 		$this->restful->validate();
 
 		if ($this->restful->method() != 'POST') {
-			$this->restful->error('Only POST method in allowed to be used for searches.');
+			$this->restful->error('Only POST method is allowed to be used for searches.');
 			$this->restful->output('405');
 		}
 

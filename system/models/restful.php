@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 29/10/2016
+ * Date: 11/11/2016
  * License: GPLv3
  */
 
@@ -217,10 +217,10 @@ class UW_Restful extends UW_Model {
 		/* Process method */
 		switch ($this->method()) {
 			case 'GET': {
-				if ($argv == NULL) {
+				if (($argv == NULL) || (count($argv) > 1)) {
 					/* If no argument, we'll target the collection */
 					if (method_exists($ctrl, 'listing')) {
-						$ctrl->listing();
+						$ctrl->listing($argv);
 					} else {
 						/* Object method is not implemented (no handler declared) */
 						$this->error('No handler declared for GET (listing).');
