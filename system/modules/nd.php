@@ -531,7 +531,7 @@ class UW_ND extends UW_Module {
 			}
 
 			/* If there the field is mapped, renamed it */
-			if (in_array($k, $fields_mapped)) {
+			if (isset($fields_mapped[$k])) {
 				unset($entry[$k]);
 				$entry[$fields_mapped[$k]] = $v;
 			}
@@ -570,7 +570,7 @@ class UW_ND extends UW_Module {
 					}
 
 					/* Rename fields that are set in $fields_mapped */
-					if (in_array($k, $fields_mapped)) {
+					if (isset($fields_mapped[$k])) {
 						unset($nd_data[$i][$k]);
 						$nd_data[$i][$fields_mapped[$k]] = $v;
 					}
@@ -627,7 +627,7 @@ class UW_ND extends UW_Module {
 			}
 
 			/* Check if key is mapped to something else... */
-			if (in_array($k, $fields_mapped)) {
+			if (isset($fields_mapped[$k])) {
 				$entry[$fields_map[$k]] = $v;
 			} else {
 				$entry[$k] = $v;
@@ -691,7 +691,7 @@ class UW_ND extends UW_Module {
 			}
 
 			/* Check if key is mapped to something else... */
-			if (in_array($k, $fields_mapped)) {
+			if (isset($fields_mapped[$k])) {
 				$entry[$fields_map[$k]] = $v;
 			} else {
 				$entry[$k] = $v;
@@ -779,7 +779,7 @@ class UW_ND extends UW_Module {
 			}
 
 			/* Check if key is mapped to something else... */
-			if (in_array($k, $fields_mapped_pre)) {
+			if (isset($fields_mapped_pre[$k])) {
 				$query[$fields_mapped_pre[$k]] = $v;
 			} else {
 				$query[$k] = $v;
@@ -805,7 +805,7 @@ class UW_ND extends UW_Module {
 					continue;
 
 				/* Rename the field, if it's mapped... */
-				if (in_array($v, $fields_mapped_pre)) {
+				if (isset($fields_mapped_pre[$v])) {
 					array_push($show, $fields_mapped_pre[$v]);
 				} else {
 					/* Otherwise, just set the original name */
@@ -845,7 +845,7 @@ class UW_ND extends UW_Module {
 
 				/* Mangle that, if required... */
 				foreach ($row as $k => $v) {
-					if (in_array($k, $fields_mapped_post)) {
+					if (isset($fields_mapped_post[$k])) {
 						unset($nd_data[$i][$k]);
 						$nd_data[$i][$fields_mapped_post[$k]] = $v;
 					}
@@ -890,7 +890,7 @@ class UW_ND extends UW_Module {
 			}
 
 			/* Check if key is mapped to something else... */
-			if (in_array($k, $fields_mapped)) {
+			if (isset($fields_mapped[$k])) {
 				$register[$fields_mapped[$k]] = $v;
 			} else {
 				$register[$k] = $v;
