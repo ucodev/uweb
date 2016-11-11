@@ -549,8 +549,26 @@ class UW_ND extends UW_Module {
 		/* Retrieve authentication and session data from headers */
 		$session = $this->session_init();
 
+		/* Initialize data */
+		$data = NULL;
+
+		/* Check if there are conditions to be set */
+		if ($argv !== NULL) {
+			if (isset($argv[0]))
+				$data['_limit'] = abs(intval($argv[0]));
+
+			if (isset($argv[1]))
+				$data['_offset'] = abs(intval($argv[1]));
+
+			if (isset($argv[2]))
+				$data['_orderby'] = preg_match('/^[a-zA-Z0-9_]+$/', $argv[2]) ? $argv[2] : 'id';
+
+			if (isset($argv[3]))
+				$data['_ordering'] = (strtolower($argv[3]) == 'desc') ? 'desc' : 'asc';
+		}
+
 		/* Forward request to backend engine (nd-php) */
-		$nd_data = $this->request('/' . $ctrl . '/list_default', NULL, $session);
+		$nd_data = $this->request('/' . $ctrl . '/list_default', $data, $session);
 
 		/* If $fields_mapped or $fields_visible are set, iterate the results and:
 		 *  - Perform any required renames based on $fields_mapped (if set)
