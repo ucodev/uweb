@@ -520,7 +520,7 @@ class UW_ND extends UW_Module {
 		/** Mangle results according to $fields_mapped and $fields_visible **/
 
 		/* Set a temporary row to be safely iterated */
-		$row = $fields;
+		$row = $entry;
 
 		/* Iterate the row and make any required changes in the $fields array */
 		foreach ($row as $k => $v) {
