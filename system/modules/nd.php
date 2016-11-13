@@ -632,8 +632,8 @@ class UW_ND extends UW_Module {
 		/* Check if the required fields are present */
 		foreach ($fields_required as $rfield) {
 			if (!in_array($rfield, $input)) {
-				$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Missing required field: ' . $k, $session);
-				$this->restful->error('Missing required field: ' . $k);
+				$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Missing required field: ' . $rfield, $session);
+				$this->restful->error('Missing required field: ' . $rfield);
 				$this->restful->output('400'); /* Bad request */
 			}
 		}
@@ -899,8 +899,8 @@ class UW_ND extends UW_Module {
 		/* Check required fields */
 		foreach ($fields_required as $rfield) {
 			if (!in_array($rfield, $input)) {
-				$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Missing required field: ' . $k);
-				$this->restful->error('Missing required field: ' . $k);
+				$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Missing required field: ' . $rfield);
+				$this->restful->error('Missing required field: ' . $rfield);
 				$this->restful->output('400'); /* Bad Request */
 			}
 		}
