@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 11/11/2016
+ * Date: 13/11/2016
  * License: GPLv3
  */
 
@@ -550,25 +550,31 @@ class UW_ND extends UW_Module {
 		$session = $this->session_init();
 
 		/* Initialize data */
-		$data = NULL;
+		$reqbody['_userid'] = $session['user_id'];
+		$reqbody['_apikey'] = $session['token'];
+		$reqbody['data'] = NULL;
 
 		/* Check if there are conditions to be set */
 		if ($argv !== NULL) {
 			if (isset($argv[0]))
-				$data['_limit'] = abs(intval($argv[0]));
+				$reqbody['data']['_limit'] = abs(intval($argv[0]));
 
 			if (isset($argv[1]))
-				$data['_offset'] = abs(intval($argv[1]));
+				$reqbody['data']['_offset'] = abs(intval($argv[1]));
 
 			if (isset($argv[2]))
-				$data['_orderby'] = preg_match('/^[a-zA-Z0-9_]+$/', $argv[2]) ? $argv[2] : 'id';
+				$reqbody['data']['_orderby'] = preg_match('/^[a-zA-Z0-9_]+$/', $argv[2]) ? $argv[2] : 'id';
 
 			if (isset($argv[3]))
-				$data['_ordering'] = (strtolower($argv[3]) == 'desc') ? 'desc' : 'asc';
+				$reqbody['data']['_ordering'] = (strtolower($argv[3]) == 'desc') ? 'desc' : 'asc';
 		}
 
 		/* Forward request to backend engine (nd-php) */
-		$nd_data = $this->request('/' . $ctrl . '/list_default', $data, $session);
+		if ($reqbody['data'] !== NULL) {
+			$nd_data = $this->request('/' . $ctrl . '/list_default', $reqbody, $session);
+		} else {
+			$nd_data = $this->request('/' . $ctrl . '/list_default', NULL, $session);
+		}
 
 		/* If $fields_mapped or $fields_visible are set, iterate the results and:
 		 *  - Perform any required renames based on $fields_mapped (if set)
