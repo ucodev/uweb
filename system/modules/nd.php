@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 13/11/2016
+ * Date: 19/11/2016
  * License: GPLv3
  */
 
@@ -530,6 +530,20 @@ class UW_ND extends UW_Module {
 				continue;
 			}
 
+			/* Multiple relationship values are delivered as a comma separated list (string type).
+			 * This requires proper conversion to an integer array.
+			 */
+			if (substr($k, 4) == 'rel_') {
+				$entry[$k] = $v
+					? /* if $v contains data, map it to an integer array */
+					array_map(
+						function($x) { return intval($x); },
+						explode(',', $v)
+					)
+					: /* otherwise, set the value as an empty array */
+					array();
+			}
+
 			/* If there the field is mapped, renamed it */
 			if (isset($fields_mapped[$k])) {
 				unset($entry[$k]);
@@ -576,28 +590,37 @@ class UW_ND extends UW_Module {
 			$nd_data = $this->request('/' . $ctrl . '/list_default', NULL, $session);
 		}
 
-		/* If $fields_mapped or $fields_visible are set, iterate the results and:
-		 *  - Perform any required renames based on $fields_mapped (if set)
-		 *  - Filter any fields that are not present in $fields_visible (is set)
-		 */
-		if (count($fields_mapped) || count($fields_visible)) {
-			for ($i = 0; $i < count($nd_data); $i ++) {
-				/* Set a temporary row to be safely iterated */
-				$row = $nd_data[$i];
+		/* Iterate the result array, mangling required types to match proper JSON responses */
+		for ($i = 0; $i < count($nd_data); $i ++) {
+			/* Set a temporary row to be safely iterated */
+			$row = $nd_data[$i];
 
-				/* Mangle data, if required */
-				foreach ($row as $k => $v) {
-					/* Filter fields that are not present in $fields_visible */
-					if (count($fields_visible) && !in_array($k, $fields_visible)) {
-						unset($nd_data[$i][$k]);
-						continue;
-					}
+			/* Mangle data, if required */
+			foreach ($row as $k => $v) {
+				/* Filter fields that are not present in $fields_visible */
+				if (count($fields_visible) && !in_array($k, $fields_visible)) {
+					unset($nd_data[$i][$k]);
+					continue;
+				}
 
-					/* Rename fields that are set in $fields_mapped */
-					if (isset($fields_mapped[$k])) {
-						unset($nd_data[$i][$k]);
-						$nd_data[$i][$fields_mapped[$k]] = $v;
-					}
+				/* Multiple relationship values are delivered as a comma separated list (string type).
+				 * This requires proper conversion to an integer array.
+				 */
+				if (substr($k, 4) == 'rel_') {
+					$nd_data[$i][$k] = $v
+						? /* if $v contains data, map it to an integer array */
+						array_map(
+							function($x) { return intval($x); },
+							explode(',', $v)
+						)
+						: /* otherwise, set the value as an empty array */
+						array();
+				}
+
+				/* Rename fields that are set in $fields_mapped */
+				if (isset($fields_mapped[$k])) {
+					unset($nd_data[$i][$k]);
+					$nd_data[$i][$fields_mapped[$k]] = $v;
 				}
 			}
 		}
@@ -861,18 +884,30 @@ class UW_ND extends UW_Module {
 			$this->restful->output('204'); /* No Content */	
 
 
-		/* if $fields_mapped_post is set, iterate the results and perform any required renames based on $fields_mapped */
-		if (count($fields_mapped_post)) {
-			for ($i = 0; $i < count($nd_data); $i ++) {
-				/* Set a temporary row to be safely iterated */
-				$row = $nd_data[$i];
+		/* Iterate over the result array, converting any types required and mapped fields */
+		for ($i = 0; $i < count($nd_data); $i ++) {
+			/* Set a temporary row to be safely iterated */
+			$row = $nd_data[$i];
 
-				/* Mangle that, if required... */
-				foreach ($row as $k => $v) {
-					if (isset($fields_mapped_post[$k])) {
-						unset($nd_data[$i][$k]);
-						$nd_data[$i][$fields_mapped_post[$k]] = $v;
-					}
+			/* Mangle that, if required... */
+			foreach ($row as $k => $v) {
+				/* Multiple relationship values are delivered as a comma separated list (string type).
+				 * This requires proper conversion to an integer array.
+				 */
+				if (substr($k, 4) == 'rel_') {
+					$nd_data[$i][$k] = $v
+						? /* if $v contains data, map it to an integer array */
+						array_map(
+							function($x) { return intval($x); },
+							explode(',', $v)
+						)
+						: /* otherwise, set the value as an empty array */
+						array();
+				}
+
+				if (isset($fields_mapped_post[$k])) {
+					unset($nd_data[$i][$k]);
+					$nd_data[$i][$fields_mapped_post[$k]] = $v;
 				}
 			}
 		}
