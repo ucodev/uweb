@@ -28,6 +28,9 @@ import datetime
 import base64
 
 class rest:
+	auth = None
+	config = None
+
 	file_config = "config.json"
 	file_authcache = ".authcache"
 
@@ -45,7 +48,7 @@ class rest:
 	# Loads the REST API configuration
 	def config_load(self):
 		with open(self.file_config, "r") as f:
-			return json.loads(f.read())
+			self.config = json.loads(f.read())
 
 	# Load authentication information, if any
 	def auth_load(self):
@@ -55,7 +58,12 @@ class rest:
 
 		# Otherwise, load the stored authentication values
 		with open(self.file_authcache, "r") as f:
-			return json.loads(f.read())['data']
+			# Return authentication data
+			self.auth = json.loads(f.read())['data']
+
+			# Set the authentication headers
+			self.req_headers[self.config['header_user_id']] = self.auth['userid']
+			self.req_headers[self.config['header_auth_token']] = self.auth['token']
 
 	def request(self, method, obj, req_data = None, args = None):
 		# Craft URI
@@ -77,42 +85,41 @@ class rest:
 			r = requests.post(self.config['base_url'] + uri, data = json.dumps(req_data), headers = self.req_headers)
 
 			# If unauthorized, login and try again
-			if r.status_code == 401:
+			if r.status_code == 401 and self.auto_login:
 				self.login()
 				r = requests.post(self.config['base_url'] + uri, data = json.dumps(req_data), headers = self.req_headers)
 		elif method == 'GET':
 			r = requests.get(self.config['base_url'] + uri, headers = self.req_headers)
 
 			# If unauthorized, login and try again
-			if r.status_code == 401:
+			if r.status_code == 401 and self.auto_login:
 				self.login()
 				r = requests.get(self.config['base_url'] + uri, headers = self.req_headers)
 		elif method == 'PUT':
 			r = requests.put(self.config['base_url'] + uri, data = json.dumps(req_data), headers = self.req_headers)
 
 			# If unauthorized, login and try again
-			if r.status_code == 401:
-				self.login()
+			if r.status_code == 401 and self.auto_login:
 				r = requests.put(self.config['base_url'] + uri, data = json.dumps(req_data), headers = self.req_headers)
 		elif method == 'PATCH':
 			r = requests.patch(self.config['base_url'] + uri, data = json.dumps(req_data), headers = self.req_headers)
 
 			# If unauthorized, login and try again
-			if r.status_code == 401:
+			if r.status_code == 401 and self.auto_login:
 				self.login()
 				r = requests.patch(self.config['base_url'] + uri, data = json.dumps(req_data), headers = self.req_headers)
 		elif method == 'DELETE':
 			r = requests.delete(self.config['base_url'] + uri, headers = self.req_headers)
 
 			# If unauthorized, login and try again
-			if r.status_code == 401:
+			if r.status_code == 401 and self.auto_login:
 				self.login()
 				r = requests.delete(self.config['base_url'] + uri, headers = self.req_headers)
 		elif method == 'OPTIONS':
 			r = requests.options(self.config['base_url'] + uri, headers = self.req_headers)
 
 			# If unauthorized, login and try again
-			if r.status_code == 401:
+			if r.status_code == 401 and self.auto_login:
 				self.login()
 				r = requests.options(self.config['base_url'] + uri, headers = self.req_headers)
 		else:
@@ -132,11 +139,15 @@ class rest:
 
 	
 	# Authentication: Sign-in
-	def login(self):
-		req_data = {
-			"username": self.config['username'],
-			"password": self.config['password']
-		}
+	def login(self, username = None, password = None):
+		req_data = {}
+
+		if username and password:
+			req_data['username'] = username
+			req_data['password'] = password
+		else:
+			req_data['username'] = self.config['username']
+			req_data['password'] = self.config['password']
 
 		# Send the authentication request, measuring the request time
 		r = self.request('POST', 'auth', req_data)
@@ -151,8 +162,13 @@ class rest:
 			with open(self.file_authcache, "w") as f:
 				f.write(json.dumps(r['json']))
 
+			# Load authentication cache
+			self.auth_load()
+		else:
+			raise Exception("Authentication failed.")
+
 		# All good
-		return r
+		return True
 
 	def session_status(self):
 		r = self.request('GET', 'auth')
@@ -161,7 +177,17 @@ class rest:
 			
 	# Authentication: Sign-out
 	def logout(self):
-		return self.request('DELETE', 'auth')
+		r = self.request('DELETE', 'auth')
+
+		if r['code'] != 200:
+			raise Exception("Unable to logout")
+
+		# Remove authentication cache
+		os.unlink(self.file_authcache)
+		self.auth = None
+
+		# All good
+		return True
 
 	def signup(self, req_data):
 		# Username is mandatory
@@ -179,38 +205,26 @@ class rest:
 		return self.request('POST', 'register', req_data)
 
 	# Class contruct
-	def __init__(self, file_config = "config.json", file_authcache = ".authcache"):
+	def __init__(self, file_config = "config.json", file_authcache = ".authcache", auto_login = True):
+		self.auto_login = auto_login
+
 		# Set required file names
 		self.file_config = file_config
 		self.file_authcache = file_authcache
 
 		# Load REST API configuration
-		self.config = self.config_load()
+		self.config_load()
 
 		# Load any authentication cache
-		self.auth = self.auth_load()
+		self.auth_load()
 
 		# If there's no authentication cache, perform a login
-		if not self.auth:
+		if not self.auth and self.auto_login:
 			r = self.login()
-
-			if r['code'] != 201:
-				raise Exception("Authentication failed.")
-
-			self.auth = self.auth_load()
 
 		# Check if the session is still valid
-		if (int(time.time()) - os.stat(file_authcache).st_mtime) >= self.config['session_lifetime'] and not self.session_status():
+		if self.auto_login and (int(time.time()) - os.stat(file_authcache).st_mtime) >= self.config['session_lifetime'] and not self.session_status():
 			r = self.login()
-
-			if r['code'] != 201:
-				raise Exception("Authentication failed.")
-
-			self.auth = self.auth_load()
-
-		# Set the authentication headers
-		self.req_headers[self.config['header_user_id']] = self.auth['userid']
-		self.req_headers[self.config['header_auth_token']] = self.auth['token']
 
 
 	## METHODS ##
