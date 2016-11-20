@@ -266,7 +266,7 @@ class rest:
 		else:
 			req_data[k] = v
 
-		return self.request('PATCH', obj, data = req_data, entry_id = entry_id)
+		return self.request('PATCH', obj, data = req_data, args = str(entry_id))
 
 	# DELETE: Deletes an entry from obj collection
 	def delete(self, obj, entry_id):
