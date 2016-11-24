@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 20/11/2016
+ * Date: 24/11/2016
  * License: GPLv3
  */
 
@@ -881,7 +881,7 @@ class UW_ND extends UW_Module {
 
 		/* If we've received an empty array, the search succeded, but no results were found... */
 		if (!count($nd_data))
-			$this->restful->output('204'); /* No Content */	
+			$this->restful->output('201'); /* Search was peformed, but no content was delivered */
 
 
 		/* Iterate over the result array, converting any types required and mapped fields */
