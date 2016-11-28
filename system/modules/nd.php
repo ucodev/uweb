@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 24/11/2016
+ * Date: 28/11/2016
  * License: GPLv3
  */
 
@@ -591,15 +591,15 @@ class UW_ND extends UW_Module {
 		}
 
 		/* Iterate the result array, mangling required types to match proper JSON responses */
-		for ($i = 0; $i < count($nd_data); $i ++) {
+		for ($i = 0; $i < $nd_data['count']; $i ++) {
 			/* Set a temporary row to be safely iterated */
-			$row = $nd_data[$i];
+			$row = $nd_data['result'][$i];
 
 			/* Mangle data, if required */
 			foreach ($row as $k => $v) {
 				/* Filter fields that are not present in $fields_visible */
 				if (count($fields_visible) && !in_array($k, $fields_visible)) {
-					unset($nd_data[$i][$k]);
+					unset($nd_data['result'][$i][$k]);
 					continue;
 				}
 
@@ -607,7 +607,7 @@ class UW_ND extends UW_Module {
 				 * This requires proper conversion to an integer array.
 				 */
 				if (substr($k, 4) == 'rel_') {
-					$nd_data[$i][$k] = $v
+					$nd_data['result'][$i][$k] = $v
 						? /* if $v contains data, map it to an integer array */
 						array_map(
 							function($x) { return intval($x); },
@@ -619,8 +619,8 @@ class UW_ND extends UW_Module {
 
 				/* Rename fields that are set in $fields_mapped */
 				if (isset($fields_mapped[$k])) {
-					unset($nd_data[$i][$k]);
-					$nd_data[$i][$fields_mapped[$k]] = $v;
+					unset($nd_data['result'][$i][$k]);
+					$nd_data['result'][$i][$fields_mapped[$k]] = $v;
 				}
 			}
 		}
@@ -873,21 +873,21 @@ class UW_ND extends UW_Module {
 		$nd_data = $this->request('/' . $ctrl . '/result/basic', $reqbody, $session);
 
 		/* Check if the received type is what we're expecting */
-		if (gettype($nd_data) != 'array') {
+		if (gettype($nd_data['result']) != 'array') {
 			$this->log('500', __FILE__, __LINE__, __FUNCTION__, 'Invalid data received from the underlying layer: Unexpected type (Expecting array).', $session);
 			$this->restful->error('An error ocurred while retrieving data from the backend. Data type is invalid. Please contact support.');
 			$this->restful->output('500'); /* Internal Server Error */
 		}
 
 		/* If we've received an empty array, the search succeded, but no results were found... */
-		if (!count($nd_data))
+		if (!$nd_data['count'])
 			$this->restful->output('201'); /* Search was peformed, but no content was delivered */
 
 
 		/* Iterate over the result array, converting any types required and mapped fields */
-		for ($i = 0; $i < count($nd_data); $i ++) {
+		for ($i = 0; $i < $nd_data['count']; $i ++) {
 			/* Set a temporary row to be safely iterated */
-			$row = $nd_data[$i];
+			$row = $nd_data['result'][$i];
 
 			/* Mangle that, if required... */
 			foreach ($row as $k => $v) {
@@ -895,7 +895,7 @@ class UW_ND extends UW_Module {
 				 * This requires proper conversion to an integer array.
 				 */
 				if (substr($k, 4) == 'rel_') {
-					$nd_data[$i][$k] = $v
+					$nd_data['result'][$i][$k] = $v
 						? /* if $v contains data, map it to an integer array */
 						array_map(
 							function($x) { return intval($x); },
@@ -906,8 +906,8 @@ class UW_ND extends UW_Module {
 				}
 
 				if (isset($fields_mapped_post[$k])) {
-					unset($nd_data[$i][$k]);
-					$nd_data[$i][$fields_mapped_post[$k]] = $v;
+					unset($nd_data['result'][$i][$k]);
+					$nd_data['result'][$i][$fields_mapped_post[$k]] = $v;
 				}
 			}
 		}
