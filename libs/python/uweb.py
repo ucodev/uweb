@@ -62,8 +62,8 @@ class rest:
 			self.auth = json.loads(f.read())['data']
 
 			# Set the authentication headers
-			self.req_headers[self.config['header_user_id']] = self.auth['userid']
-			self.req_headers[self.config['header_auth_token']] = self.auth['token']
+			self.req_headers[self.config['header_user_id']] = str(self.auth['userid'])
+			self.req_headers[self.config['header_auth_token']] = str(self.auth['token'])
 
 	def request(self, method, obj, req_data = None, args = None):
 		# Craft URI

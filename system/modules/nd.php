@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 28/11/2016
+ * Date: 02/12/2016
  * License: GPLv3
  */
 
@@ -675,7 +675,7 @@ class UW_ND extends UW_Module {
 
 			/* Check if key is mapped to something else... */
 			if (isset($fields_mapped[$k])) {
-				$entry[$fields_map[$k]] = $v;
+				$entry[$fields_mapped[$k]] = $v;
 			} else {
 				$entry[$k] = $v;
 			}
@@ -739,7 +739,7 @@ class UW_ND extends UW_Module {
 
 			/* Check if key is mapped to something else... */
 			if (isset($fields_mapped[$k])) {
-				$entry[$fields_map[$k]] = $v;
+				$entry[$fields_mapped[$k]] = $v;
 			} else {
 				$entry[$k] = $v;
 			}
