@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 02/12/2016
+ * Date: 04/12/2016
  * License: GPLv3
  */
 
@@ -319,11 +319,25 @@ class UW_ND extends UW_Module {
 		/* Encrypt session cookie with user authentication token. FIXME: Limited to  */
 		$enc_session_cookie = $this->encrypt->encrypt($session_cookie, hex2bin($data['token']), false);
 
+		/* Set user properties */
+		$user_data = array();
+		$user_data['timezone'] = $data_raw['data']['timezone'];
+
 		/* Cache session information */
 		$this->cache->set('nd_user_session_' . $data['userid'], $enc_session_cookie, $session_lifetime);
 
+		/* Cache user data */		
+		$this->cache->set('nd_user_data_' . $data['userid']), $user_data, $session_lifetime);
+
 		/* All good */
 		return $data;
+	}
+
+	public function user_data($user_id = NULL) {
+		if ($user_id === NULL)
+			$user_id = $this->restful->header(ND_REQ_HEADER_USER_ID);
+
+		return $this->cache->get('nd_user_data_' . $user_id);
 	}
 
 	public function user_logout() {
