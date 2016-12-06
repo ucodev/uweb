@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 04/12/2016
+ * Date: 06/12/2016
  * License: GPLv3
  */
 
@@ -304,6 +304,7 @@ class UW_ND extends UW_Module {
 		/* Set the response data */
 		$data['userid'] = intval($data_raw['data']['user_id']);
 		$data['token']  = $data_raw['data']['apikey'];
+		$data['roles'] = $data_raw['data']['roles'];
 
 		/* Extract session lifetime from Max-Age */
 		if (preg_match('/Max-Age=(\d+);/i', $session_cookie, $matches) !== 1) {
