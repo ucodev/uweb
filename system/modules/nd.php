@@ -328,7 +328,7 @@ class UW_ND extends UW_Module {
 		$this->cache->set('nd_user_session_' . $data['userid'], $enc_session_cookie, $session_lifetime);
 
 		/* Cache user data */		
-		$this->cache->set('nd_user_data_' . $data['userid']), $user_data, $session_lifetime);
+		$this->cache->set('nd_user_data_' . $data['userid'], $user_data, $session_lifetime);
 
 		/* All good */
 		return $data;
