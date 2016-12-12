@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 06/12/2016
+ * Date: 11/12/2016
  * License: GPLv3
  */
 
@@ -346,7 +346,7 @@ class UW_ND extends UW_Module {
 		$session = $this->session_init();
 
 		/* Forward request to backend engine (nd-php) */
-		$nd_data = $this->request('/login/logout' . $argv[0], NULL, $session);
+		$nd_data = $this->request('/login/logout', NULL, $session);
 
 		/* Check if the logout was successful */
 		if ($nd_data['logout'] !== true) {
