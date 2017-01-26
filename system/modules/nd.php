@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 11/12/2016
+ * Date: 26/01/2017
  * License: GPLv3
  */
 
@@ -10,7 +10,7 @@
  * This file is part of uweb.
  *
  * uWeb - uCodev Low Footprint Web Framework (https://github.com/ucodev/uweb)
- * Copyright (C) 2014-2016  Pedro A. Hortas
+ * Copyright (C) 2014-2017  Pedro A. Hortas
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -205,7 +205,7 @@ class UW_ND extends UW_Module {
 		}
 
 		/* Forward registration request to the backend engine (nd-php) */
-		$nd_data = $this->request('/register/newuser' . $argv[0], $register);
+		$nd_data = $this->request('/register/newuser', $register);
 
 		/* Check if the required data is present */
 		if (!isset($nd_data['user_id']) || !isset($nd_data['registered']) || $nd_data['registered'] !== true) {
@@ -362,7 +362,7 @@ class UW_ND extends UW_Module {
 		$this->session_destroy($session);
 	}
 
-	public function search_ndsl($input, $session) {
+	public function search_($input, $session) {
 		/** Sanitize input **/
 
 		/* Check if all properties are acceptable */
@@ -372,6 +372,18 @@ class UW_ND extends UW_Module {
 				$this->restful->error('Unacceptable property found: ' . $k);
 				$this->restful->output('406'); /* Not Acceptable */
 			}
+		}
+
+		/* Check distinct property */
+		if (isset($input['distinct'])) {
+			if (gettype($input['distinct']) != 'boolean') {
+				$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid type detected for property \'distinct\': Expecting boolean type.', $session);
+				$this->restful->error('Invalid type detected for property \'distinct\': Expecting boolean type.');
+				$this->restful->output('400'); /* Bad Request */				
+			}
+
+			/* Set property to request body */
+			$data['_distinct'] = $input['distinct'];
 		}
 
 		/* Check limit property */
@@ -447,8 +459,8 @@ class UW_ND extends UW_Module {
 			$data['_ordering'] = $input['ordering'];
 		}
 
-		/* Initialize NDSL Query */
-		$ndslq = array();
+		/* Initialize  Query */
+		$q = array();
 
 		/* Check query property */
 		if (isset($input['query'])) {
@@ -459,10 +471,10 @@ class UW_ND extends UW_Module {
 				$this->restful->output('400'); /* Bad Request */
 			}
 
-			/* TODO: Pre-check/validate NDSL Query value */
+			/* TODO: Pre-check/validate  Query value */
 
-			/* Set NDSL Query */
-			$ndslq = $input['query'];
+			/* Set  Query */
+			$q = $input['query'];
 
 			/* Check show property */
 			if (isset($input['show'])) {
@@ -473,13 +485,13 @@ class UW_ND extends UW_Module {
 					$this->restful->output('400'); /* Bad Request */
 				}
 
-				/* Set property to NDSL Query */
-				$ndslq['_show'] = $input['show'];
+				/* Set property to  Query */
+				$q['_show'] = $input['show'];
 			}
 		}
 
-		/* Encode NDSL query into search_value property */
-		$data['search_value'] = json_encode($ndslq);
+		/* Encode  query into search_value property */
+		$data['search_value'] = json_encode($q);
 
 		/* All good */
 		return $data;
@@ -520,15 +532,25 @@ class UW_ND extends UW_Module {
 
 		/* Aggregate multiple relationship fields */
 		if (isset($nd_data['rel'])) {
-			foreach ($nd_data['rel'] as $k => $v) {
-				$entry[$k] = $v;
-			}
+				foreach ($nd_data['rel'] as $k => $v) {
+						/* Initialize field for multiple relationship array */
+						$entry[$k] = array();
+
+						/* Extract only the keys from the rel array */
+						foreach ($v as $vk => $vv) {
+								array_push($entry[$k], $vk);
+						}
+				}
 		}
 
 		/* Aggregate mixed fields */
 		if (isset($nd_data['mixed'])) {
 			foreach ($nd_data['mixed'] as $k => $v) {
-				$entry[$k] = $v;
+				/* Initialize array, if required... */
+				if (!isset($entry[$k]))
+					$entry[$k] = array();
+
+				array_push($entry[$k], $v);
 			}
 		}
 
@@ -545,21 +567,7 @@ class UW_ND extends UW_Module {
 				continue;
 			}
 
-			/* Multiple relationship values are delivered as a comma separated list (string type).
-			 * This requires proper conversion to an integer array.
-			 */
-			if (substr($k, 4) == 'rel_') {
-				$entry[$k] = $v
-					? /* if $v contains data, map it to an integer array */
-					array_map(
-						function($x) { return intval($x); },
-						explode(',', $v)
-					)
-					: /* otherwise, set the value as an empty array */
-					array();
-			}
-
-			/* If there the field is mapped, renamed it */
+			/* If the field is mapped, renamed it */
 			if (isset($fields_mapped[$k])) {
 				unset($entry[$k]);
 				$entry[$fields_mapped[$k]] = $v;
@@ -621,7 +629,7 @@ class UW_ND extends UW_Module {
 				/* Multiple relationship values are delivered as a comma separated list (string type).
 				 * This requires proper conversion to an integer array.
 				 */
-				if (substr($k, 4) == 'rel_') {
+				if (substr($k, 0, 4) == 'rel_') {
 					$nd_data['result'][$i][$k] = $v
 						? /* if $v contains data, map it to an integer array */
 						array_map(
@@ -634,7 +642,11 @@ class UW_ND extends UW_Module {
 
 				/* Rename fields that are set in $fields_mapped */
 				if (isset($fields_mapped[$k])) {
+					/* Reload the value, as it might have changed since the start of this iteration */
+					$v = $nd_data['result'][$i][$k];
+					/* Unset the value */
 					unset($nd_data['result'][$i][$k]);
+					/* Set the new mapped key with the actual value */
 					$nd_data['result'][$i][$fields_mapped[$k]] = $v;
 				}
 			}
@@ -882,7 +894,7 @@ class UW_ND extends UW_Module {
 		/* Set request data */
 		$reqbody['_userid'] = $session['user_id'];
 		$reqbody['_apikey'] = $session['token'];
-		$reqbody['data']    = $this->search_ndsl($input, $session);
+		$reqbody['data']    = $this->search_($input, $session);
 
 		/* Forward the update request to the backend engine (nd-php) */
 		$nd_data = $this->request('/' . $ctrl . '/result/basic', $reqbody, $session);
@@ -909,7 +921,7 @@ class UW_ND extends UW_Module {
 				/* Multiple relationship values are delivered as a comma separated list (string type).
 				 * This requires proper conversion to an integer array.
 				 */
-				if (substr($k, 4) == 'rel_') {
+				if (substr($k, 0, 4) == 'rel_') {
 					$nd_data['result'][$i][$k] = $v
 						? /* if $v contains data, map it to an integer array */
 						array_map(
@@ -921,7 +933,11 @@ class UW_ND extends UW_Module {
 				}
 
 				if (isset($fields_mapped_post[$k])) {
+					/* Reload the value, as it might have changed since the start of this iteration */
+					$v = $nd_data['result'][$i][$k];
+					/* Unset the value */
 					unset($nd_data['result'][$i][$k]);
+					/* Set the new mapped key with the actual value */
 					$nd_data['result'][$i][$fields_mapped_post[$k]] = $v;
 				}
 			}
