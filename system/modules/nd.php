@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 26/01/2017
+ * Date: 29/01/2017
  * License: GPLv3
  */
 
@@ -362,7 +362,7 @@ class UW_ND extends UW_Module {
 		$this->session_destroy($session);
 	}
 
-	public function search_($input, $session) {
+	public function search_ndsl($input, $session) {
 		/** Sanitize input **/
 
 		/* Check if all properties are acceptable */
@@ -384,6 +384,18 @@ class UW_ND extends UW_Module {
 
 			/* Set property to request body */
 			$data['_distinct'] = $input['distinct'];
+		}
+
+		/* Check totals property */
+		if (isset($input['totals'])) {
+			if (gettype($input['totals']) != 'boolean') {
+				$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid type detected for property \'totals\': Expecting boolean type.', $session);
+				$this->restful->error('Invalid type detected for property \'totals\': Expecting boolean type.');
+				$this->restful->output('400'); /* Bad Request */				
+			}
+
+			/* Set property to request body */
+			$data['_totals'] = $input['totals'];
 		}
 
 		/* Check limit property */
@@ -459,8 +471,8 @@ class UW_ND extends UW_Module {
 			$data['_ordering'] = $input['ordering'];
 		}
 
-		/* Initialize  Query */
-		$q = array();
+		/* Initialize NDSL Query */
+		$ndslq = array();
 
 		/* Check query property */
 		if (isset($input['query'])) {
@@ -471,10 +483,10 @@ class UW_ND extends UW_Module {
 				$this->restful->output('400'); /* Bad Request */
 			}
 
-			/* TODO: Pre-check/validate  Query value */
+			/* TODO: Pre-check/validate NDSL Query value */
 
 			/* Set  Query */
-			$q = $input['query'];
+			$ndslq = $input['query'];
 
 			/* Check show property */
 			if (isset($input['show'])) {
@@ -485,13 +497,13 @@ class UW_ND extends UW_Module {
 					$this->restful->output('400'); /* Bad Request */
 				}
 
-				/* Set property to  Query */
-				$q['_show'] = $input['show'];
+				/* Set property to NDSL Query */
+				$ndslq['_show'] = $input['show'];
 			}
 		}
 
-		/* Encode  query into search_value property */
-		$data['search_value'] = json_encode($q);
+		/* Encode NDSL query into search_value property */
+		$data['search_value'] = json_encode($ndslq);
 
 		/* All good */
 		return $data;
@@ -532,15 +544,15 @@ class UW_ND extends UW_Module {
 
 		/* Aggregate multiple relationship fields */
 		if (isset($nd_data['rel'])) {
-				foreach ($nd_data['rel'] as $k => $v) {
-						/* Initialize field for multiple relationship array */
-						$entry[$k] = array();
+			foreach ($nd_data['rel'] as $k => $v) {
+				/* Initialize field for multiple relationship array */
+				$entry[$k] = array();
 
-						/* Extract only the keys from the rel array */
-						foreach ($v as $vk => $vv) {
-								array_push($entry[$k], $vk);
-						}
+				/* Extract only the keys from the rel array */
+				foreach ($v as $vk => $vv) {
+						array_push($entry[$k], $vk);
 				}
+			}
 		}
 
 		/* Aggregate mixed fields */
@@ -604,6 +616,9 @@ class UW_ND extends UW_Module {
 
 			if (isset($argv[3]))
 				$reqbody['data']['_ordering'] = (strtolower($argv[3]) == 'desc') ? 'desc' : 'asc';
+
+			if (isset($argv[4]))
+				$reqbody['data']['_totals'] = intval($argv[4]) ? true : false;
 		}
 
 		/* Forward request to backend engine (nd-php) */
@@ -894,7 +909,7 @@ class UW_ND extends UW_Module {
 		/* Set request data */
 		$reqbody['_userid'] = $session['user_id'];
 		$reqbody['_apikey'] = $session['token'];
-		$reqbody['data']    = $this->search_($input, $session);
+		$reqbody['data']    = $this->search_ndsl($input, $session);
 
 		/* Forward the update request to the backend engine (nd-php) */
 		$nd_data = $this->request('/' . $ctrl . '/result/basic', $reqbody, $session);
