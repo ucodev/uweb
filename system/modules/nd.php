@@ -367,7 +367,7 @@ class UW_ND extends UW_Module {
 
 		/* Check if all properties are acceptable */
 		foreach ($input as $k => $v) {
-			if (!in_array($k, array('limit', 'offset', 'orderby', 'ordering', 'show', 'query'))) {
+			if (!in_array($k, array('distinct', 'limit', 'offset', 'totals', 'orderby', 'ordering', 'show', 'query'))) {
 				$this->log('406', __FILE__, __LINE__, __FUNCTION__, 'Unacceptable property found: ' . $k, $session);
 				$this->restful->error('Unacceptable property found: ' . $k);
 				$this->restful->output('406'); /* Not Acceptable */
