@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 11/11/2016
+ * Date: 02/01/2017
  * License: GPLv3
  */
 
@@ -322,6 +322,450 @@ class UW_Restful extends UW_Model {
 				}
 			}
 		}
+	}
+
+	public function doc_init($object) {
+		$this->_doc_object = $object;
+		$this->_doc = array();
+	}
+
+	public function doc_fields($types = array(), $defaults = array(), $options = array(), $descriptions = array()) {
+		/* Field types */
+		$this->_doc['fields']['types'] = $types;
+
+		/* Default values */
+		$this->_doc['fields']['defaults'] = $defaults;
+
+		/* Field options */
+		$this->_doc['fields']['options'] = $options;
+
+		/* Field descriptions */
+		$this->_doc['fields']['descriptions'] = $descriptions;
+	}
+
+	public function doc_method_get_request(
+		$headers_single = array(), $headers_collection = array(),
+		$uri_single = NULL, $uri_collection = NULL,
+		$notes_single = array(), $notes_collection = array())
+	{
+		/* Doc - GET request */
+
+		/* URI */
+		if ($uri_single === NULL || $uri_single === false) {
+			if (method_exists($this->_doc_object, 'view') && $uri_single !== false)
+				$this->_doc['method']['GET']['request']['uri']['single'] = '/' . $this->_doc_object . '/<id:{integer}>';
+		} else {
+			$this->_doc['method']['GET']['request']['uri']['single'] = $uri_single;
+		}
+
+		if ($uri_collection === NULL || $uri_collection === false) {
+			if (method_exists($this->_doc_object, 'listing') && $uri_collection !== false)
+				$this->_doc['method']['GET']['request']['uri']['collection'] = '/' . $this->_doc_object . '/<limit:{integer}>/<offset:{integer}>[/<order_field:{string}>/<ordering:{asc|desc}>/<totals:{0|1}>';
+		} else {
+			$this->_doc['method']['GET']['request']['uri']['collection'] = $uri_collection;
+		}
+
+		/* Headers */
+		if ($headers_single !== false)
+			$this->_doc['method']['GET']['request']['headers']['single'] = $headers_single;
+
+		if ($headers_collection !== false)
+			$this->_doc['method']['GET']['request']['headers']['collection'] = $headers_collection;
+
+		/* Additional Notes */
+		if ($notes_single !== false)
+			$this->_doc['method']['GET']['request']['notes']['single'] = $notes_single;
+		if ($notes_collection !== false)
+			$this->_doc['method']['GET']['request']['notes']['collection'] = $notes_collection;
+	}
+
+	public function doc_method_get_response(
+		$headers_single = array(), $headers_collection = array(),
+		$codes_single_success = array(), $codes_single_failure = array(),
+		$codes_collection_success = array(), $codes_collection_failure = array(),
+		$body_visible_single = array(), $body_visible_collection = array(),
+		$types_single = NULL, $types_collection = NULL,
+		$notes_single = array(), $notes_collection = array())
+	{
+		/* Doc - GET response */
+
+		/* Headers */
+		if ($headers_single !== false)
+			$this->_doc['method']['GET']['response']['headers']['single'] = $headers_single;
+		if ($headers_collection !== false)
+			$this->_doc['method']['GET']['response']['headers']['single'] = $headers_collection;
+
+		/* Status Codes */
+		if ($codes_single_success !== false)
+			$this->_doc['method']['GET']['response']['codes']['single']['success'] = $codes_single_success;
+		if ($codes_single_failure !== false)
+			$this->_doc['method']['GET']['response']['codes']['single']['failure'] = $codes_single_failure;
+		if ($codes_collection_success !== false)
+			$this->_doc['method']['GET']['response']['codes']['collection']['success'] = $codes_collection_success;
+		if ($codes_collection_failure !== false)
+			$this->_doc['method']['GET']['response']['codes']['collection']['failure'] = $codes_collection_failure;
+
+		/* Visible Fields */
+		if ($body_visible_collection !== false)
+			$this->_doc['method']['GET']['response']['body']['collection']['visible'] = $body_visible_collection;
+		if ($body_visible_single !== false)
+			$this->_doc['method']['GET']['response']['body']['single']['visible'] = $body_visible_single;
+
+		/* Return Types */
+		if ($types_single === NULL || $types_single === false) {
+			if (method_exists($this->_doc_object, 'view') && $types_single !== false)
+				$this->_doc['method']['GET']['response']['types']['single'] = '"data": { "<key>": <value>, ... }';
+		} else {
+			$this->_doc['method']['GET']['response']['types']['single'] = $types_single;
+		}
+
+		if ($types_collection === NULL || $types_collection === false) {
+			if (method_exists($this->_doc_object, 'listing') && $types_collection !== false)
+				$this->_doc['method']['GET']['response']['types']['collection'] = '"data": { "count": <integer>, "total": <integer>, "result": [ { "<key>": <value>, ... }, ... ] }';
+		} else {
+			$this->_doc['method']['GET']['response']['types']['collection'] = $types_collection;
+		}
+
+		/* Additional Notes */
+		if ($notes_single !== false)
+			$this->_doc['method']['GET']['response']['notes']['single'] = $notes_single;
+		if ($notes_collection !== false)
+			$this->_doc['method']['GET']['response']['notes']['collection'] = $notes_collection;
+	}
+
+	public function doc_method_delete_request(
+		$headers_single = array(), $headers_collection = array(),
+		$uri_single = NULL, $uri_collection = NULL,
+		$notes_single = array(), $notes_collection = array())
+	{
+		/* Doc - DELETE request */
+		if ($uri_single === NULL || $uri_single === false) {
+			if (method_exists($this->_doc_object, 'delete') && $uri_single !== false)
+				$this->_doc['method']['DELETE']['request']['uri']['single'] = '/' . $this->_doc_object . '/<id:{integer}>';
+		} else {
+			$this->_doc['method']['DELETE']['request']['uri']['single'] = $uri_single;
+		}
+
+		/* URI */
+		if ($uri_collection === NULL || $uri_collection === false) {
+			if (method_exists($this->_doc_object, 'delete') && $uri_collection !== false)
+				$this->_doc['method']['DELETE']['request']['uri']['collection'] = '/' . $this->_doc_object;
+		} else {
+			$this->_doc['method']['DELETE']['request']['uri']['collection'] = $uri_collection;
+		}
+
+		/* Headers */
+		if ($headers_single !== false)
+			$this->_doc['method']['DELETE']['request']['headers']['single'] = $headers_single;
+
+		if ($headers_collection !== false)
+			$this->_doc['method']['DELETE']['request']['headers']['collection'] = $headers_collection;
+
+		/* Additional Notes */
+		if ($notes_single !== false)
+			$this->_doc['method']['DELETE']['request']['notes']['single'] = $notes_single;
+
+		if ($notes_collection !== false)
+			$this->_doc['method']['DELETE']['request']['notes']['collection'] = $notes_collection;
+	}
+
+	public function doc_method_delete_response(
+		$headers_single = array(), $headers_collection = array(),
+		$codes_single_success = array(), $codes_single_failure = array(),
+		$codes_collection_success = array(), $codes_collection_failure = array(),
+		$types_single = NULL, $types_collection = NULL,
+		$notes_single = array(), $notes_collection = array())
+	{
+		/* Doc - DELETE response */
+
+		/* Headers */
+		if ($headers_single !== false)
+			$this->_doc['method']['DELETE']['response']['headers']['single'] = $headers_single;
+		if ($headers_collection !== false)
+			$this->_doc['method']['DELETE']['response']['headers']['collection'] = $headers_collection;
+
+		if ($codes_single_success !== false)
+			$this->_doc['method']['DELETE']['response']['codes']['single']['success'] = $codes_single_success;
+		if ($codes_single_failure !== false)
+			$this->_doc['method']['DELETE']['response']['codes']['single']['failure'] = $codes_single_failure;
+		if ($codes_collection_success !== false)
+			$this->_doc['method']['DELETE']['response']['codes']['collection']['success'] = $codes_collection_success;
+		if ($codes_collection_failure !== false)
+			$this->_doc['method']['DELETE']['response']['codes']['collection']['failure'] = $codes_collection_failure;
+
+		/* Return Types */
+		if ($types_single === NULL || $types_single === false) {
+			if (method_exists($this->_doc_object, 'delete') && isset($this->_doc['method']['DELETE']['request']['uri']['single']) && $types_single !== false)
+				$this->_doc['method']['DELETE']['response']['types']['single'] = NULL;
+		} else {
+			$this->_doc['method']['DELETE']['response']['types']['single'] = $types_single;
+		}
+
+		if ($types_collection === NULL || $types_collection === false) {
+			if (method_exists($this->_doc_object, 'delete') && isset($this->_doc['method']['DELETE']['request']['uri']['collection']) && $types_collection !== false)
+				$this->_doc['method']['DELETE']['response']['types']['collection'] = NULL;
+		} else {
+			$this->_doc['method']['DELETE']['response']['types']['collection'] = $types_collection;
+		}
+
+		/* Additional Notes */
+		if ($notes_single !== false)
+			$this->_doc['method']['DELETE']['response']['notes']['single'] = $notes_single;
+
+		if ($notes_collection !== false)
+			$this->_doc['method']['DELETE']['response']['notes']['collection'] = $notes_collection;
+	}
+
+	public function doc_method_patch_request(
+		$headers_single = array(), $headers_collection = array(),
+		$uri_single = NULL, $uri_collection = NULL,
+		$accepted_single = array(), $accepted_collection = array(),
+		$notes_single = array(), $notes_collection = array())
+	{
+		/* Doc - PATCH request */
+
+		/* URI */
+		if ($uri_single === NULL || $uri_single === false) {
+			if (method_exists($this->_doc_object, 'modify') && $accepted_single && $uri_single !== false)
+				$this->_doc['method']['PATCH']['request']['uri']['single'] = '/' . $this->_doc_object . '/<id:{integer}>';
+		} else {
+			$this->_doc['method']['PATCH']['request']['uri']['single'] = $uri_single;
+		}
+
+		if ($uri_collection === NULL || $uri_collection === false) {
+			if (method_exists($this->_doc_object, 'modify') && $accepted_collection && $uri_collection !== false)
+				$this->_doc['method']['PATCH']['request']['uri']['collection'] = '/' . $this->_doc_object;
+		} else {
+			$this->_doc['method']['PATCH']['request']['uri']['collection'] = $uri_collection;
+		}
+
+		/* Headers */
+		if ($headers_single !== false)
+			$this->_doc['method']['PATCH']['request']['headers']['single'] = $headers_single;
+
+		if ($headers_collection !== false)
+			$this->_doc['method']['PATCH']['request']['headers']['collection'] = $headers_collection;
+
+		/* Accepted Fields */
+		if ($accepted_single !== false)
+			$this->_doc['method']['PATCH']['request']['body']['single']['accepted'] = $accepted_single;
+		
+		if ($accepted_collection !== false)
+			$this->_doc['method']['PATCH']['request']['body']['collection']['accepted'] = $accepted_collection;
+
+		/* Additional Notes */
+		if ($notes_single !== false)
+			$this->_doc['method']['PATCH']['request']['notes']['single'] = $notes_single;
+
+		if ($notes_collection !== false)
+			$this->_doc['method']['PATCH']['request']['notes']['collection'] = $notes_collection;
+	}
+
+	public function doc_method_patch_response(
+		$headers_single = array(), $headers_collection = array(),
+		$codes_single_success = array(), $codes_single_failure = array(),
+		$codes_collection_success = array(), $codes_collection_failure = array(),
+		$types_single = NULL, $types_collection = NULL,
+		$notes_single = array(), $notes_collection = array())
+	{
+		/* Doc - PATCH response */
+
+		/* Headers */
+		if ($headers_single !== false)
+			$this->_doc['method']['PATCH']['response']['headers']['single'] = $headers_single;
+		if ($headers_collection !== false)
+			$this->_doc['method']['PATCH']['response']['headers']['collection'] = $headers_collection;
+
+		/* Status Codes */
+		if ($codes_single_success !== false)
+			$this->_doc['method']['PATCH']['response']['codes']['single']['success'] = $codes_single_success;
+		if ($codes_single_failure !== false)
+			$this->_doc['method']['PATCH']['response']['codes']['single']['failure'] = $codes_single_failure;
+		if ($codes_collection_success !== false)
+			$this->_doc['method']['PATCH']['response']['codes']['collection']['success'] = $codes_collection_success;
+		if ($codes_collection_failure !== false)
+			$this->_doc['method']['PATCH']['response']['codes']['collection']['failure'] = $codes_collection_failure;
+
+		/* Return Types */
+		if ($types_single === NULL || $types_single === false) {
+			if (method_exists($this->_doc_object, 'modify') && isset($this->_doc['method']['PATCH']['request']['uri']['single']) && $types_single !== false)
+				$this->_doc['method']['PATCH']['response']['types']['single'] = NULL;
+		} else {
+			$this->_doc['method']['PATCH']['response']['types']['single'] = $types_single;
+		}
+
+		if ($types_collection === NULL || $types_collection === false) {
+			if (method_exists($this->_doc_object, 'modify') && isset($this->_doc['method']['PATCH']['request']['uri']['collection']) && $types_collection !== false)
+				$this->_doc['method']['PATCH']['response']['types']['collection'] = NULL;
+		} else {
+			$this->_doc['method']['PATCH']['response']['types']['collection'] = $types_collection;
+		}
+
+		/* Additional Notes */
+		if ($notes_single !== false)
+			$this->_doc['method']['PATCH']['response']['notes']['single'] = $notes_single;
+
+		if ($notes_collection !== false)
+			$this->_doc['method']['PATCH']['response']['notes']['collection'] = $notes_collection;
+	}
+
+	public function doc_method_post_request(
+		$headers_single = array(), $headers_collection = array(),
+		$uri_single = NULL, $uri_collection = NULL,
+		$accepted_single = array(), $accepted_collection = array(),
+		$required_single = array(), $required_collection = array(),
+		$notes_single = array(), $notes_collection = array())
+	{
+		/* Doc - POST request */
+
+		/* URI */
+		if ($uri_single === NULL || $uri_single === false) {
+			if (method_exists($this->_doc_object, 'insert') && $accepted_single && $uri_single !== false)
+				$this->_doc['method']['POST']['request']['uri']['single'] = '/' . $this->_doc_object . '/<id:{integer}>';
+		} else {
+			$this->_doc['method']['POST']['request']['uri']['single'] = $uri_single;
+		}
+
+		if ($uri_collection === NULL || $uri_collection === false) {
+			if (method_exists($this->_doc_object, 'insert') && $accepted_collection && $uri_single !== false)
+				$this->_doc['method']['POST']['request']['uri']['collection'] = '/' . $this->_doc_object;
+		} else {
+			$this->_doc['method']['POST']['request']['uri']['collection'] = $uri_collection;
+		}
+
+		/* Headers */
+		if ($headers_single !== false)
+			$this->_doc['method']['POST']['request']['headers']['single'] = $headers_single;
+
+		if ($headers_collection !== false)
+			$this->_doc['method']['POST']['request']['headers']['collection'] = $headers_collection;
+
+		/* Accepted Fields */
+		if ($accepted_single !== false)
+			$this->_doc['method']['POST']['request']['body']['single']['accepted'] = $accepted_single;
+		
+		if ($accepted_collection !== false)
+			$this->_doc['method']['POST']['request']['body']['collection']['accepted'] = $accepted_collection;
+
+		/* Required Fields */
+		if ($required_single !== false)
+			$this->_doc['method']['POST']['request']['body']['single']['required'] = $required_single;
+
+		if ($required_collection !== false)
+			$this->_doc['method']['POST']['request']['body']['collection']['required'] = $required_collection;
+
+		/* Additional Notes */
+		if ($notes_single !== false)
+			$this->_doc['method']['POST']['request']['notes']['single'] = $notes_single;
+
+		if ($notes_collection !== false)
+			$this->_doc['method']['POST']['request']['notes']['collection'] = $notes_collection;
+	}
+
+	public function doc_method_post_response(
+		$headers_single = array(), $headers_collection = array(),
+		$codes_single_success = array(), $codes_single_failure = array(),
+		$codes_collection_success = array(), $codes_collection_failure = array(),
+		$types_single = NULL, $types_collection = NULL,
+		$notes_single = array(), $notes_collection = array())
+	{
+		/* Doc - POST response */
+
+		/* Headers */
+		if ($headers_single !== false)
+			$this->_doc['method']['POST']['response']['headers']['single'] = $headers_single;
+		if ($headers_collection !== false)
+			$this->_doc['method']['POST']['response']['headers']['collection'] = $headers_collection;
+
+		/* Status Codes */
+		if ($codes_single_success !== false)
+			$this->_doc['method']['POST']['response']['codes']['single']['success'] = $codes_single_success;
+		if ($codes_single_failure !== false)
+			$this->_doc['method']['POST']['response']['codes']['single']['failure'] = $codes_single_failure;
+		if ($codes_collection_success !== false)
+			$this->_doc['method']['POST']['response']['codes']['collection']['success'] = $codes_collection_success;
+		if ($codes_collection_failure !== false)
+			$this->_doc['method']['POST']['response']['codes']['collection']['failure'] = $codes_collection_failure;
+
+		/* Return Types */
+		if ($types_single === NULL || $types_single === false) {
+			if (method_exists($this->_doc_object, 'insert') && isset($this->_doc['method']['POST']['request']['uri']['single']) && $types_single !== false)
+				$this->_doc['method']['POST']['response']['types']['single'] = '"data": { "id": <integer> }';
+		} else {
+			$this->_doc['method']['POST']['response']['types']['single'] = $types_single;
+		}
+
+		if ($types_collection === NULL || $types_collection === false) {
+			if (method_exists($this->_doc_object, 'insert') && isset($this->_doc['method']['POST']['request']['uri']['collection']) && $types_collection !== false)
+				$this->_doc['method']['POST']['response']['types']['collection'] = '"data": { "id": <integer> }';
+		} else {
+			$this->_doc['method']['POST']['response']['types']['collection'] = $types_collection;
+		}
+
+		/* Additional Notes */
+		if ($notes_single !== false)
+			$this->_doc['method']['POST']['response']['notes']['single'] = $notes_single;
+
+		if ($notes_collection !== false)
+			$this->_doc['method']['POST']['response']['notes']['collection'] = $notes_collection;
+	}
+
+	public function doc_method_custom(
+		$method,
+		$func, $uri_args = '',
+		$request_body_args = array(),
+		$response_body_args = array(), $response_types = '',
+		$codes_success = array(), $codes_failure = array(),
+		$request_headers = array(), $response_headers = array(),
+		$request_notes = array(), $response_notes = array())
+	{
+		/* Doc - Custom request */
+
+		/* URI */
+		$this->_doc['method'][$method]['request']['uri'][$func] = '/' . $this->_doc_object . '/' . $func . $uri_args;
+		
+		/* Headers */
+		if ($request_headers !== false)
+			$this->_doc['method'][$method]['request']['headers'][$func] = $request_headers;
+
+		/* Body */
+		foreach ($request_body_args as $k => $v) {
+			$this->_doc['method'][$method]['request']['body'][$func][$k] = $v;
+		}
+
+		/* Additional Notes */
+		if ($request_notes !== false)
+			$this->_doc['method'][$method]['request']['notes'][$func] = $request_notes;
+
+
+		/* Doc - Custom response */
+
+		/* Headers */
+		if ($response_headers !== false)
+			$this->_doc['method'][$method]['response']['headers'][$func] = $response_headers;
+
+		/* Return Types */
+		$this->_doc['method'][$method]['response']['types'][$func] = $response_types;
+
+		/* Body */
+		foreach ($response_body_args as $k => $v) {
+			$this->_doc['method'][$method]['response']['body'][$func][$k] = $v;
+		}
+
+		/* Status Codes */
+		if ($codes_success !== false)
+			$this->_doc['method'][$method]['response']['codes'][$func]['success'] = $codes_success;
+		
+		if ($codes_failure !== false)
+			$this->_doc['method'][$method]['response']['codes'][$func]['failure'] = $codes_failure;
+
+		/* Additional Notes */
+		if ($response_notes !== false)
+			$this->_doc['method'][$method]['response']['notes'][$func] = $response_notes;
+	}
+
+	public function doc_generate() {
+		return $this->_doc;
 	}
 }
 

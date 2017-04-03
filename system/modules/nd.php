@@ -99,7 +99,7 @@ class UW_ND extends UW_Module {
 		/* Check if the response contains data */
 		if (!$output) {
 			$this->log('500', __FILE__, __LINE__, __FUNCTION__, 'Empty response from the underlying layer.', $session);
-			$this->restful->error('An error ocurred while retrieving data from the backend. No data received. Please contact support.');
+			$this->restful->error('An error ocurred while retrieving data from the underlying layer. No data received. Please contact support.');
 			$this->restful->output('500'); /* Internal Server Error */
 		}
 
@@ -109,8 +109,8 @@ class UW_ND extends UW_Module {
 		/* Check if JSON data was successfully decoded */
 		if ($nd_data === NULL) {
 			/* Cannot decode JSON data */
-			$this->log('500', __FILE__, __LINE__, __FUNCTION__, 'Unable to decode JSON data from the underlying response body.', $session);
-			$this->restful->error('An error ocurred while decoding data from the backend. Please contact support.');
+			$this->log('500', __FILE__, __LINE__, __FUNCTION__, 'Unable to decode JSON data from the underlying layer response. Output: ' . $output, $session);
+			$this->restful->error('An error ocurred while decoding data from the underlying layer. Please contact support.');
 			$this->restful->output('500'); /* Internal Server Error */
 		} else if ($nd_data['status'] !== true) {
 			/* The request was understood, but the backend engine is refusing to fulfill it */
