@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 29/01/2017
+ * Date: 05/04/2017
  * License: GPLv3
  */
 
@@ -303,7 +303,7 @@ class UW_ND extends UW_Module {
 
 		/* Set the response data */
 		$data['userid'] = intval($data_raw['data']['user_id']);
-		$data['token']  = $data_raw['data']['apikey'];
+		$data['token']  = openssl_digest(openssl_random_pseudo_bytes(256), 'sha1');
 		$data['roles'] = $data_raw['data']['roles'];
 
 		/* Extract session lifetime from Max-Age */
@@ -322,6 +322,11 @@ class UW_ND extends UW_Module {
 
 		/* Set user properties */
 		$user_data = array();
+		$user_data['userid'] = $data['userid'];
+		$user_data['username'] = $auth['username'];
+		$user_data['photo'] = $data_raw['data']['photo'];
+		$user_data['is_admin'] = $data_raw['data']['is_admin'];
+		$user_data['is_superuser'] = $data_raw['data']['is_superuser'];
 		$user_data['timezone'] = $data_raw['data']['timezone'];
 
 		/* Cache session information */
