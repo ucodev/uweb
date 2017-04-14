@@ -64,5 +64,20 @@ class UW_Aggregation {
                     $blob[$i_blob][$aggr_key] = $nomatch_value;
             }
         }
+
+        /* All good */
+        return $blob;
+    }
+
+    public function add($blob, $extra) {
+        /* Iterate over blob */
+        for ($i = 0; $i < count($blob); $i ++) {
+            /* Add extra K/V pairs to each blob row */
+            foreach ($extra as $k => $v)
+                $blob[$i][$k] = $v;
+        }
+
+        /* All good */
+        return $blob;
     }
 }
