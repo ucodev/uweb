@@ -28,7 +28,7 @@
  */
 
 class UW_ES extends UW_Module {
-    private function _fulltext_boosted_score($config, $index, $input, $max_records = 500, $object = NULL) {
+    private function _fulltext_boosted_score($config, $index, $input, $max_records = 500, $type = NULL) {
         /** Validate Input */
         if ($input === NULL) {
             $this->restful->error('Unable to decode JSON data.');
@@ -169,11 +169,11 @@ class UW_ES extends UW_Module {
         $es_input['query']['function_score']['boost_mode'] = $config['score']['boost_mode'];
         $es_input['query']['function_score']['max_boost'] = $config['score']['max_boost'];
 
-		/* Forward request to the backend engine (nd-php) */
+		/* Forward request to the search engine (ES) */
 		$ch = curl_init();
 
 		/* Set the request URL */
-        curl_setopt($ch, CURLOPT_URL, rtrim($config['query']['base_url'], '/') . '/' . $index . ($object !== NULL ? ('/' . $object) : '') .'/_search?size=' . $search['limit'] . '&from=' . $search['offset'] . '&pretty');
+        curl_setopt($ch, CURLOPT_URL, rtrim($config['query']['base_url'], '/') . '/' . $index . ($type !== NULL ? ('/' . $type) : '') .'/_search?size=' . $search['limit'] . '&from=' . $search['offset']);
 
 		/* Set request body data, if any */
 		if ($es_input !== NULL) {
@@ -220,7 +220,7 @@ class UW_ES extends UW_Module {
         return $data;
     }
 
-    public function query($config, $index, $input, $max_records = 500, $object = NULL) {
+    public function query($config, $index, $input, $max_records = 500, $type = NULL) {
         /** Validate Input */
         if ($input === NULL) {
             $this->restful->error('Unable to decode JSON data.');
@@ -236,7 +236,7 @@ class UW_ES extends UW_Module {
         /* Perform the request based on the input type */
         if ($input['type'] == 'fulltext') {
             if ($config['query']['type'] == 'boosted' && $config['query']['function'] == 'score') {
-                return $this->_fulltext_boosted_score($config, $index, $input, $max_records, $object);
+                return $this->_fulltext_boosted_score($config, $index, $input, $max_records, $type);
             } else {
                 $this->restful->error('Unrecognized or unsupported \'query\' configuration parameters.');
                 $this->restful->output('400');
@@ -246,5 +246,40 @@ class UW_ES extends UW_Module {
         /* Unrecognized input type */
         $this->restful->error('Parameter \'type\' from input must match a valid type.');
         $this->restful->output('400');
+    }
+
+    public function get($config, $index, $type, $id) {
+		/* Forward request to the search engine (ES) */
+		$ch = curl_init();
+
+		/* Set the request URL */
+        curl_setopt($ch, CURLOPT_URL, rtrim($config['query']['base_url'], '/') . '/' . $index . '/' . $type .'/' . $id);
+
+		/* Grant that cURL will return the response output */
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+		/* Execute the request */
+		$es_output = curl_exec($ch);
+
+		/* Close the cURL handler */
+		curl_close($ch);
+
+        /* Initialize data */
+        $data = NULL;
+
+        /* Check if there's any output */
+        if ($es_output)
+            $data = json_decode($es_output, true);
+
+        /* Check if there's valid JSON data */
+        if ($data === NULL)
+            return NULL;
+
+        /* Check if document was found */
+        if ($data['found'] === false)
+            return false;
+
+        /* All good */
+        return $data['_source'];
     }
 }
