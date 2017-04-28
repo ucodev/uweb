@@ -360,7 +360,7 @@ class UW_Restful extends UW_Model {
 
 		if ($uri_collection === NULL || $uri_collection === false) {
 			if (method_exists($this->_doc_object, 'listing') && $uri_collection !== false)
-				$this->_doc['method']['GET']['request']['uri']['collection'] = '/' . $this->_doc_object . '/<limit:{integer}>/<offset:{integer}>[/<order_field:{string}>/<ordering:{asc|desc}>/<totals:{0|1}>';
+				$this->_doc['method']['GET']['request']['uri']['collection'] = '/' . $this->_doc_object . '/<limit:{integer}>/<offset:{integer}>[/<order_field:{string}>/<ordering:{asc|desc}>/<totals:{0|1}>]';
 		} else {
 			$this->_doc['method']['GET']['request']['uri']['collection'] = $uri_collection;
 		}

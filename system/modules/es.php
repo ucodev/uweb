@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 05/03/2017
+ * Date: 29/04/2017
  * License: GPLv3
  */
 
@@ -28,6 +28,380 @@
  */
 
 class UW_ES extends UW_Module {
+    private function _usl_to_es($usl_query) {
+        /* TODO: Add support for nested USL criteria. This will allow USL 'query' to be of type 'array' */
+
+        /* Initialize ES query */        
+        $es_query = array();
+
+        /* Iterate over fields */
+        foreach ($usl_query as $field => $criteria) {
+            $context = NULL; /* Reset context */
+
+            /* Get filter type. TODO: FIXME: Boolean OR isn't fully implemented. The current behaviour causes all OR's to fall inside the
+             * same 'should', disregarding any precedences.
+             */
+            if (isset($usl_query[$field]['or'])) {
+                $filter_type = 'should';
+            } else {
+                $filter_type = 'must';
+            }
+
+            /* Iterate over field criteria */
+            foreach ($criteria as $cond => $value) {
+                switch ($cond) {
+                    case 'or': continue; /* Skip OR's. If it's present in this criteria, it was already processed for $filter_type */
+                    case 'exact': continue;
+                    case 'diff': continue;
+
+                    case 'contains': {
+                        /* Validate if $value is string */
+                        if (gettype($value) != 'string') {
+                            $this->restful->error('Invalid type found in condition \'' . $cond . '\' on field \'' . $field . '\': Expecting string.');
+                            $this->restful->output('400');
+                        }
+
+                        /* Check if this is a negative string search */
+                        if (isset($usl_query[$field]['diff']) && $usl_query[$field]['diff']) {
+                            /* Initialize filter type, if required */
+                            if (!isset($es_query['constant_score']['filter']['bool'][$filter_type]['bool']['must_not']))
+                                $es_query['constant_score']['filter']['bool'][$filter_type]['bool']['must_not'] = array();
+
+                            /* For 'diff', we should use a nested boolean query with 'must_not' inside the $filter_type */
+                            array_push($es_query['constant_score']['filter']['bool'][$filter_type]['bool']['must_not'], array(
+                                ((isset($usl_query[$field]['exact']) && $usl_query[$field]['exact']) ? 'term' : 'match') => array(
+                                    $field => $value
+                                )
+                            ));
+                        } else {
+                            /* Initialize filter type, if required */
+                            if (!isset($es_query['constant_score']['filter']['bool'][$filter_type]))
+                                $es_query['constant_score']['filter']['bool'][$filter_type] = array();
+
+                            array_push($es_query['constant_score']['filter']['bool'][$filter_type], array(
+                                ((isset($usl_query[$field]['exact']) && $usl_query[$field]['exact']) ? 'term' : 'match') => array(
+                                    $field => $value
+                                )
+                            ));
+                        }
+                    } break;
+
+                    case 'not_in': {
+                        /* Validate if $value is array */
+                        if (gettype($value) != 'array') {
+                            $this->restful->error('Invalid type found in condition \'' . $cond . '\' on field \'' . $field . '\': Expecting array.');
+                            $this->restful->output('400');
+                        }
+
+                        /* Initialize filter type, if required */
+                        if (!isset($es_query['constant_score']['filter']['bool'][$filter_type]))
+                            $es_query['constant_score']['filter']['bool'][$filter_type] = array();
+
+                        /* Craft query terms */
+                        $terms = array();
+
+                        foreach ($value as $v) {
+                            array_push($terms, array(
+                                'term' => array(
+                                    $field => $v
+                                )
+                            ));
+                        }
+
+                        /* Set or merge query terms */
+                        if (isset($es_query['constant_score']['filter']['bool'][$filter_type]['bool']['must_not'])) {
+                            /* Merge query terms */
+                            $es_query['constant_score']['filter']['bool'][$filter_type]['bool']['must_not'] = array_merge(
+                                $es_query['constant_score']['filter']['bool'][$filter_type]['bool']['must_not'],
+                                $terms
+                            );
+                        } else {
+                            /* Set query terms */
+                            $es_query['constant_score']['filter']['bool'][$filter_type]['bool']['must_not'] = $terms;
+                        }
+                    } break;
+
+                    case 'in': {
+                        /* Validate if $value is array */
+                        if (gettype($value) != 'array') {
+                            $this->restful->error('Invalid type found in condition \'' . $cond . '\' on field \'' . $field . '\': Expecting array.');
+                            $this->restful->output('400');
+                        }
+
+                        /* Initialize filter type, if required */
+                        if (!isset($es_query['constant_score']['filter']['bool'][$filter_type]))
+                            $es_query['constant_score']['filter']['bool'][$filter_type] = array();
+
+                        /* Craft query terms */
+                        $terms = array();
+
+                        foreach ($value as $v) {
+                            array_push($terms, array(
+                                'term' => array(
+                                    $field => $v
+                                )
+                            ));
+                        }
+
+                        /* Set or merge query terms */
+                        if (isset($es_query['constant_score']['filter']['bool'][$filter_type]['bool']['should'])) {
+                            /* Merge query terms */
+                            $es_query['constant_score']['filter']['bool'][$filter_type]['bool']['should'] = array_merge(
+                                $es_query['constant_score']['filter']['bool'][$filter_type]['bool']['should'],
+                                $terms
+                            );
+                        } else {
+                            /* Set query terms */
+                            $es_query['constant_score']['filter']['bool'][$filter_type]['bool']['should'] = $terms;
+                        }
+                    } break;
+
+                    case 'is': /* Validate if the type is NULL */
+                    case 'eq': {
+                        /* Validate if $value is integer or float */
+                        if (gettype($value) != 'integer' && gettype($value) != 'float') {
+                            $this->restful->error('Invalid type found in condition \'' . $cond . '\' on field \'' . $field . '\': Expecting integer or float.');
+                            $this->restful->output('400');
+                        }
+
+                        /* Initialize filter type, if required */
+                        if (!isset($es_query['constant_score']['filter']['bool'][$filter_type]))
+                            $es_query['constant_score']['filter']['bool'][$filter_type] = array();
+
+                        array_push($es_query['constant_score']['filter']['bool'][$filter_type], array(
+                            'term' => array(
+                                $field => $value
+                            )
+                        ));
+                    } break;
+
+                    case 'is_not': /* Validate if the type is NULL */
+                    case 'ne': {
+                        /* Validate if $value is integer or float */
+                        if (gettype($value) != 'integer' && gettype($value) != 'float') {
+                            $this->restful->error('Invalid type found in condition \'' . $cond . '\' on field \'' . $field . '\': Expecting integer or float.');
+                            $this->restful->output('400');
+                        }
+
+                        /* Initialize must_not, if required */
+                        if (!isset($es_query['constant_score']['filter']['bool'][$filter_type]['bool']['must_not']))
+                            $es_query['constant_score']['filter']['bool'][$filter_type]['bool']['must_not'] = array();
+
+                        /* For 'ne', we should use a nested boolean query with 'must_not' inside the $filter_type */
+                        array_push($es_query['constant_score']['filter']['bool'][$filter_type]['bool']['must_not'], array(
+                            'term' => array(
+                                $field => $value
+                            )
+                        ));
+                    } break;
+
+                    case 'from': /* $cond may have been changed */ if ($cond == 'from') $cond = 'gte';
+                    case 'to':   /* $cond may have been changed */ if ($cond == 'to') $cond = 'lte';
+                    case 'gt':
+                    case 'gte':
+                    case 'lt':
+                    case 'lte': {
+                        /* Validate if $value is integer or float */
+                        if (gettype($value) != 'integer' && gettype($value) != 'float' && gettype($value) != 'string') {
+                            $this->restful->error('Invalid type found in condition \'' . $cond . '\' on field \'' . $field . '\': Expecting integer, float, time, date or datetime.');
+                            $this->restful->output('400');
+                        }
+
+                        /* TODO: Grant that 'string' type content matches time, date or datetime formats */
+
+                        /* Initialize filter type, if required */
+                        if (!isset($es_query['constant_score']['filter']['bool'][$filter_type]))
+                            $es_query['constant_score']['filter']['bool'][$filter_type] = array();
+
+                        /* Initialize range, if required */
+                        if (!isset($es_query['constant_score']['filter']['bool'][$filter_type]['range']))
+                            $es_query['constant_score']['filter']['bool'][$filter_type]['range'] = array();
+
+                        /* Initialize range field, if required */
+                        if (!isset($es_query['constant_score']['filter']['bool'][$filter_type]['range'][$field]))
+                            $es_query['constant_score']['filter']['bool'][$filter_type]['range'][$field] = array();
+
+                        /* Push range condition */
+                        $es_query['constant_score']['filter']['bool'][$filter_type]['range'][$field] = array_merge(
+                            $es_query['constant_score']['filter']['bool'][$filter_type]['range'][$field],
+                            array($cond => $value)
+                        );
+                    } break;
+
+                    default: {
+                        $this->restful->error('Invalid criteria found in field \'' . $field . '\': ' . $cond . '.');
+                        $this->restful->output('400');
+                    }
+                }
+            }
+        }
+
+        /* All good */
+        return $es_query;
+    }
+
+    private function _filter_constant_score($config, $index, $input, $max_records = 500, $type = NULL) {
+        /** Validate Input */
+        if ($input === NULL) {
+            $this->restful->error('Unable to decode JSON data.');
+            $this->restful->output('400');
+        }
+
+        /* Validation - Check mandatory fields */
+        if (isset($input['type']) && $input['type'] != 'filter') {
+            $this->restful->error('Parameter \'type\' should either be omitted or must have the value \'filter\'.');
+            $this->restful->output('400');
+        }
+
+        if (!isset($input['query'])) {
+            $this->restful->error('Missing required parameter: \'query\'.');
+            $this->restful->output('400');
+        }
+
+        if (gettype($input['query']) != 'array') {
+            $this->restful->error('Parameter \'query\' must be of type array.');
+            $this->restful->output('400');
+        }
+
+        $search['type'] = 'filter';
+        $search['query'] = $this->_usl_to_es($input['query']);
+
+        /* Validation - Check optional fields */
+
+        /* Show */
+        if (isset($input['show'])) {
+            if (gettype($input['show']) != 'array') {
+                $this->restful->error('Parameter \'show\' is set, but it\'s not of array type.');
+                $this->restful->output('400');
+            }
+
+            /* Grant that there's at least one field to be shown */
+            if (!count($input['show'])) {
+                $this->restful->error('No valid fields were set to be visible inside parameter \'show\'.');
+                $this->restful->output('400');
+            }
+
+            $search['show'] = $input['show'];
+        }
+
+        /* Limit */
+        if (isset($input['limit'])) {
+            /* Check if limit value is an integer */
+            if (gettype($input['limit']) != 'integer') {
+                $this->restful->error('Paramter \'limit\' is set, but it\'s not of integer type.');
+                $this->restful->output('400');
+            }
+
+            /* Set the result limit */
+            $search['limit'] = $input['limit'];
+
+            /* Check if the limit is not greater than 500 */
+            if ($search['limit'] > 500) {
+                $this->restful->error('Parameter \'limit\' must be lesser or equal to 500.');
+                $this->restful->output('400');
+            }
+        } else {
+            $search['limit'] = 10;
+        }
+
+        /* Offset */
+        if (isset($input['offset'])) {
+            /* Check if offset value is an integer */
+            if (gettype($input['offset']) != 'integer') {
+                $this->restful->error('Paramter \'offset\' is set, but it\'s not of integer type.');
+                $this->restful->output('400');
+            }
+
+            /* Set the offset of the result */
+            $search['offset'] = $input['offset'];
+        } else {
+            $search['offset'] = 0;
+        }
+
+        /* Order by */
+        if (isset($input['orderby'])) {
+            /* Check if orderby value is a string */
+            if (gettype($input['orderby']) != 'string') {
+                $this->restful->error('Paramter \'orderby\' is set, but it\'s not of string type.');
+                $this->restful->output('400');
+            }
+
+            /* Set the orderby of the result */
+            $search['orderby'] = $input['orderby'];
+        }
+
+        /* Ordering */
+        if (isset($input['ordering'])) {
+            /* Check if ordering value is a string */
+            if (strtolower($input['ordering']) != 'asc' && strtolower($input['ordering']) != 'desc') {
+                $this->restful->error('Paramter \'ordering\' is set, but it\'s not of \'asc\' nor \'desc\'.');
+                $this->restful->output('400');
+            }
+
+            /* Set the ordering of the result */
+            $search['ordering'] = strtolower($input['ordering']);
+        } else if (isset($input['orderby'])) {
+            /* If orderby was set, use a default 'asc' ordering */
+            $search['ordering'] = 'asc';
+        }
+
+
+        /** ES Query **/
+
+        /* ES Query - Initialize query */
+        $es_input['query'] = $search['query'];
+        $es_input['size'] = $search['limit'];
+        $es_input['from'] = $search['offset'];
+
+        if (isset($search['show']))
+            $es_input['_source']['includes'] = $search['show'];
+
+        if (isset($search['orderby']))
+            $es_input['sort'][$search['orderby']]['order'] = $search['ordering'];
+
+		/* Forward request to the search engine (ES) */
+		$ch = curl_init();
+
+		/* Set the request URL */
+        curl_setopt($ch, CURLOPT_URL, rtrim($config['query']['base_url'], '/') . '/' . $index . ($type !== NULL ? ('/' . $type) : '') .'/_search?pretty');
+
+		/* Set request body data, if any */
+		if ($es_input !== NULL) {
+			curl_setopt($ch, CURLOPT_POST, true);
+			curl_setopt($ch, CURLOPT_POSTFIELDS, is_array($es_input) ? json_encode($es_input) : $es_input);
+		}
+
+		/* Grant that cURL will return the response output */
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+		/* Execute the request */
+		$es_output = curl_exec($ch);
+
+		/* Close the cURL handler */
+		curl_close($ch);
+
+        /** Output **/
+        $output = json_decode($es_output, true);
+
+        if ($output === NULL || !isset($output['hits'])) {
+            $this->restful->error('Unable to decode JSON data retrieved from search engine.');
+            $this->restful->code('500');
+        }
+
+        /* Initialize data */
+        $data = array();
+        $data[$index]['total'] = $output['hits']['total'];
+        $data[$index]['count'] = count($output['hits']['hits']);
+        $data[$index]['result'] = array();
+
+        /* Remap result */
+        foreach ($output['hits']['hits'] as $hit)
+            array_push($data[$index]['result'], $hit['_source']);
+
+        /* All good */
+        return $data;
+    }
+
     private function _fulltext_boosted_score($config, $index, $input, $max_records = 500, $type = NULL) {
         /** Validate Input */
         if ($input === NULL) {
@@ -64,7 +438,7 @@ class UW_ES extends UW_Module {
         /* Show */
         if (isset($input['show'])) {
             if (gettype($input['show']) != 'array') {
-                $this->restful->error('Paramter \'show\' is set, but it\'s not of array type.');
+                $this->restful->error('Parameter \'show\' is set, but it\'s not of array type.');
                 $this->restful->output('400');
             }
 
@@ -220,6 +594,74 @@ class UW_ES extends UW_Module {
         return $data;
     }
 
+    private function _raw($config, $index, $input, $max_records = 500, $type = NULL) {
+        /** Validate Input */
+        if ($input === NULL) {
+            $this->restful->error('Unable to decode JSON data.');
+            $this->restful->output('400');
+        }
+
+        /* Validation - Check mandatory fields */
+        if (isset($input['type']) && $input['type'] != 'raw') {
+            $this->restful->error('Parameter \'type\' should either be omitted or must have the value \'filter\'.');
+            $this->restful->output('400');
+        }
+
+        if (!isset($input['query'])) {
+            $this->restful->error('Missing required parameter: \'query\'.');
+            $this->restful->output('400');
+        }
+
+        if (gettype($input['query']) != 'array') {
+            $this->restful->error('Parameter \'query\' must be of type array.');
+            $this->restful->output('400');
+        }
+
+        $search['type'] = 'filter';
+        $search['query'] = $this->_usl_to_es($input['query']);
+
+
+        /** ES Query **/
+
+        /* ES Query - Initialize query */
+        $es_input = $search['query'];
+
+		/* Forward request to the search engine (ES) */
+		$ch = curl_init();
+
+		/* Set the request URL */
+        curl_setopt($ch, CURLOPT_URL, rtrim($config['query']['base_url'], '/') . '/' . $index . ($type !== NULL ? ('/' . $type) : '') .'/_search?pretty');
+
+		/* Set request body data, if any */
+		if ($es_input !== NULL) {
+			curl_setopt($ch, CURLOPT_POST, true);
+			curl_setopt($ch, CURLOPT_POSTFIELDS, is_array($es_input) ? json_encode($es_input) : $es_input);
+		}
+
+		/* Grant that cURL will return the response output */
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+		/* Execute the request */
+		$es_output = curl_exec($ch);
+
+		/* Close the cURL handler */
+		curl_close($ch);
+
+        /** Output **/
+        $output = json_decode($es_output, true);
+
+        if ($output === NULL) {
+            $this->restful->error('Unable to decode JSON data retrieved from search engine.');
+            $this->restful->code('500');
+        }
+
+        /* Set $data */
+        $data = $output;
+
+        /* All good */
+        return $data;
+    }
+
     public function query($config, $index, $input, $max_records = 500, $type = NULL) {
         /** Validate Input */
         if ($input === NULL) {
@@ -241,6 +683,15 @@ class UW_ES extends UW_Module {
                 $this->restful->error('Unrecognized or unsupported \'query\' configuration parameters.');
                 $this->restful->output('400');
             }
+        } else if ($input['type'] == 'filter') {
+            if ($config['query']['type'] == 'constant' && $config['query']['function'] == 'score') {
+                return $this->_filter_constant_score($config, $index, $input, $max_records, $type);
+            } else {
+                $this->restful->error('Unrecognized or unsupported \'query\' configuration parameters.');
+                $this->restful->output('400');
+            }
+        } else if ($input['type'] == 'raw') {
+            return $this->_raw($config, $index, $input, $max_records, $type);
         }
 
         /* Unrecognized input type */
