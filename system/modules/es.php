@@ -385,7 +385,7 @@ class UW_ES extends UW_Module {
 
         if ($output === NULL || !isset($output['hits'])) {
             $this->restful->error('Unable to decode JSON data retrieved from search engine.');
-            $this->restful->code('500');
+            $this->restful->output('502'); /* Bad Gateway */
         }
 
         /* Initialize data */
@@ -570,7 +570,7 @@ class UW_ES extends UW_Module {
 
         if ($output === NULL || !isset($output['hits'])) {
             $this->restful->error('Unable to decode JSON data retrieved from search engine.');
-            $this->restful->code('500');
+            $this->restful->output('502'); /* Bad Gateway */
         }
 
         $data[$index]['total'] = $output['hits']['total'];
@@ -652,7 +652,7 @@ class UW_ES extends UW_Module {
 
         if ($output === NULL) {
             $this->restful->error('Unable to decode JSON data retrieved from search engine.');
-            $this->restful->code('500');
+            $this->restful->output('502'); /* Bad Gateway */
         }
 
         /* Set $data */

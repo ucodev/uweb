@@ -98,9 +98,9 @@ class UW_ND extends UW_Module {
 
 		/* Check if the response contains data */
 		if (!$output) {
-			$this->log('500', __FILE__, __LINE__, __FUNCTION__, 'Empty response from the underlying layer.', $session);
+			$this->log('502', __FILE__, __LINE__, __FUNCTION__, 'Empty response from the underlying layer.', $session);
 			$this->restful->error('An error ocurred while retrieving data from the underlying layer. No data received. Please contact support.');
-			$this->restful->output('500'); /* Internal Server Error */
+			$this->restful->output('502'); /* Bad Gateway */
 		}
 
 		/* Decode JSON data */
@@ -109,19 +109,19 @@ class UW_ND extends UW_Module {
 		/* Check if JSON data was successfully decoded */
 		if ($nd_data === NULL) {
 			/* Cannot decode JSON data */
-			$this->log('500', __FILE__, __LINE__, __FUNCTION__, 'Unable to decode JSON data from the underlying layer response. Output: ' . $output, $session);
+			$this->log('502', __FILE__, __LINE__, __FUNCTION__, 'Unable to decode JSON data from the underlying layer response. Output: ' . $output, $session);
 			$this->restful->error('An error ocurred while decoding data from the underlying layer. Please contact support.');
-			$this->restful->output('500'); /* Internal Server Error */
+			$this->restful->output('502'); /* Bad Gateway */
 		} else if ($nd_data['status'] !== true) {
 			/* The request was understood, but the backend engine is refusing to fulfill it */
-			$this->log(isset($nd_data['code']) ? $nd_data['code'] : '500', __FILE__, __LINE__, __FUNCTION__, 'Request was not successful: ' . $nd_data['content'] . '.', $session);
+			$this->log(isset($nd_data['code']) ? $nd_data['code'] : '502', __FILE__, __LINE__, __FUNCTION__, 'Request was not successful: ' . $nd_data['content'] . '.', $session);
 			$this->restful->error($nd_data['content']);
-			$this->restful->output(isset($nd_data['code']) ? $nd_data['code'] : '500');
+			$this->restful->output(isset($nd_data['code']) ? $nd_data['code'] : '502');
 		} else if (!isset($nd_data['data'])) {
 			/* The request was understood, but the backend engine is refusing to fulfill it */
-			$this->log('500', __FILE__, __LINE__, __FUNCTION__, 'Response contains no data field set.', $session);
+			$this->log('502', __FILE__, __LINE__, __FUNCTION__, 'Response contains no data field set.', $session);
 			$this->restful->error('Failed to retrieve the requested data.');
-			$this->restful->output('500'); /* Internal Server Error */
+			$this->restful->output('502'); /* Bad Gateway */
 		}
 
 		/* All good */
@@ -215,8 +215,8 @@ class UW_ND extends UW_Module {
 		}
 
 		/* Set the response data */
-		$data['userid'] = $nd_data['user_id'];
-		$data['registered']  = true;
+		$data['userid'] = intval($nd_data['user_id']);
+		$data['registered'] = true;
 
 		/* All good */
 		return $data;
@@ -246,9 +246,9 @@ class UW_ND extends UW_Module {
 
 		/* If the response is empty, we cannot proceed */
 		if (!$output) {
-			$this->log('500', __FILE__, __LINE__, __FUNCTION__, 'Authentication failed for user \'' . $auth['username'] . '\': Empty response from the underlying layer.');
+			$this->log('502', __FILE__, __LINE__, __FUNCTION__, 'Authentication failed for user \'' . $auth['username'] . '\': Empty response from the underlying layer.');
 			$this->restful->error('An error ocurred while retrieving data from the backend. No data received. Please contact support.');
-			$this->restful->output('500'); /* Internal Server Error */
+			$this->restful->output('502'); /* Bad Gateway */
 		}
 
 		/* Fetch cookie from headers */
@@ -275,30 +275,30 @@ class UW_ND extends UW_Module {
 
 		/* If we're unable to decode the JSON data present in the body, we cannot proceed */
 		if ($data_raw === NULL) {
-			$this->log('500', __FILE__, __LINE__, __FUNCTION__, 'Authentication failed for user \'' . $auth['username'] . '\': Unable to decode JSON data from the underlying response body.');
+			$this->log('502', __FILE__, __LINE__, __FUNCTION__, 'Authentication failed for user \'' . $auth['username'] . '\': Unable to decode JSON data from the underlying response body.');
 			$this->restful->error('An error ocurred while decoding data from the backend. Please contact support.');
-			$this->restful->output('500'); /* Internal Server Error */
+			$this->restful->output('502'); /* Bad Gateway */
 		}
 
 		/* Check if request was successful */
 		if ($data_raw['status'] !== true) {
-			$this->log(isset($data_raw['code']) ? $data_raw['code'] : '500', __FILE__, __LINE__, __FUNCTION__, 'Authentication failed for user \'' . $auth['username'] . '\': Request was not successful: ' . $data_raw['content'] . '.');
+			$this->log(isset($data_raw['code']) ? $data_raw['code'] : '502', __FILE__, __LINE__, __FUNCTION__, 'Authentication failed for user \'' . $auth['username'] . '\': Request was not successful: ' . $data_raw['content'] . '.');
 			$this->restful->error($data_raw['content']);
-			$this->restful->output(isset($data_raw['code']) ? $data_raw['code'] : '500');
+			$this->restful->output(isset($data_raw['code']) ? $data_raw['code'] : '502');
 		}
 
 		/* Check if the required data is present */
 		if (!isset($data_raw['data']['user_id']) || !isset($data_raw['data']['apikey'])) {
-			$this->log('500', __FILE__, __LINE__, __FUNCTION__, 'Authentication failed for user \'' . $auth['username'] . '\': Required data from the underlying layer is missing.');
+			$this->log('502', __FILE__, __LINE__, __FUNCTION__, 'Authentication failed for user \'' . $auth['username'] . '\': Required data from the underlying layer is missing.');
 			$this->restful->error('An error ocurred while retrieving data from the backend. Data is incomplete. Please contact support.');
-			$this->restful->output('500'); /* Internal Server Error */
+			$this->restful->output('502'); /* Bad Gateway */
 		}
 
 		/* Check if the required data is valid */
 		if (!is_numeric($data_raw['data']['user_id']) || strlen($data_raw['data']['apikey']) != 40 || hex2bin($data_raw['data']['apikey']) === false) {
-			$this->log('500', __FILE__, __LINE__, __FUNCTION__, 'Authentication failed for user \'' . $auth['username'] . '\': Received data from the underlying layer is invalid.');
+			$this->log('502', __FILE__, __LINE__, __FUNCTION__, 'Authentication failed for user \'' . $auth['username'] . '\': Received data from the underlying layer is invalid.');
 			$this->restful->error('An error ocurred while retrieving data from the backend. Data is invalid. Please contact support.');
-			$this->restful->output('500'); /* Internal Server Error */
+			$this->restful->output('502'); /* Bad Gateway */
 		}
 
 		/* Set the response data */
@@ -921,9 +921,9 @@ class UW_ND extends UW_Module {
 
 		/* Check if the received type is what we're expecting */
 		if (gettype($nd_data['result']) != 'array') {
-			$this->log('500', __FILE__, __LINE__, __FUNCTION__, 'Invalid data received from the underlying layer: Unexpected type (Expecting array).', $session);
+			$this->log('502', __FILE__, __LINE__, __FUNCTION__, 'Invalid data received from the underlying layer: Unexpected type (Expecting array).', $session);
 			$this->restful->error('An error ocurred while retrieving data from the backend. Data type is invalid. Please contact support.');
-			$this->restful->output('500'); /* Internal Server Error */
+			$this->restful->output('502'); /* Bad Gateway */
 		}
 
 		/* If we've received an empty array, the search succeded, but no results were found... */

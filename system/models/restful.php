@@ -59,7 +59,7 @@ class UW_Restful extends UW_Model {
 		'data' => false,
 		'errors' => false,
 		'method' => 'NONE',
-		'code' => '500'
+		'code' => '400'
 	);
 
 	private $_errors = array(
