@@ -84,8 +84,12 @@ class UW_ND extends UW_Module {
 		}
 
 		/* Replace User-Agent, if required */
-		if (ND_REQ_USER_AGENT_REPLACE === true)
+		if (ND_REQ_USER_AGENT_REPLACE === true) {
 			curl_setopt($ch, CURLOPT_USERAGENT, ND_REQ_USER_AGENT_NAME . ' ' . ND_REQ_USER_AGENT_VER);
+		} else if (isset($_SERVER['HTTP_USER_AGENT'])) {
+			/* Otherwise, if User-Agent header is set, use it */
+			curl_setopt($ch, CURLOPT_USERAGENT, $_SERVER['HTTP_USER_AGENT']);
+		}
 
 		/* Grant that cURL will return the response output */
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -226,20 +230,42 @@ class UW_ND extends UW_Module {
 		/* Forward authentication request to the backend engine (nd-php)
 		 * NOTE: This is a special case where we need to also process the response headers, so we won't use $this->request() here.
 		 */
+
+		/* Set required headers */
+		$req_headers = array(
+			'Accept: application/json',
+			'Content-Type: application/json'			
+		);
+
+		/* Get X-Forwarded-For value, if any */
+		$xfrd = $this->restful->header('X-Forwarded-For');
+
+		if ($xfrd !== NULL) {
+			/* If X-Forwarded-For is already set, append the remote ip address to it... */
+			array_push($req_headers, 'X-Forwarded-For: ' . $xfrd . ', ' . $_SERVER['REMOTE_ADDR']);
+			array_push($req_headers, 'X-Real-IP: ' . trim(explode(',', $xfrd)[0]));
+		} else {
+			/* Otherwise, set a brand new X-Forwarded-For header */
+			array_push($req_headers, 'X-Forwarded-For: ' . $_SERVER['REMOTE_ADDR']);
+			array_push($req_headers, 'X-Real-IP: ' . $_SERVER['REMOTE_ADDR']);
+		}
+
+		/* Initialize cURL */
 		$ch = curl_init();
 		curl_setopt($ch, CURLOPT_URL, ND_REQ_BACKEND_BASE_URL . '/login/authenticate');
-		curl_setopt($ch, CURLOPT_HTTPHEADER, array(
-			'Accept: application/json',
-			'Content-Type: application/json'
-		));
+		curl_setopt($ch, CURLOPT_HTTPHEADER, $req_headers);
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 		curl_setopt($ch, CURLOPT_POST, true);
 		curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($auth));
 		curl_setopt($ch, CURLOPT_HEADER, true);
 
 		/* Check if we should replace user agent */
-		if (ND_REQ_USER_AGENT_REPLACE === true)
+		if (ND_REQ_USER_AGENT_REPLACE === true) {
 			curl_setopt($ch, CURLOPT_USERAGENT, ND_REQ_USER_AGENT_NAME . ' ' . ND_REQ_USER_AGENT_VER);
+		} else if (isset($_SERVER['HTTP_USER_AGENT'])) {
+			/* Otherwise, if User-Agent header is set, use it */
+			curl_setopt($ch, CURLOPT_USERAGENT, $_SERVER['HTTP_USER_AGENT']);
+		}
 
 		$output = curl_exec($ch);
 		curl_close($ch);

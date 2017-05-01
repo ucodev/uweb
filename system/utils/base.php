@@ -96,7 +96,7 @@ function remote_addr() {
 		return $_SERVER['HTTP_X_REAL_IP'];
 
 	if (isset($_SERVER['HTTP_X_FORWARDED_FOR']) && !empty($_SERVER['HTTP_X_FORWARDED_FOR']))
-		return trim(explode(',', $_SERVER['HTTP_X_REAL_IP'])[0]);
+		return trim(explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'])[0]);
 
 	return $_SERVER['REMOTE_ADDR'];
 }
