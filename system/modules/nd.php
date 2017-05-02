@@ -354,6 +354,7 @@ class UW_ND extends UW_Module {
 		$user_data['is_admin'] = $data_raw['data']['is_admin'];
 		$user_data['is_superuser'] = $data_raw['data']['is_superuser'];
 		$user_data['timezone'] = $data_raw['data']['timezone'];
+		$user_data['sessions_id'] = $data_raw['data']['session_id'];
 
 		/* Cache session information */
 		$this->cache->set('nd_user_session_' . $data['userid'], $enc_session_cookie, $session_lifetime);
