@@ -291,7 +291,7 @@ class UW_ND extends UW_Module {
 
 		/* Fetch cookie from headers */
 		$headers = array_slice(explode("\r\n", $output), 0, -1);
-		$cookie_header = NULL;
+		$session_cookie = NULL;
 
 		foreach ($headers as $header) {
 			if (substr($header, 0, 12) == 'Set-Cookie: ')
