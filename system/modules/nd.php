@@ -1090,8 +1090,10 @@ class UW_ND extends UW_Module {
 				foreach ($nd_data['result'] as $row)
 					array_push($ids, $row[$k]);
 
-				/* Fetch fields properties from aggregation object */
-				$fields = $this->properties($v['object'], 'search', 'fields');
+				/* Fetch method properties from aggregation object */
+				$method_properties = $this->properties($v['object'], 'search');
+				$fields = $method_properties['fields'];
+				$route = $method_properties['route'];
 
 				/* Grant that all fields in $v are present in acceptable fields for this aggregation */
 				foreach ($v['show'] as $f) {
@@ -1105,7 +1107,7 @@ class UW_ND extends UW_Module {
 				/* Retrieve entry details for all the entry ID's belonging to this aggregation */
 				$ndsl_output = $this->search(
 					/* Object */
-					$v['object'],
+					$route,
 					/* NDSL query */
 					array(
 						'limit' => count($ids),
