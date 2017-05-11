@@ -28,7 +28,7 @@
  */
 
 class UW_Aggregation {
-    public function join($blob, $key_blob, $extra, $key_extra, $aggr_keys, $nomatch_value = NULL) {
+    public function join($blob, $key_blob, $extra, $key_extra, $aggr_keys, $nomatch_value = NULL, $aggr_name = 'default', $aggr_group = '_aggregations') {
         /* Iterate blob and look for key matches from $extra */
         for ($i_blob = 0; $i_blob < count($blob); $i_blob ++) {
             /* Reset match indicator */
@@ -48,7 +48,7 @@ class UW_Aggregation {
                 if ($extra[$i_extra][$key_extra] === $blob[$i_blob][$key_blob]) {
                     /* Aggregate k/v pairs to blob */
                     foreach ($aggr_keys as $aggr_key)
-                        $blob[$i_blob][$aggr_key] = $extra[$i_extra][$aggr_key];
+                        $blob[$i_blob][$aggr_group][$aggr_name][$aggr_key] = $extra[$i_extra][$aggr_key];
 
                     /* Update match indicator */
                     $key_match = true;
@@ -61,7 +61,7 @@ class UW_Aggregation {
             /* If no match was found, populate the blob keys with $nomatch_value */
             if (!$key_match) {
                 foreach ($aggr_keys as $aggr_key)
-                    $blob[$i_blob][$aggr_key] = $nomatch_value;
+                    $blob[$i_blob][$aggr_group][$aggr_name][$aggr_key] = $nomatch_value;
             }
         }
 

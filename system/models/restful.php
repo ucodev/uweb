@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 02/01/2017
+ * Date: 11/05/2017
  * License: GPLv3
  */
 
@@ -10,7 +10,7 @@
  * This file is part of uweb.
  *
  * uWeb - uCodev Low Footprint Web Framework (https://github.com/ucodev/uweb)
- * Copyright (C) 2014-2016  Pedro A. Hortas
+ * Copyright (C) 2014-2017  Pedro A. Hortas
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -43,7 +43,10 @@ class UW_Restful extends UW_Model {
 		'405' => 'Method Not Allowed',
 		'406' => 'Not Acceptable',
 		'409' => 'Conflict',
-		'500' => 'Internal Server Error'
+		/* 5xx codes ... */
+		'500' => 'Internal Server Error',
+		'502' => 'Bad Gateway',
+		'503' => 'Service Unavailable'
 	);
 
 	private $_methods = array(
@@ -86,7 +89,7 @@ class UW_Restful extends UW_Model {
 	/** Public **/
 
 	public function code($code, $protocol = 'HTTP/1.1') {
-		$this->_info['code'] = $code;
+		$this->_info['code'] = intval($code);
 
 		header($protocol . ' ' . $code . ' ' . $this->_codes[$code]);
 	}

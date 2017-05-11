@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 29/04/2017
+ * Date: 11/05/2017
  * License: GPLv3
  */
 
@@ -64,21 +64,21 @@ class UW_ES extends UW_Module {
                         /* Check if this is a negative string search */
                         if (isset($usl_query[$field]['diff']) && $usl_query[$field]['diff']) {
                             /* Initialize filter type, if required */
-                            if (!isset($es_query['constant_score']['filter']['bool'][$filter_type]['bool']['must_not']))
-                                $es_query['constant_score']['filter']['bool'][$filter_type]['bool']['must_not'] = array();
+                            if (!isset($es_query['filter']['bool'][$filter_type]['bool']['must_not']))
+                                $es_query['filter']['bool'][$filter_type]['bool']['must_not'] = array();
 
                             /* For 'diff', we should use a nested boolean query with 'must_not' inside the $filter_type */
-                            array_push($es_query['constant_score']['filter']['bool'][$filter_type]['bool']['must_not'], array(
+                            array_push($es_query['filter']['bool'][$filter_type]['bool']['must_not'], array(
                                 ((isset($usl_query[$field]['exact']) && $usl_query[$field]['exact']) ? 'term' : 'match') => array(
                                     $field => $value
                                 )
                             ));
                         } else {
                             /* Initialize filter type, if required */
-                            if (!isset($es_query['constant_score']['filter']['bool'][$filter_type]))
-                                $es_query['constant_score']['filter']['bool'][$filter_type] = array();
+                            if (!isset($es_query['filter']['bool'][$filter_type]))
+                                $es_query['filter']['bool'][$filter_type] = array();
 
-                            array_push($es_query['constant_score']['filter']['bool'][$filter_type], array(
+                            array_push($es_query['filter']['bool'][$filter_type], array(
                                 ((isset($usl_query[$field]['exact']) && $usl_query[$field]['exact']) ? 'term' : 'match') => array(
                                     $field => $value
                                 )
@@ -94,8 +94,8 @@ class UW_ES extends UW_Module {
                         }
 
                         /* Initialize filter type, if required */
-                        if (!isset($es_query['constant_score']['filter']['bool'][$filter_type]))
-                            $es_query['constant_score']['filter']['bool'][$filter_type] = array();
+                        if (!isset($es_query['filter']['bool'][$filter_type]))
+                            $es_query['filter']['bool'][$filter_type] = array();
 
                         /* Craft query terms */
                         $terms = array();
@@ -109,15 +109,15 @@ class UW_ES extends UW_Module {
                         }
 
                         /* Set or merge query terms */
-                        if (isset($es_query['constant_score']['filter']['bool'][$filter_type]['bool']['must_not'])) {
+                        if (isset($es_query['filter']['bool'][$filter_type]['bool']['must_not'])) {
                             /* Merge query terms */
-                            $es_query['constant_score']['filter']['bool'][$filter_type]['bool']['must_not'] = array_merge(
-                                $es_query['constant_score']['filter']['bool'][$filter_type]['bool']['must_not'],
+                            $es_query['filter']['bool'][$filter_type]['bool']['must_not'] = array_merge(
+                                $es_query['filter']['bool'][$filter_type]['bool']['must_not'],
                                 $terms
                             );
                         } else {
                             /* Set query terms */
-                            $es_query['constant_score']['filter']['bool'][$filter_type]['bool']['must_not'] = $terms;
+                            $es_query['filter']['bool'][$filter_type]['bool']['must_not'] = $terms;
                         }
                     } break;
 
@@ -129,8 +129,8 @@ class UW_ES extends UW_Module {
                         }
 
                         /* Initialize filter type, if required */
-                        if (!isset($es_query['constant_score']['filter']['bool'][$filter_type]))
-                            $es_query['constant_score']['filter']['bool'][$filter_type] = array();
+                        if (!isset($es_query['filter']['bool'][$filter_type]))
+                            $es_query['filter']['bool'][$filter_type] = array();
 
                         /* Craft query terms */
                         $terms = array();
@@ -144,15 +144,15 @@ class UW_ES extends UW_Module {
                         }
 
                         /* Set or merge query terms */
-                        if (isset($es_query['constant_score']['filter']['bool'][$filter_type]['bool']['should'])) {
+                        if (isset($es_query['filter']['bool'][$filter_type]['bool']['should'])) {
                             /* Merge query terms */
-                            $es_query['constant_score']['filter']['bool'][$filter_type]['bool']['should'] = array_merge(
-                                $es_query['constant_score']['filter']['bool'][$filter_type]['bool']['should'],
+                            $es_query['filter']['bool'][$filter_type]['bool']['should'] = array_merge(
+                                $es_query['filter']['bool'][$filter_type]['bool']['should'],
                                 $terms
                             );
                         } else {
                             /* Set query terms */
-                            $es_query['constant_score']['filter']['bool'][$filter_type]['bool']['should'] = $terms;
+                            $es_query['filter']['bool'][$filter_type]['bool']['should'] = $terms;
                         }
                     } break;
 
@@ -165,10 +165,10 @@ class UW_ES extends UW_Module {
                         }
 
                         /* Initialize filter type, if required */
-                        if (!isset($es_query['constant_score']['filter']['bool'][$filter_type]))
-                            $es_query['constant_score']['filter']['bool'][$filter_type] = array();
+                        if (!isset($es_query['filter']['bool'][$filter_type]))
+                            $es_query['filter']['bool'][$filter_type] = array();
 
-                        array_push($es_query['constant_score']['filter']['bool'][$filter_type], array(
+                        array_push($es_query['filter']['bool'][$filter_type], array(
                             'term' => array(
                                 $field => $value
                             )
@@ -184,11 +184,11 @@ class UW_ES extends UW_Module {
                         }
 
                         /* Initialize must_not, if required */
-                        if (!isset($es_query['constant_score']['filter']['bool'][$filter_type]['bool']['must_not']))
-                            $es_query['constant_score']['filter']['bool'][$filter_type]['bool']['must_not'] = array();
+                        if (!isset($es_query['filter']['bool'][$filter_type]['bool']['must_not']))
+                            $es_query['filter']['bool'][$filter_type]['bool']['must_not'] = array();
 
                         /* For 'ne', we should use a nested boolean query with 'must_not' inside the $filter_type */
-                        array_push($es_query['constant_score']['filter']['bool'][$filter_type]['bool']['must_not'], array(
+                        array_push($es_query['filter']['bool'][$filter_type]['bool']['must_not'], array(
                             'term' => array(
                                 $field => $value
                             )
@@ -210,20 +210,20 @@ class UW_ES extends UW_Module {
                         /* TODO: Grant that 'string' type content matches time, date or datetime formats */
 
                         /* Initialize filter type, if required */
-                        if (!isset($es_query['constant_score']['filter']['bool'][$filter_type]))
-                            $es_query['constant_score']['filter']['bool'][$filter_type] = array();
+                        if (!isset($es_query['filter']['bool'][$filter_type]))
+                            $es_query['filter']['bool'][$filter_type] = array();
 
                         /* Initialize range, if required */
-                        if (!isset($es_query['constant_score']['filter']['bool'][$filter_type]['range']))
-                            $es_query['constant_score']['filter']['bool'][$filter_type]['range'] = array();
+                        if (!isset($es_query['filter']['bool'][$filter_type]['range']))
+                            $es_query['filter']['bool'][$filter_type]['range'] = array();
 
                         /* Initialize range field, if required */
-                        if (!isset($es_query['constant_score']['filter']['bool'][$filter_type]['range'][$field]))
-                            $es_query['constant_score']['filter']['bool'][$filter_type]['range'][$field] = array();
+                        if (!isset($es_query['filter']['bool'][$filter_type]['range'][$field]))
+                            $es_query['filter']['bool'][$filter_type]['range'][$field] = array();
 
                         /* Push range condition */
-                        $es_query['constant_score']['filter']['bool'][$filter_type]['range'][$field] = array_merge(
-                            $es_query['constant_score']['filter']['bool'][$filter_type]['range'][$field],
+                        $es_query['filter']['bool'][$filter_type]['range'][$field] = array_merge(
+                            $es_query['filter']['bool'][$filter_type]['range'][$field],
                             array($cond => $value)
                         );
                     } break;
@@ -264,7 +264,7 @@ class UW_ES extends UW_Module {
         }
 
         $search['type'] = 'filter';
-        $search['query'] = $this->_usl_to_es($input['query']);
+        $search['query']['constant_score']['filter'] = $this->_usl_to_es($input['query'])['filter'];
 
         /* Validation - Check optional fields */
 
@@ -415,8 +415,8 @@ class UW_ES extends UW_Module {
             $this->restful->output('400');
         }
 
-        if ($input['type'] != 'fulltext') {
-            $this->restful->error('Parameter \'type\' must have the value \'fulltext\'.');
+        if ($input['type'] != 'fulltext' && $input['type'] != 'fulltext-filter') {
+            $this->restful->error('Parameter \'type\' must have the value \'fulltext\' or \'fulltext-filter\'.');
             $this->restful->output('400');
         }
 
@@ -430,8 +430,18 @@ class UW_ES extends UW_Module {
             $this->restful->output('400');
         }
 
-        $search['type'] = 'fulltext';
+        $search['type'] = $input['type'];
         $search['text'] = $input['query']['text'];
+
+        /* Check if there's a filter set */
+        if (isset($input['query']['filter'])) {
+            /* If the search query contains a filter, force the fulltext-filter type */
+            $search['type'] = 'fulltext-filter';
+            $search['filter'] = $input['query']['filter'];
+        } else {
+            /* If the search query does not contains a filter, force the fulltext type */
+            $search['type'] = 'fulltext';
+        }
 
         /* Validation - Check optional fields */
 
@@ -490,7 +500,7 @@ class UW_ES extends UW_Module {
         if (isset($input['offset'])) {
             /* Check if offset value is an integer */
             if (gettype($input['offset']) != 'integer') {
-                $this->restful->error('Paramter \'offset\' is set, but it\'s not of integer type.');
+                $this->restful->error('Parameter \'offset\' is set, but it\'s not of integer type.');
                 $this->restful->output('400');
             }
 
@@ -505,6 +515,19 @@ class UW_ES extends UW_Module {
 
         /* ES Query - Initialize boosted query */
         $es_input['query']['function_score']['query']['bool']['should'] = array();
+
+        /* ES Query - If this is a fulltext-filter type, check and translate filter properties */
+        if ($search['type'] == 'fulltext-filter') {
+            if (!isset($search['filter'])) {
+                /* We should never get here, as the fulltext and fulltext-filter should have been automatically determiend on pre-checks */
+                $this->restful->error('Searches of type \'fulltext-filter\' must have a \'filter\' property.');
+                $this->restful->output('400');
+            }
+
+            /* Translate USL filter to ES filter */
+            $es_input['query']['function_score']['query']['bool']['filter'] = $this->_usl_to_es($search['filter'])['filter'];
+        }
+        
 
         /* ES Query - Set boosted fields and respective boosting factor */
         foreach ($config['fields']['match']['boost'] as $k => $v) {
@@ -676,7 +699,7 @@ class UW_ES extends UW_Module {
         }
 
         /* Perform the request based on the input type */
-        if ($input['type'] == 'fulltext') {
+        if ($input['type'] == 'fulltext' || $input['type'] == 'fulltext-filter') {
             if ($config['query']['type'] == 'boosted' && $config['query']['function'] == 'score') {
                 return $this->_fulltext_boosted_score($config, $index, $input, $max_records, $type);
             } else {
@@ -704,7 +727,48 @@ class UW_ES extends UW_Module {
 		$ch = curl_init();
 
 		/* Set the request URL */
-        curl_setopt($ch, CURLOPT_URL, rtrim($config['query']['base_url'], '/') . '/' . $index . '/' . $type .'/' . $id);
+        curl_setopt($ch, CURLOPT_URL, rtrim($config['query']['base_url'], '/') . '/' . $index . '/' . $type . '/' . $id);
+
+		/* Grant that cURL will return the response output */
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+		/* Execute the request */
+		$es_output = curl_exec($ch);
+
+		/* Close the cURL handler */
+		curl_close($ch);
+
+        /* Initialize data */
+        $data = NULL;
+
+        /* Check if there's any output */
+        if ($es_output)
+            $data = json_decode($es_output, true);
+
+        /* Check if there's valid JSON data */
+        if ($data === NULL)
+            return NULL;
+
+        /* Check if document was found */
+        if ($data['found'] === false)
+            return false;
+
+        /* All good */
+        return $data['_source'];
+    }
+
+    public function put($config, $index, $type, $data, $id = NULL) {
+        /* If $id wasn't set, try to retrieve it from $data object */
+        if ($id === NULL) {
+            if (isset($data['id']))
+                $id = $data['id'];
+        }
+
+		/* Forward request to the search engine (ES) */
+		$ch = curl_init();
+
+		/* Set the request URL */
+        curl_setopt($ch, CURLOPT_URL, rtrim($config['query']['base_url'], '/') . '/' . $index . '/' . $type . (($id !== NULL) ? ('/' . $id) : ''));
 
 		/* Grant that cURL will return the response output */
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);

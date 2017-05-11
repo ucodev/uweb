@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 05/04/2017
+ * Date: 11/05/2017
  * License: GPLv3
  */
 
@@ -49,20 +49,32 @@ class UW_ND extends UW_Module {
 		if (is_array($data))
 			array_push($req_headers, 'Content-Type: application/json');
 
-		/* Get X-Forwarded-For value, if any */
-		$xfrd = $this->restful->header('X-Forwarded-For');
+		/* Check if we can trust the requester headers */
+		if (in_array($_SERVER['REMOTE_ADDR'], ND_REQ_TRUSTED_SRC_IPADDR)) {
+			/* Get X-Forwarded-For value, if any */
+			$xfrd = $this->restful->header('X-Forwarded-For');
 
-		if ($xfrd !== NULL) {
-			/* If X-Forwarded-For is already set, append the remote ip address to it... */
-			array_push($req_headers, 'X-Forwarded-For: ' . $xfrd . ', ' . $_SERVER['REMOTE_ADDR']);
-			array_push($req_headers, 'X-Real-IP: ' . trim(explode(',', $xfrd)[0]));
-		} else {
+			if ($xfrd !== NULL) {
+				/* If X-Forwarded-For is already set, append the remote ip address to it... */
+				array_push($req_headers, 'X-Forwarded-For: ' . $xfrd . ', ' . $_SERVER['REMOTE_ADDR']);
+				array_push($req_headers, 'X-Real-IP: ' . trim(explode(',', $xfrd)[0]));
+			} else {
+				/* Get X-Real-IP value, if any */
+				$xrip = $this->restful->header('X-Real-IP');
+
+				if ($xrip !== NULL) {
+					/* If X-Real-IP is set, use its value to set the new X-Forwarded-For and X-Real-IP headers values... */
+					array_push($req_headers, 'X-Forwarded-For: ' . $xrip);
+					array_push($req_headers, 'X-Real-IP: ' . $xrip);
+				}
+			}
+		} else {	
 			/* Otherwise, set a brand new X-Forwarded-For header */
 			array_push($req_headers, 'X-Forwarded-For: ' . $_SERVER['REMOTE_ADDR']);
 			array_push($req_headers, 'X-Real-IP: ' . $_SERVER['REMOTE_ADDR']);
 		}
 
-		/* Forward request to the backend engine (nd-php) */
+		/* Forward request to the underlying engine (nd-php) */
 		$ch = curl_init();
 
 		/* Set the request URL */
@@ -117,12 +129,12 @@ class UW_ND extends UW_Module {
 			$this->restful->error('An error ocurred while decoding data from the underlying layer. Please contact support.');
 			$this->restful->output('502'); /* Bad Gateway */
 		} else if ($nd_data['status'] !== true) {
-			/* The request was understood, but the backend engine is refusing to fulfill it */
+			/* The request was understood, but the underlying layer is refusing to fulfill it */
 			$this->log(isset($nd_data['code']) ? $nd_data['code'] : '502', __FILE__, __LINE__, __FUNCTION__, 'Request was not successful: ' . $nd_data['content'] . '.', $session);
 			$this->restful->error($nd_data['content']);
 			$this->restful->output(isset($nd_data['code']) ? $nd_data['code'] : '502');
 		} else if (!isset($nd_data['data'])) {
-			/* The request was understood, but the backend engine is refusing to fulfill it */
+			/* The request was understood, but the underlying layer is refusing to fulfill it */
 			$this->log('502', __FILE__, __LINE__, __FUNCTION__, 'Response contains no data field set.', $session);
 			$this->restful->error('Failed to retrieve the requested data.');
 			$this->restful->output('502'); /* Bad Gateway */
@@ -208,12 +220,12 @@ class UW_ND extends UW_Module {
 			}
 		}
 
-		/* Forward registration request to the backend engine (nd-php) */
+		/* Forward registration request to the underlying layer (nd-php) */
 		$nd_data = $this->request('/register/newuser', $register);
 
 		/* Check if the required data is present */
 		if (!isset($nd_data['user_id']) || !isset($nd_data['registered']) || $nd_data['registered'] !== true) {
-			$this->log('403', __FILE__, __LINE__, __FUNCTION__, 'Registration failed for user \'' . $register['username'] . '\': Required data from the backend is missing.');
+			$this->log('403', __FILE__, __LINE__, __FUNCTION__, 'Registration failed for user \'' . $register['username'] . '\': Required data from the underlying layer is missing.');
 			$this->restful->error('An error occurred. Please contact support.');
 			$this->restful->output('403'); /* Forbidden */
 		}
@@ -227,7 +239,7 @@ class UW_ND extends UW_Module {
 	}
 
 	public function user_authenticate($auth) {
-		/* Forward authentication request to the backend engine (nd-php)
+		/* Forward authentication request to the underlying layer (nd-php)
 		 * NOTE: This is a special case where we need to also process the response headers, so we won't use $this->request() here.
 		 */
 
@@ -273,7 +285,7 @@ class UW_ND extends UW_Module {
 		/* If the response is empty, we cannot proceed */
 		if (!$output) {
 			$this->log('502', __FILE__, __LINE__, __FUNCTION__, 'Authentication failed for user \'' . $auth['username'] . '\': Empty response from the underlying layer.');
-			$this->restful->error('An error ocurred while retrieving data from the backend. No data received. Please contact support.');
+			$this->restful->error('An error ocurred while retrieving data from the underlying layer. No data received. Please contact support.');
 			$this->restful->output('502'); /* Bad Gateway */
 		}
 
@@ -302,7 +314,7 @@ class UW_ND extends UW_Module {
 		/* If we're unable to decode the JSON data present in the body, we cannot proceed */
 		if ($data_raw === NULL) {
 			$this->log('502', __FILE__, __LINE__, __FUNCTION__, 'Authentication failed for user \'' . $auth['username'] . '\': Unable to decode JSON data from the underlying response body.');
-			$this->restful->error('An error ocurred while decoding data from the backend. Please contact support.');
+			$this->restful->error('An error ocurred while decoding data from the underlying layer. Please contact support.');
 			$this->restful->output('502'); /* Bad Gateway */
 		}
 
@@ -316,14 +328,14 @@ class UW_ND extends UW_Module {
 		/* Check if the required data is present */
 		if (!isset($data_raw['data']['user_id']) || !isset($data_raw['data']['apikey'])) {
 			$this->log('502', __FILE__, __LINE__, __FUNCTION__, 'Authentication failed for user \'' . $auth['username'] . '\': Required data from the underlying layer is missing.');
-			$this->restful->error('An error ocurred while retrieving data from the backend. Data is incomplete. Please contact support.');
+			$this->restful->error('An error ocurred while retrieving data from the underlying layer. Data is incomplete. Please contact support.');
 			$this->restful->output('502'); /* Bad Gateway */
 		}
 
 		/* Check if the required data is valid */
 		if (!is_numeric($data_raw['data']['user_id']) || strlen($data_raw['data']['apikey']) != 40 || hex2bin($data_raw['data']['apikey']) === false) {
 			$this->log('502', __FILE__, __LINE__, __FUNCTION__, 'Authentication failed for user \'' . $auth['username'] . '\': Received data from the underlying layer is invalid.');
-			$this->restful->error('An error ocurred while retrieving data from the backend. Data is invalid. Please contact support.');
+			$this->restful->error('An error ocurred while retrieving data from the underlying layer. Data is invalid. Please contact support.');
 			$this->restful->output('502'); /* Bad Gateway */
 		}
 
@@ -377,7 +389,7 @@ class UW_ND extends UW_Module {
 		/* Retrieve authentication and session data from headers */
 		$session = $this->session_init();
 
-		/* Forward request to backend engine (nd-php) */
+		/* Forward request to the underlying layer (nd-php) */
 		$nd_data = $this->request('/login/logout', NULL, $session);
 
 		/* Check if the logout was successful */
@@ -558,7 +570,7 @@ class UW_ND extends UW_Module {
 			$this->restful->output('400'); /* Bad request */
 		}
 
-		/* Forward request to backend engine (nd-php) */
+		/* Forward request to the underlying layer (nd-php) */
 		$nd_data = $this->request('/' . $ctrl . '/view/' . $argv[0], NULL, $session);
 
 		/* Check if the entry was found */
@@ -653,7 +665,7 @@ class UW_ND extends UW_Module {
 				$reqbody['data']['_totals'] = intval($argv[4]) ? true : false;
 		}
 
-		/* Forward request to backend engine (nd-php) */
+		/* Forward request to the underlying layer (nd-php) */
 		if ($reqbody['data'] !== NULL) {
 			$nd_data = $this->request('/' . $ctrl . '/list_default', $reqbody, $session);
 		} else {
@@ -755,12 +767,12 @@ class UW_ND extends UW_Module {
 			}
 		}
 
-		/* Set request data for the backend engine (nd-php) */
+		/* Set request data for the underlying layer (nd-php) */
 		$reqbody['_userid'] = $session['user_id'];
 		$reqbody['_apikey'] = $session['token'];
 		$reqbody['data'] = $entry;
 
-		/* Forward the insert request to the backend engine (nd-php) */
+		/* Forward the insert request to the underlying layer (nd-php) */
 		$nd_data = $this->request('/' . $ctrl . '/insert', $reqbody, $session);
 
 		/* Check if the entry was successfully updated */
@@ -819,12 +831,12 @@ class UW_ND extends UW_Module {
 			}
 		}
 
-		/* Set request data for the backend engine (nd-php) */
+		/* Set request data for the underlying layer (nd-php) */
 		$reqbody['_userid'] = $session['user_id'];
 		$reqbody['_apikey'] = $session['token'];
 		$reqbody['data'] = $entry;
 
-		/* Forward the update request to the backend engine (nd-php) */
+		/* Forward the update request to the underlying layer (nd-php) */
 		$nd_data = $this->request('/' . $ctrl . '/update/' . $argv[0], $reqbody, $session);
 
 		/* Check if the entry was successfully updated */
@@ -850,7 +862,7 @@ class UW_ND extends UW_Module {
 			$this->restful->output('403'); /* Forbidden */
 		}
 
-		/* Forward request to backend engine (nd-php) */
+		/* Forward request to the underlying layer (nd-php) */
 		$nd_data = $this->request('/' . $ctrl . '/delete/' . $argv[0], NULL, $session);
 
 		/* Check if the entry was successfully deleted */
@@ -865,7 +877,7 @@ class UW_ND extends UW_Module {
 	}
 
 
-	public function search($ctrl, $input = array(), $fields = array()) {
+	public function search($ctrl, $input = array(), $fields = array(), $validate_method = true) {
 		$fields_accepted    = isset($fields['accepted']) ? $fields['accepted'] : array();
 		$fields_mapped_pre  = isset($fields['mapped_pre']) ? $fields['mapped_pre'] : array();
 		$fields_mapped_post = isset($fields['mapped_post']) ? $fields['mapped_post'] : array();
@@ -875,7 +887,7 @@ class UW_ND extends UW_Module {
 		$session = $this->session_init();
 
 		/* Only POST method is accepted for this call */
-		if ($this->restful->method() != 'POST') {
+		if ($validate_method === true && $this->restful->method() != 'POST') {
 			$this->log('405', __FILE__, __LINE__, __FUNCTION__, 'Only POST method is allowed to be used for searches.', $session);
 			$this->restful->error('Only POST method is allowed to be used for searches.');
 			$this->restful->output('405'); /* Method Not Allowed */
@@ -883,7 +895,7 @@ class UW_ND extends UW_Module {
 
 		/* Check if there's any input */
 		if (!count($input) || !isset($input['query'])) {
-			$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'No input data fields could found or search query is missing.', $session);
+			$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'No input data fields could be found or search query is missing.', $session);
 			$this->restful->error('No input data fields could be found or search query is missing.');
 			$this->restful->output('400'); /* Bad Request */
 		}
@@ -938,18 +950,24 @@ class UW_ND extends UW_Module {
 			$input['show'] = $show;
 		}
 
+		/* Look for aggregation settings */
+		if (isset($input['aggregations'])) {
+			$aggregations = $input['aggregations'];
+			unset($input['aggregations']);
+		}
+
 		/* Set request data */
 		$reqbody['_userid'] = $session['user_id'];
 		$reqbody['_apikey'] = $session['token'];
 		$reqbody['data']    = $this->search_ndsl($input, $session);
 
-		/* Forward the update request to the backend engine (nd-php) */
+		/* Forward the update request to the underlying layer (nd-php) */
 		$nd_data = $this->request('/' . $ctrl . '/result/basic', $reqbody, $session);
 
 		/* Check if the received type is what we're expecting */
 		if (gettype($nd_data['result']) != 'array') {
 			$this->log('502', __FILE__, __LINE__, __FUNCTION__, 'Invalid data received from the underlying layer: Unexpected type (Expecting array).', $session);
-			$this->restful->error('An error ocurred while retrieving data from the backend. Data type is invalid. Please contact support.');
+			$this->restful->error('An error ocurred while retrieving data from the underlying layer. Data type is invalid. Please contact support.');
 			$this->restful->output('502'); /* Bad Gateway */
 		}
 
@@ -987,6 +1005,137 @@ class UW_ND extends UW_Module {
 					/* Set the new mapped key with the actual value */
 					$nd_data['result'][$i][$fields_mapped_post[$k]] = $v;
 				}
+			}
+		}
+
+		/* Check for aggregation requests */
+		if (isset($aggregations) && (count($aggregations) > 0)) {
+			/*
+			 * Full syntax:
+			 *
+			 *   "aggregations": {
+			 *       "xpto_id": {
+			 *           "field": "id",
+			 *           "object": "xpto",
+			 *           "show": [ "id", "field1", "field2" ]
+			 *       }
+			 *   }
+			 *
+			 * Short syntax:
+			 *
+			 *   "aggregations": {
+			 *       "xpto_id": [ "id", "field1", "field2" ]
+			 *   }
+			 *
+			 */
+			foreach ($aggregations as $k => $v) {
+				/* Check if $v is array and contains data */
+				if (!is_array($v) || !count($v)) {
+					$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Aggregation field \'' . $k . '\' is not of array type, or it is an empty array.');
+					$this->restful->error('Aggregation field \'' . $k . '\' is not of array type, or it is an empty array.');
+					$this->restful->output('400'); /* Bad request */					
+				}
+
+				/* Check if this is a short syntax aggregation */
+				if (array_keys($v) === range(0, count($v) - 1)) {
+					/* Check if we can extrapolate the full syntax from the aggregation field */
+					if (substr($k, -3) !== '_id') {
+						$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Aggregation field \'' . $k . '\' does not support short syntax.');
+						$this->restful->error('Aggregation field \'' . $k . '\' does not support short syntax.');
+						$this->restful->output('400'); /* Bad request */
+					}
+
+					/* Create full syntax from short syntax */
+					$_v = array();
+					$_v['field'] = 'id';
+					$_v['object'] = substr($k, 0, -3);
+					$_v['show'] = $v;
+
+					/* Overwrite short syntax */
+					$v = $_v;
+				} else {
+					/* Check if 'field' property is set for this aggregation */
+					if (!isset($v['field'])) {
+						$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Property \'field\' is missing for the following aggregation: ' . $k);
+						$this->restful->error('Property \'field\' is missing for the following aggregation: ' . $k);
+						$this->restful->output('400'); /* Bad request */
+					}
+
+					/* Check if 'object' property is set for this aggregation */
+					if (!isset($v['object'])) {
+						$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Property \'object\' is missing for the following aggregation: ' . $k);
+						$this->restful->error('Property \'object\' is missing for the following aggregation: ' . $k);
+						$this->restful->output('400'); /* Bad request */
+					}
+
+					/* Check if 'show' property is set for this aggregation */
+					if (!isset($v['show'])) {
+						$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Property \'show\' is missing for the following aggregation: ' . $k);
+						$this->restful->error('Property \'show\' is missing for the following aggregation: ' . $k);
+						$this->restful->output('400'); /* Bad request */
+					}
+				}
+
+				/* Fetch entry details (prepare for aggregation) */
+				$ids = array();
+
+				/* Check if the target field exists in the result (if we are here, at least one result was found) */
+				if (!isset($nd_data['result'][0][$k])) {
+					$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Missing aggregation field under search results: ' . $k, $session);
+					$this->restful->error('Missing aggregation field under search results: ' . $k);
+					$this->restful->output('400'); /* Bad request */
+				}
+
+				/* Gather the entry ID's for this aggregation */
+				foreach ($nd_data['result'] as $row)
+					array_push($ids, $row[$k]);
+
+				/* Fetch fields properties from aggregation object */
+				$fields = $this->properties($v['object'], 'search', 'fields');
+
+				/* Grant that all fields in $v are present in acceptable fields for this aggregation */
+				foreach ($v['show'] as $f) {
+					if (!in_array($f, $fields['visible'])) {
+						$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Unacceptable output field \'' . $f . '\' under aggregation: ' . $k, $session);
+						$this->restful->error('Unacceptable output field \'' . $f . '\' under aggregation: ' . $k);
+						$this->restful->output('400'); /* Bad request */
+					}
+				}
+
+				/* Retrieve entry details for all the entry ID's belonging to this aggregation */
+				$ndsl_output = $this->search(
+					/* Object */
+					$v['object'],
+					/* NDSL query */
+					array(
+						'limit' => count($ids),
+						'offset' => 0,
+						'show' => $v['show'],
+						'query' => array(
+							$v['field'] => array(
+								'in' => $ids
+							)
+						)
+					),
+					/* Mappings */
+					array(
+						'accepted' => array($v['field']),
+						'visible' => $fields['visible'],
+						'mapped_pre' => $fields['mapped_pre'],
+						'mapped_post' => $fields['mapped_post']
+					)
+				);
+
+				/* Aggregate results */
+				$nd_data['result'] = $this->aggregation->join(
+					$nd_data['result'],
+					$k,
+					$ndsl_output['result'],
+					$v['field'],
+					$v['show'],
+					NULL,
+					$k
+				);
 			}
 		}
 
@@ -1042,5 +1191,95 @@ class UW_ND extends UW_Module {
 
 		/* All good */
 		return $data;
+	}
+
+	public function remap($src, $map) {
+		for ($i = 0; $i < count($src); $i ++) {
+			if (isset($map[$src[$i]]))
+				$src[$i] = $map[$src[$i]];
+		}
+
+		return $src;
+	}
+
+	public function properties($object, $method = NULL, $property = NULL) {
+		/* Craft object properties file path */
+		$obj_file = SYSTEM_BASE_DIR . ND_REQ_OBJ_PROPERTIES_DIR . '/' . $object . '.json';
+
+		/* Check if there's a cached version for this object */
+		$obj_properties = $this->cache->get('nd_properties_' . $object);
+
+		if (!$obj_properties) {
+			/* Check if properties file exists */
+			if (!file_exists($obj_file)) {
+				$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'File \'' . $obj_file . '\' does not exist.');
+				$this->restful->error('Unable to find properties for object: ' . $object);
+				$this->restful->output('400'); /* Bad request */
+			}
+
+			/* Load properties file contents */
+			$obj_content = file_get_contents($obj_file);
+
+			if ($obj_content === false) {
+				$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Unable to load file contents: ' . $obj_file);
+				$this->restful->error('Unable to load properties for object: ' . $object);
+				$this->restful->output('500'); /* Internal Server Error */
+			}
+
+			/* Decode properties contents */
+			$obj_properties = json_decode($obj_content, true);
+
+			if ($obj_properties === false) {
+				$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Unable to decode file contents: ' . $obj_file);
+				$this->restful->error('Unable to decode properties for object: ' . $object);
+				$this->restful->output('500'); /* Internal Server Error */
+			}
+
+			/* Cache object properties */
+			$this->cache->set('nd_properties_' . $object, $obj_properties);
+		}
+
+		/* Check if driver is set */
+		if (!isset($obj_properties['driver'])) {
+			$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Driver not found in: ' . $obj_file);
+			$this->restful->error('Driver not found in object: ' . $object);
+			$this->restful->output('500'); /* Internal Server Error */
+		}
+
+		/* Check if driver matches */
+		if ($obj_properties['driver'] != 'nd') {
+			$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Incompatible driver found in: ' . $obj_file);
+			$this->restful->error('Incompatible driver found in object: ' . $object);
+			$this->restful->output('500'); /* Internal Server Error */
+		}
+
+		/* Check if object name exists */
+		if (!isset($obj_properties[$object])) {
+			$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Unable to find object name: ' . $object);
+			$this->restful->error('Unable to find object name: ' . $object);
+			$this->restful->output('500'); /* Internal Server Error */
+		}
+
+		/* Determine the granularity of the result */
+		if ($method === NULL) {
+			/* If no method name was set, return the full object properties */
+			return $obj_properties[$object];
+		} else if (!isset($obj_properties[$object][$method])) { /* Check if object method exists */
+			$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Unable to find object method (' . $method . ') for object: ' . $object);
+			$this->restful->error('Unable to find object method (' . $method . '): ' . $object);
+			$this->restful->output('400'); /* Bad request */
+		}
+
+		if ($property === NULL) {
+			/* If no specific property was set, return all the method properties */
+			return $obj_properties[$object][$method];
+		} else if (!isset($obj_properties[$object][$method][$property])) { /* Check if method property exists */
+			$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Unable to find object method (' . $method . ') property (' . $property . ') for object: ' . $object);
+			$this->restful->error('Unable to find object method (' . $method . ') property (' . $property . ') for object: ' . $object);
+			$this->restful->output('400'); /* Bad request */
+		}
+
+		/* Return the specific property */
+		return $obj_properties[$object][$method][$property];
 	}
 }
