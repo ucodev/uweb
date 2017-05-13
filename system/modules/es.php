@@ -31,6 +31,9 @@ class UW_ES extends UW_Module {
     private function _usl_to_es($usl_query) {
         /* TODO: Add support for nested USL criteria. This will allow USL 'query' to be of type 'array' */
 
+        /* Auxiliar clauses */
+        $ranges = array();
+
         /* Initialize ES query */        
         $es_query = array();
 
@@ -64,13 +67,17 @@ class UW_ES extends UW_Module {
                         /* Check if this is a negative string search */
                         if (isset($usl_query[$field]['diff']) && $usl_query[$field]['diff']) {
                             /* Initialize filter type, if required */
-                            if (!isset($es_query['filter']['bool'][$filter_type]['bool']['must_not']))
-                                $es_query['filter']['bool'][$filter_type]['bool']['must_not'] = array();
+                            if (!isset($es_query['filter']['bool'][$filter_type]))
+                                $es_query['filter']['bool'][$filter_type] = array();
 
                             /* For 'diff', we should use a nested boolean query with 'must_not' inside the $filter_type */
-                            array_push($es_query['filter']['bool'][$filter_type]['bool']['must_not'], array(
-                                ((isset($usl_query[$field]['exact']) && $usl_query[$field]['exact']) ? 'term' : 'match') => array(
-                                    $field => $value
+                            array_push($es_query['filter']['bool'][$filter_type], array(
+                                'bool' => array(
+                                    'must_not' => array(
+                                        ((isset($usl_query[$field]['exact']) && $usl_query[$field]['exact']) ? 'term' : 'match') => array(
+                                            $field => $value
+                                        )
+                                    )
                                 )
                             ));
                         } else {
@@ -108,17 +115,15 @@ class UW_ES extends UW_Module {
                             ));
                         }
 
-                        /* Set or merge query terms */
-                        if (isset($es_query['filter']['bool'][$filter_type]['bool']['must_not'])) {
-                            /* Merge query terms */
-                            $es_query['filter']['bool'][$filter_type]['bool']['must_not'] = array_merge(
-                                $es_query['filter']['bool'][$filter_type]['bool']['must_not'],
-                                $terms
-                            );
-                        } else {
-                            /* Set query terms */
-                            $es_query['filter']['bool'][$filter_type]['bool']['must_not'] = $terms;
-                        }
+                        /* Initialize filter type, if required */
+                        if (!isset($es_query['filter']['bool'][$filter_type]))
+                            $es_query['filter']['bool'][$filter_type] = array();
+
+                        array_push($es_query['filter']['bool'][$filter_type], array(
+                            'bool' => array(
+                                'must_not' => $terms
+                            )
+                        ));
                     } break;
 
                     case 'in': {
@@ -143,17 +148,15 @@ class UW_ES extends UW_Module {
                             ));
                         }
 
-                        /* Set or merge query terms */
-                        if (isset($es_query['filter']['bool'][$filter_type]['bool']['should'])) {
-                            /* Merge query terms */
-                            $es_query['filter']['bool'][$filter_type]['bool']['should'] = array_merge(
-                                $es_query['filter']['bool'][$filter_type]['bool']['should'],
-                                $terms
-                            );
-                        } else {
-                            /* Set query terms */
-                            $es_query['filter']['bool'][$filter_type]['bool']['should'] = $terms;
-                        }
+                        /* Initialize filter type, if required */
+                        if (!isset($es_query['filter']['bool'][$filter_type]))
+                            $es_query['filter']['bool'][$filter_type] = array();
+
+                        array_push($es_query['filter']['bool'][$filter_type], array(
+                            'bool' => array(
+                                'should' => $terms
+                            )
+                        ));
                     } break;
 
                     case 'is': /* Validate if the type is NULL */
@@ -184,13 +187,17 @@ class UW_ES extends UW_Module {
                         }
 
                         /* Initialize must_not, if required */
-                        if (!isset($es_query['filter']['bool'][$filter_type]['bool']['must_not']))
-                            $es_query['filter']['bool'][$filter_type]['bool']['must_not'] = array();
+                        if (!isset($es_query['filter']['bool'][$filter_type]))
+                            $es_query['filter']['bool'][$filter_type] = array();
 
                         /* For 'ne', we should use a nested boolean query with 'must_not' inside the $filter_type */
-                        array_push($es_query['filter']['bool'][$filter_type]['bool']['must_not'], array(
-                            'term' => array(
-                                $field => $value
+                        array_push($es_query['filter']['bool'][$filter_type], array(
+                            'bool' => array(
+                                'must_not' => array(
+                                    'term' => array(
+                                        $field => $value
+                                    )
+                                )
                             )
                         ));
                     } break;
@@ -209,22 +216,13 @@ class UW_ES extends UW_Module {
 
                         /* TODO: Grant that 'string' type content matches time, date or datetime formats */
 
-                        /* Initialize filter type, if required */
-                        if (!isset($es_query['filter']['bool'][$filter_type]))
-                            $es_query['filter']['bool'][$filter_type] = array();
-
-                        /* Initialize range, if required */
-                        if (!isset($es_query['filter']['bool'][$filter_type]['range']))
-                            $es_query['filter']['bool'][$filter_type]['range'] = array();
-
-                        /* Initialize range field, if required */
-                        if (!isset($es_query['filter']['bool'][$filter_type]['range'][$field]))
-                            $es_query['filter']['bool'][$filter_type]['range'][$field] = array();
+                        /* Initialize filter type for $ranges, if required */
+                        if (!isset($ranges[$filter_type][$field]))
+                            $ranges[$filter_type][$field] = array();
 
                         /* Push range condition */
-                        $es_query['filter']['bool'][$filter_type]['range'][$field] = array_merge(
-                            $es_query['filter']['bool'][$filter_type]['range'][$field],
-                            array($cond => $value)
+                        $ranges[$filter_type][$field] = array_merge(
+                            $ranges[$filter_type][$field], array($cond => $value)
                         );
                     } break;
 
@@ -233,6 +231,20 @@ class UW_ES extends UW_Module {
                         $this->restful->output('400');
                     }
                 }
+            }
+        }
+
+        /* Merge auxiliar clauses */
+        foreach ($ranges as $filter_type => $kv) {
+            foreach ($kv as $k => $v) {
+                if (!isset($es_query['filter']['bool'][$filter_type]))
+                    $es_query['filter']['bool'][$filter_type] = array();
+
+                array_push($es_query['filter']['bool'][$filter_type], array(
+                    'range' => array(
+                        $k => $v
+                    )
+                ));
             }
         }
 
@@ -640,8 +652,8 @@ class UW_ES extends UW_Module {
             $this->restful->output('400');
         }
 
-        $search['type'] = 'filter';
-        $search['query'] = $this->_usl_to_es($input['query']);
+        $search['type'] = 'raw';
+        $search['query'] = $input['query'];
 
 
         /** ES Query **/
@@ -653,7 +665,7 @@ class UW_ES extends UW_Module {
 		$ch = curl_init();
 
 		/* Set the request URL */
-        curl_setopt($ch, CURLOPT_URL, rtrim($config['query']['base_url'], '/') . '/' . $index . ($type !== NULL ? ('/' . $type) : '') .'/_search?pretty');
+        curl_setopt($ch, CURLOPT_URL, rtrim($config['query']['base_url'], '/') . '/' . $index . ($type !== NULL ? ('/' . $type) : '') .'/_search');
 
 		/* Set request body data, if any */
 		if ($es_input !== NULL) {
@@ -722,6 +734,26 @@ class UW_ES extends UW_Module {
         $this->restful->output('400');
     }
 
+    public function delete($config, $index, $type, $id) {
+		/* Prepare and forward request to the search engine (ES) */
+		$ch = curl_init();
+
+		/* Set the request URL */
+        curl_setopt($ch, CURLOPT_URL, rtrim($config['query']['base_url'], '/') . '/' . $index . '/' . $type . '/' . $id);
+
+        /* Set DELETE method */
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
+
+		/* Execute the request */
+		curl_exec($ch);
+
+        /* Get status code */
+        $status_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+        /* Return true if entry was deleted, otherwise return false */
+        return ($status_code == 200) ? true : false;
+    }
+
     public function get($config, $index, $type, $id) {
 		/* Forward request to the search engine (ES) */
 		$ch = curl_init();
@@ -757,14 +789,20 @@ class UW_ES extends UW_Module {
         return $data['_source'];
     }
 
-    public function put($config, $index, $type, $data, $id = NULL) {
+    public function post($config, $index, $type, $data, $id = NULL) {
         /* If $id wasn't set, try to retrieve it from $data object */
         if ($id === NULL) {
             if (isset($data['id']))
                 $id = $data['id'];
         }
 
-		/* Forward request to the search engine (ES) */
+        /* Encode data to JSON */
+        if (!($data_json = json_encode($data))) {
+            $this->restful->error('Cannot decode JSON data.');
+            $tihs->restful->output('400');
+        }
+
+		/* Prepare and forward request to the search engine (ES) */
 		$ch = curl_init();
 
 		/* Set the request URL */
@@ -773,11 +811,22 @@ class UW_ES extends UW_Module {
 		/* Grant that cURL will return the response output */
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 
+        /* Set POST method and contents */
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $data_json);
+
 		/* Execute the request */
 		$es_output = curl_exec($ch);
 
+        /* Get status code */
+        $status_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
 		/* Close the cURL handler */
 		curl_close($ch);
+
+        /* Check if code is 200 or 201 */
+        if (($code != 200) && ($code != 201))
+            return false;
 
         /* Initialize data */
         $data = NULL;
@@ -791,10 +840,86 @@ class UW_ES extends UW_Module {
             return NULL;
 
         /* Check if document was found */
-        if ($data['found'] === false)
+        if (($data['result'] != 'created') && ($data['result'] != 'updated'))
             return false;
 
         /* All good */
-        return $data['_source'];
+        return array(
+            'id' => $data['_id'],
+            'result' => $data['result']
+        );
+    }
+
+    public function put($config, $index, $type, $data, $id = NULL) {
+        /* If $id wasn't set, try to retrieve it from $data object */
+        if ($id === NULL) {
+            if (isset($data['id']))
+                $id = $data['id'];
+        }
+
+        /* Encode data into JSON */
+        if (!($data_json = json_encode($data))) {
+            $this->restful->error('Cannot decode JSON data.');
+            $tihs->restful->output('400');
+        }
+
+        /* Create a temporary resource */
+        if (!($data_fp = fopen('php://temp/maxmemory:1048576', 'w'))) {
+            $this->restful->error('Unable to create temporary resource.');
+            $this->restful->output('500');
+        }
+
+        /* Dump JSON data into temporary file */
+        fwrite($data_fp, json_encode($data));
+        fseek($data_fp, 0); /* Reset file pointer */
+
+		/* Prepare and forward request to the search engine (ES) */
+		$ch = curl_init();
+
+		/* Set the request URL */
+        curl_setopt($ch, CURLOPT_URL, rtrim($config['query']['base_url'], '/') . '/' . $index . '/' . $type . (($id !== NULL) ? ('/' . $id) : ''));
+
+		/* Grant that cURL will return the response output */
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+        /* Set PUT method and respective contents */
+        curl_setopt($ch, CURLOPT_PUT, true);
+        curl_setopt($ch, CURLOPT_BINARYTRANSFER, true);
+        curl_setopt($ch, CURLOPT_INFILE, $data_fp);
+        curl_setopt($ch, CURLOPT_INFILEZIE, strlen($data_json));
+
+		/* Execute the request */
+		$es_output = curl_exec($ch);
+
+        /* Get status code */
+        $status_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+		/* Close the cURL handler */
+		curl_close($ch);
+
+        /* Check if code is 200 or 201 */
+        if (($code != 200) && ($code != 201))
+            return false;
+
+        /* Initialize data */
+        $data = NULL;
+
+        /* Check if there's any output */
+        if ($es_output)
+            $data = json_decode($es_output, true);
+
+        /* Check if there's valid JSON data */
+        if ($data === NULL)
+            return NULL;
+
+        /* Check if document was found */
+        if (($data['result'] != 'created') && ($data['result'] != 'updated'))
+            return false;
+
+        /* All good */
+        return array(
+            'id' => $data['_id'],
+            'result' => $data['result']
+        );
     }
 }
