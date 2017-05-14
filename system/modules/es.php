@@ -825,7 +825,7 @@ class UW_ES extends UW_Module {
 		curl_close($ch);
 
         /* Check if code is 200 or 201 */
-        if (($code != 200) && ($code != 201))
+        if (($status_code != 200) && ($status_code != 201))
             return false;
 
         /* Initialize data */
@@ -898,7 +898,7 @@ class UW_ES extends UW_Module {
 		curl_close($ch);
 
         /* Check if code is 200 or 201 */
-        if (($code != 200) && ($code != 201))
+        if (($status_code != 200) && ($status_code != 201))
             return false;
 
         /* Initialize data */
