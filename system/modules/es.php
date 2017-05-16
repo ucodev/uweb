@@ -50,6 +50,12 @@ class UW_ES extends UW_Module {
                 $filter_type = 'must';
             }
 
+            /* Check if there are any criteria set */
+            if (!$criteria) {
+                $this->restful->error('No criteria set.');
+                $this->restful->output('400');
+            }
+
             /* Iterate over field criteria */
             foreach ($criteria as $cond => $value) {
                 switch ($cond) {

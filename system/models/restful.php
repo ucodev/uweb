@@ -396,7 +396,7 @@ class UW_Restful extends UW_Model {
 		if ($headers_single !== false)
 			$this->_doc['method']['GET']['response']['headers']['single'] = $headers_single;
 		if ($headers_collection !== false)
-			$this->_doc['method']['GET']['response']['headers']['single'] = $headers_collection;
+			$this->_doc['method']['GET']['response']['headers']['collection'] = $headers_collection;
 
 		/* Status Codes */
 		if ($codes_single_success !== false)
