@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 11/05/2017
+ * Date: 20/05/2017
  * License: GPLv3
  */
 
@@ -189,8 +189,17 @@ class UW_Restful extends UW_Model {
 			}
 		}
 
+		/* Encode response to JSON */
+		if (($output = json_encode($body)) === false) {
+			$this->error('Unable to encode content.');
+			$this->output('500'); /* Recursive */
+		}
+
+		/* Set Content-Length to avoid chunked transfer encodings */
+		$this->header('Content-Length', strlen($output));
+
 		/* Send the body contents and terminate execution */
-		exit(json_encode($body));
+		exit($output);
 	}
 
 	public function validate() {

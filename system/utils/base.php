@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 31/10/2016
+ * Date: 20/05/2017
  * License: GPLv3
  */
 
@@ -10,7 +10,7 @@
  * This file is part of uweb.
  *
  * uWeb - uCodev Low Footprint Web Framework (https://github.com/ucodev/uweb)
- * Copyright (C) 2014-2016  Pedro A. Hortas
+ * Copyright (C) 2014-2017  Pedro A. Hortas
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -35,12 +35,16 @@ function uri_remove_extra_slashes($value) {
 }
 
 function base_dir() {
-	global $__uri, $__a_koffset;
+	global $__uri, $__a_koffset, $config;
 
-	return uri_remove_extra_slashes(implode('/', array_slice($__uri, 0, $__a_koffset)) . '/');
+	return (isset($config['base']['path']) && ($config['base']['path'] !== NULL))
+		? uri_remove_extra_slashes($config['base']['path'] . '/')
+		: uri_remove_extra_slashes(implode('/', array_slice($__uri, 0, $__a_koffset)) . '/');
 }
 
-function base_url() {
+function base_url($with_index = false) {
+	global $config;
+
 	$server_port = '';
 
 	if (!isset($_SERVER['HTTPS']) && $_SERVER['SERVER_PORT'] != '80') {
@@ -48,8 +52,8 @@ function base_url() {
 	} else if (isset($_SERVER['HTTPS']) && $_SERVER['SERVER_PORT'] != '443') {
 		$server_port = ':' . $_SERVER['SERVER_PORT'];
 	}
-	
-	return 'http' . (isset($_SERVER['HTTPS']) ? 's' : '') . '://' . $_SERVER['SERVER_NAME'] . $server_port . uri_remove_extra_slashes('/' . base_dir());
+
+	return 'http' . (isset($_SERVER['HTTPS']) ? 's' : '') . '://' . $_SERVER['SERVER_NAME'] . $server_port . uri_remove_extra_slashes('/' . base_dir()) . ((($with_index === true) && isset($config['base']['fallback_resource']) && ($config['base']['fallback_resource'] !== false)) ? '' : 'index.php/');
 }
 
 function current_url() {

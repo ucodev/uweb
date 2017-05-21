@@ -11,4 +11,7 @@ define('ND_REQ_PUBLIC_USER_ID',		2);
 define('ND_REQ_PUBLIC_AUTH_TOKEN',	'848753e502a5a81fc417612d0c3fc5947df14c39');
 define('ND_REQ_OBJ_PROPERTIES_DIR',	'/user/properties/nd');
 define('ND_REQ_TRUSTED_SRC_IPADDR',	[ '127.0.0.1' ]);
+define('ND_REQ_VALIDATE_TYPES',		true);
+define('ND_REQ_VALIDATE_INPUT_TYPES',	true);
+define('ND_REQ_VALIDATE_OUTPUT_TYPES',	true);
 

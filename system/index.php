@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 27/07/2016
+ * Date: 20/05/2017
  * License: GPLv3
  */
 
@@ -10,7 +10,7 @@
  * This file is part of uweb.
  *
  * uWeb - uCodev Low Footprint Web Framework (https://github.com/ucodev/uweb)
- * Copyright (C) 2014-2016  Pedro A. Hortas
+ * Copyright (C) 2014-2017  Pedro A. Hortas
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -47,30 +47,58 @@ $__path_dir = '';
 
 /* Grant URI match the acceptable regex */
 if (!preg_match($config['base']['acceptable_uri_regex'], $_SERVER['REQUEST_URI'])) {
-	header('HTTP/1.1 403 Forbidden');
+	header('HTTP/1.1 400 Bad Request');
 	die('URI contains invalid characters.');
 }
 
 /* Get request URI */
 $__uri = explode('/', $_SERVER['REQUEST_URI']);
 
-/* Try to get the controller offset through index.php */
-$__a_koffset = array_search('index.php', $__uri);
+/* Check if a fallback resource is being used by webserver */
+if (isset($config['base']['fallback_resource']) && ($config['base']['fallback_resource'] !== false)) {
+	/* Check if a base path was configured (required when fallback resource is enabled) */
+	if (isset($config['base']['path']) && ($config['base']['path'] !== NULL)) {
+		/* Grant that the fallback resource isn't present in the request URI */
+		if ($config['base']['fallback_enforce'] === true) {
+			$fb_prefix = rtrim($config['base']['path'], '/') . '/' . $config['base']['fallback_resource'];
 
-/* If index.php isn't present in the URI, assume the base dir as the offset */
-if ($__a_koffset === false) {
-	$__a_koffset = count($__uri);
-	$__a_count = 0;
+			if (substr($_SERVER['REQUEST_URI'], 0, strlen($fb_prefix)) == $fb_prefix) {
+				header('HTTP/1.1 400 Bad Request');
+				die('Fallback resource detected in the request URI');
+			}
+		} /* TODO: When fallback enforce is disabled, we should look for index.php on the URI */
+
+		/* Get offset to controller segment based on configured base path */
+		$__base_path = explode('/', rtrim($config['base']['path'], '/'));
+
+		if (!count($__base_path)) {
+			$__a_koffset = 0;
+		} else {
+			$__a_koffset = array_search(end($__base_path), $__uri);
+		}
+	} else {
+		header('HTTP/1.1 500 Internal Server Error');
+		die('Improper configuration detected: Fallback resrouce set, but no base path was configured.');
+	}
 } else {
-	$__a_count = count($__uri) - ($__a_koffset + 1);
+	/* If no fallback resource is being used, check for an index.php on request URI */
+	$__a_koffset = array_search('index.php', $__uri);
+
+	if ($__a_koffset === false) {
+		header('HTTP/1.1 500 Internal Server Error');
+		die('Improper configuration detected: No fallback resource set and no index file present in the request URI');
+	}
 }
+
+/* Count the number of segments */
+$__a_count = count($__uri) - ($__a_koffset + 1);
 
 /* Extract controller */
 if (($__a_count >= 1) && $__uri[$__a_koffset + 1]) {
 	$__controller = strtolower($__uri[$__a_koffset + 1]);
 
 	if (!preg_match('/^[a-z0-9_]+$/', $__controller)) {
-		header('HTTP/1.1 403 Forbidden');
+		header('HTTP/1.1 400 Bad Request');
 		die('Controller name contains invalid characters.');
 	}
 }
@@ -80,7 +108,7 @@ if (($__a_count >= 2) && $__uri[$__a_koffset + 2]) {
 	$__function = strtolower($__uri[$__a_koffset + 2]);
 
 	if (!preg_match('/^[a-z0-9_]+$/', $__function)) {
-		header('HTTP/1.1 403 Forbidden');
+		header('HTTP/1.1 400 Bad Request');
 		die('Function name contains invalid characters.');
 	}
 }
@@ -115,7 +143,7 @@ if ($__controller) {
 			foreach ($__args as $__arg) {
 				/* Check for .. on all arguments to avoid ../ paths */
 				if (strstr($__arg, '..')) {
-					header('HTTP/1.1 403 Forbidden');
+					header('HTTP/1.1 400 Bad Request');
 					die('Static path contains ../ references, which are invalid.');
 				}
 
@@ -168,12 +196,20 @@ if ($__controller) {
 			$__args_list = rtrim($__args_list, ',');
 		}
 
+		/* Try to process the request */
 		if ($__argv === NULL) {
 			/* Invoke the function with the multiple arguments */
-			eval('$__r_->' . $__function . '(' . $__args_list . ');');
+			eval('if (method_exists($__r_, \'' . $__function . '\')) { $__r_->' . $__function . '(' . $__args_list . '); } else { error_log(\'Undefined method: ' . ucfirst($__controller) . '::' . $__function . '()\'); header(\'HTTP/1.1 404 Not Found\'); die(\'No such function.\'); }');
 		} else {
 			/* Invoke the function wht the argument vector */
-			eval('$__r_->' . $__function . '($__argv);');
+			eval('if (method_exists($__r_, \'' . $__function . '\')) { $__r_->' . $__function . '($__argv); } else { error_log(\'Undefined method: ' . ucfirst($__controller) . '::' . $__function . '()\'); header(\'HTTP/1.1 404 Not Found\'); die(\'No such function.\'); }');
+		}
+
+		/* Check if there were any errors and log them */
+		if (($error = error_get_last())) {
+			error_log('Type: ' . $error['type'] . ', Message: ' . $error['message'] . ', File: ' . $error['file'] . ', Line: ' . $error['line']);
+			header('HTTP/1.1 500 Internal Server Error');
+			die('An unhandled error occurred.');
 		}
 	}
 } else {
