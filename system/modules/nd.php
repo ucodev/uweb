@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 20/05/2017
+ * Date: 21/05/2017
  * License: GPLv3
  */
 
@@ -1613,6 +1613,468 @@ class UW_ND extends UW_Module {
 			if (!isset($data['id']) || !$data['id'] || (gettype($data['id']) != 'integer') || ($data['id'] < 0)) {
 				$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid entry value set on URI.');
 				$this->restful->error('Invalid entry value set on URI.');
+				$this->restful->output('400');
+			}
+		}
+	}
+
+	public function forward($object, $method, $argv, $input = NULL) {
+		/* Forward request */
+		switch ($method) {
+			case 'view': {
+				/* Fetch object properties */
+				$properties = $this->properties($object, $method);
+
+				/* Fetch entry data, if exists */
+				$data = $this->view($properties['route'], $argv, $properties['fields']);
+
+				/* Validate data types */
+				$this->validate_data_types($object, $method, array('id' => $argv[0], 'output' => $data));
+
+				/* All good */
+				return array(
+					'code' => $properties['status']['success'][0], /* OK */
+					'data' => $data
+				);
+			} break;
+
+			case 'listing': {
+				/* Fetch object properties */
+				$properties = $this->properties($object, $method);
+
+				/* Fetch collection */
+				$data = $this->list_default($properties['route'], $argv, $properties['fields']);
+
+				/* Validate data types */
+				$this->validate_data_types($object, $method, array('output' => $data));
+
+				/* All good */
+				return array(
+					'code' => $properties['status']['success'][0], /* OK */
+					'data' => $data
+				);
+			} break;
+
+			case 'insert': {
+				/* Fetch object properties */
+				$properties = $this->properties($object, $method);
+
+				/* Get request input, if none was set */
+				if ($input === NULL)
+					$input = $this->restful->input();
+
+				/* Validate data types */
+				$this->validate_data_types($object, $method, array('input' => $input));
+
+				/* Insert the entry */
+				$data = $this->insert($properties['route'], $argv, $input, $properties['fields']);
+
+				/* All good */
+				return array(
+					'code' => $properties['status']['success'][0], /* Created */
+					'data' => $data
+				);
+			} break;
+
+			case 'modify': {
+				/* Fetch object properties */
+				$properties = $this->properties($object, $method);
+
+				/* Get request input, if none was set */
+				if ($input === NULL)
+					$input = $this->restful->input();
+
+				/* Validate data types */
+				$this->validate_data_types($object, $method, array('id' => $argv[0], 'input' => $input));
+
+				/* Insert the entry */
+				$data = $this->update($properties['route'], $argv, $input, $properties['fields']);
+
+				/* All good */
+				return array(
+					'code' => $properties['status']['success'][0], /* OK */
+					'data' => $data
+				);
+			} break;
+
+			case 'delete': {
+				/* Fetch object properties */
+				$properties = $this->properties($object, $method);
+
+				/* Validate data types */
+				$this->validate_data_types($object, $method, array('id' => $argv[0]));
+
+				/* Delete the entry */
+				$this->delete($properties['route'], $argv);
+
+				/* All good */
+				return array(
+					'code' => $properties['status']['success'][0], /* OK */
+					'data' => NULL
+				);
+			} break;
+
+			case 'search': {
+				/* Fetch object properties */
+				$properties = $this->properties($object, $method);
+
+				/* Get request input, if none was set */
+				if ($input === NULL)
+					$input = $this->restful->input();
+
+				/* Validate input data types */
+				$this->validate_data_types($object, $method, array('input' => $input));
+
+				/* Search the collection */
+				$data = $this->search($properties['route'], $input, $properties['fields']);
+
+				/* Validate output data types */
+				$this->validate_data_types($object, $method, array('output' => $data));
+
+				/* All good */
+				return array(
+					'code' => $properties['status']['success'][0], /* Created */
+					'data' => $data
+				);
+			} break;
+
+			case 'options': {
+				/* Fetch object properties */
+				$properties = $this->properties($object);
+
+				/* Document available fields */
+				$this->restful->doc_fields(
+					/* Types */
+					$properties['options']['types'],
+					/* Defaults */
+					$properties['options']['defaults'],
+					/* Options */
+					$properties['options']['options'],
+					/* Descriptions */
+					$properties['options']['descriptions']
+				);
+
+				/* Document GET method, for single and/or collection requests */
+				if (isset($properties['view']) || isset($properties['listing'])) {
+					/* GET */
+					$this->restful->doc_method_get_request(
+						/* Headers - Single */
+						isset($properties['view'])
+							? array_merge(
+								array('Accept: application/json'),
+								($properties['view']['auth'] === true)
+									? array(
+										ND_REQ_HEADER_USER_ID . ': <userid>',
+										ND_REQ_HEADER_AUTH_TOKEN . ': <token>'
+									  )
+									: array()
+							  )
+							: false,
+						/* Headers - Collection */
+						isset($properties['listing'])
+							? array_merge(
+								array('Accept: application/json'),
+								($properties['listing']['auth'] === true)
+									? array(
+										ND_REQ_HEADER_USER_ID . ': <userid>',
+										ND_REQ_HEADER_AUTH_TOKEN . ': <token>'
+									  )
+									: array()
+							  )
+							: false,
+						/* URI - Single */
+						isset($properties['view']) ? NULL : false,
+						/* URI - Collection */
+						isset($properties['listing']) ? NULL : false,
+						/* Additional Notes - Single */
+						false,
+						/* Additional Notes - Collection */
+						false
+					);
+
+					$this->restful->doc_method_get_response(
+						/* Headers - Single */
+						isset($properties['view'])
+							? array('Content-Type: application/json')
+							: false,
+						/* Headers - Collection */
+						isset($properties['listing'])
+							? array('Content-Type: application/json')
+							: false,
+						/* Codes Success - Single */
+						isset($properties['view'])
+							? $properties['view']['status']['success']
+							: false,
+						/* Codes Failure - Single */
+						isset($properties['view'])
+							? $properties['view']['status']['failure']
+							: false,
+						/* Codes Success - Collection */
+						isset($properties['listing'])
+							? $properties['listing']['status']['success']
+							: false,
+						/* Codes Failure - Collection */
+						isset($properties['listing'])
+							? $properties['listing']['status']['failure']
+							: false,
+						/* Body Visible - Single */
+						isset($properties['view'])
+							? $this->remap($properties['view']['fields']['visible'], $properties['view']['fields']['mapped'])
+							: false,
+						/* Body Visible - Collection */
+						isset($properties['listing'])
+							? $this->remap($properties['listing']['fields']['visible'], $properties['listing']['fields']['mapped'])
+							: false,
+						/* Types - Single */
+						NULL,
+						/* Types - Collection */
+						NULL,
+						/* Additional Notes - Single */
+						false,
+						/* Additional Notes - Collection */
+						isset($properties['view'])
+							? array('Maximum number of entries per result: ' . $properties['listing']['limit'])
+							: false
+					);
+				}
+
+				/* Document POST */
+				if (isset($properties['insert'])) {
+					/* POST */
+					$this->restful->doc_method_post_request(
+						/* Headers - Single */
+						false,
+						/* Headers - Collection */
+						array_merge(
+							array(
+							'Accept: application/json',
+							'Content-Type: application/json'
+							),
+							($properties['insert']['auth'] === true)
+								? array(
+									ND_REQ_HEADER_USER_ID . ': <userid>',
+									ND_REQ_HEADER_AUTH_TOKEN . ': <token>'
+								  )
+								: array()
+						),
+						/* URI Single */
+						false,
+						/* URI Collection */
+						NULL,
+						/* Body Accepted - Single */
+						false,
+						/* Body Accepted - Collection */
+						$properties['insert']['fields']['accepted'],
+						/* Body Required - Single */
+						false,
+						/* Body Required - Collection */
+						$properties['insert']['fields']['required'],
+						/* Additional Notes - Single */
+						false,
+						/* Additional Notes - Collection */
+						false
+					);
+
+					$this->restful->doc_method_post_response(
+						/* Headers - Single */
+						false,
+						/* Headers - Collection */
+						array(
+							'Content-Type: application/json'
+						),
+						/* Codes Success - Single */
+						false,
+						/* Codes Failure - Single */
+						false,
+						/* Codes Success - Collection */
+						$properties['insert']['status']['success'],
+						/* Codes Failure - Collection */
+						$properties['insert']['status']['failure'],
+						/* Types - Single */
+						false,
+						/* Types - Collection */
+						NULL,
+						/* Additional Notes - Single */
+						false,
+						/* Additional Notes - Collection */
+						false
+					);
+				}
+
+				/* Document PATCH */
+				if (isset($properties['modify'])) {
+					/* PATCH */
+					$this->restful->doc_method_patch_request(
+						/* Headers - Single */
+						array_merge(
+							array(
+							'Accept: application/json',
+							'Content-Type: application/json'
+							),
+							($properties['modify']['auth'] === true)
+								? array(
+									ND_REQ_HEADER_USER_ID . ': <userid>',
+									ND_REQ_HEADER_AUTH_TOKEN . ': <token>'
+								  )
+								: array()
+						),
+						/* Headers - Collection */
+						false,
+						/* URI - Single */
+						NULL,
+						/* URI - Collection */
+						false,
+						/* Body Accepted - Single */
+						$properties['modify']['fields']['accepted'],
+						/* Body Accepted - Collection */
+						false,
+						/* Additional Notes - Single */
+						false,
+						/* Additional Notes - Collection */
+						false
+					);
+
+					$this->restful->doc_method_patch_response(
+						/* Headers - Single */
+						array(
+							'Content-Type: application/json'
+						),
+						/* Headers - Collection */
+						false,
+						/* Codes Success - Single */
+						$properties['modify']['status']['success'],
+						/* Codes Failure - Single */
+						$properties['modify']['status']['failure'],
+						/* Codes Success - Collection */
+						false,
+						/* Codes Failure - Collection */
+						false,
+						/* Types - Single */
+						false,
+						/* Types - Collection */
+						false,
+						/* Additional Notes - Single */
+						false,
+						/* Additional Notes - Collection */
+						false
+					);
+				}
+
+				/* Document DELETE */
+				if (isset($properties['delete'])) {
+					/* DELETE */
+					$this->restful->doc_method_delete_request(
+						/* Headers - Single */
+						array_merge(
+							array(
+							'Accept: application/json'
+							),
+							($properties['delete']['auth'] === true)
+								? array(
+									ND_REQ_HEADER_USER_ID . ': <userid>',
+									ND_REQ_HEADER_AUTH_TOKEN . ': <token>'
+								  )
+								: array()
+						),
+						/* Headers - Collection */
+						false,
+						/* URI - Single */
+						NULL,
+						/* URI - Collection */
+						false,
+						/* Additional Notes - Single */
+						false,
+						/* Additional Notes - Collection */
+						false
+					);
+
+					$this->restful->doc_method_delete_response(
+						/* Headers - Single */
+						array(
+							'Content-Type: application/json'
+						),
+						/* Headers - Collection */
+						false,
+						/* Codes Success - Single */
+						$properties['delete']['status']['success'],
+						/* Codes Failure - Single */
+						$properties['delete']['status']['failure'],
+						/* Codes Success - Collection */
+						false,
+						/* Codes Failure - Collection */
+						false,
+						/* Types - Single */
+						false,
+						/* Types - Collection */
+						false,
+						/* Additional Notes - Single */
+						false,
+						/* Additional Notes - Collection */
+						false
+					);
+				}
+
+				/* Document POST (search) */
+				if (isset($properties['search'])) {
+					/* POST (search) */
+					$this->restful->doc_method_custom(
+						/* Method */
+						'POST',
+						/* Function */
+						'search',
+						/* URI Args */
+						'',
+						/* Request Body Args */
+						array(
+							'accepted' => $properties['search']['fields']['accepted']
+						),
+						/* Response Body Args */
+						array(
+							'visible' => $properties['search']['fields']['visible']
+						),
+						/* Response Types */
+						'"data": { "count": <integer>, "total": <integer>, "result": [ { "<key>": <value>, ... }, ... ] }',
+						/* Codes Success */
+						$properties['search']['status']['success'],
+						/* Codes Failure */
+						$properties['search']['status']['failure'],
+						/* Request Headers */
+						array_merge(
+							array(
+							'Accept: application/json',
+							'Content-Type: application/json'
+							),
+							($properties['search']['auth'] === true)
+								? array(
+									ND_REQ_HEADER_USER_ID . ': <userid>',
+									ND_REQ_HEADER_AUTH_TOKEN . ': <token>'
+								  )
+								: array()
+						),
+						/* Response Headers */
+						array(
+							'Content-Type: application/json'
+						),
+						/* Additional Notes - Request */
+						false,
+						/* Additional Notes - Response */
+						array(
+							'Maximum number of entries per result: ' . $properties['search']['limit']
+						)
+					);
+				}
+
+				/* All good */
+				return array(
+					'code' => 200, /* OK */
+					'data' => $this->restful->doc_generate()
+				);
+			} break;
+
+			default: {
+				/* TODO: Raise error */
+				$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Unrecognized function: ' . $method);
+				$this->restful->error('Unrecognized function: ' . $method);
 				$this->restful->output('400');
 			}
 		}
