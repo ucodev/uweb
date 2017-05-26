@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 21/05/2017
+ * Date: 27/05/2017
  * License: GPLv3
  */
 
@@ -556,12 +556,21 @@ class UW_ND extends UW_Module {
 
 	/** ND WebAPI interfaces **/
 
-	public function view($ctrl, $argv = NULL, $fields = array()) {
+	public function view($ctrl, $argv = NULL, $fields = array(), $public = false) {
 		$fields_mapped  = isset($fields['mapped']) ? $fields['mapped'] : array();
 		$fields_visible = isset($fields['visible']) ? $fields['visible'] : array();
 
-		/* Retrieve authentication and session data from headers */
-		$session = $this->session_init();
+		/* Check if this is a public request or if an authenticated session is required */
+		if ($public === false) {
+			/* Retrieve authentication and session data from headers */
+			$session = $this->session_init();
+			$reqbody = NULL;
+		} else {
+			/* No authenticated session will be used. Public user creditials will be used for this request. */
+			$session = NULL;
+			$reqbody['_userid'] = ND_REQ_PUBLIC_USER_ID;
+			$reqbody['_apikey'] = ND_REQ_PUBLIC_AUTH_TOKEN;
+		}
 
 		/* Grant that entry ID is set */
 		if ($argv === NULL || (count($argv) != 1) || !is_numeric($argv[0])) {
@@ -571,7 +580,7 @@ class UW_ND extends UW_Module {
 		}
 
 		/* Forward request to the underlying layer (nd-php) */
-		$nd_data = $this->request('/' . $ctrl . '/view/' . $argv[0], NULL, $session);
+		$nd_data = $this->request('/' . $ctrl . '/view/' . $argv[0], $reqbody, $session);
 
 		/* Check if the entry was found */
 		if (!isset($nd_data['fields']) || !count($nd_data['fields'])) {
@@ -617,16 +626,20 @@ class UW_ND extends UW_Module {
 
 		/* Iterate the row and make any required changes in the $fields array */
 		foreach ($row as $k => $v) {
+			/* If the field is mapped, rename it */
+			if (isset($fields_mapped[$k])) {
+				/* Unset old key */
+				unset($entry[$k]);
+				/* Rename to new key, based on map */
+				$k = $fields_mapped[$k];
+				/* Assign value to the new key */
+				$entry[$k] = $v;
+			}
+
 			/* If $fields_visible is set, filter out fields not present in the array */
 			if (count($fields_visible) && !in_array($k, $fields_visible)) {
 				unset($entry[$k]);
 				continue;
-			}
-
-			/* If the field is mapped, renamed it */
-			if (isset($fields_mapped[$k])) {
-				unset($entry[$k]);
-				$entry[$fields_mapped[$k]] = $v;
 			}
 		}
 
@@ -635,16 +648,22 @@ class UW_ND extends UW_Module {
 	}
 
 
-	public function list_default($ctrl, $argv = NULL, $fields = array()) {
+	public function list_default($ctrl, $argv = NULL, $fields = array(), $public = false) {
 		$fields_mapped  = isset($fields['mapped']) ? $fields['mapped'] : array();
 		$fields_visible = isset($fields['visible']) ? $fields['visible'] : array();
 
-		/* Retrieve authentication and session data from headers */
-		$session = $this->session_init();
+		/* Check if this is a public request or if an authenticated session is required */
+		if ($public === false) {
+			/* Retrieve authentication and session data from headers */
+			$session = $this->session_init();
+		} else {
+			/* No authenticated session will be used. Public user creditials will be used for this request. */
+			$session = NULL;
+			$reqbody['_userid'] = ND_REQ_PUBLIC_USER_ID;
+			$reqbody['_apikey'] = ND_REQ_PUBLIC_AUTH_TOKEN;
+		}
 
 		/* Initialize data */
-		$reqbody['_userid'] = $session['user_id'];
-		$reqbody['_apikey'] = $session['token'];
 		$reqbody['data'] = NULL;
 
 		/* Check if there are conditions to be set */
@@ -679,6 +698,16 @@ class UW_ND extends UW_Module {
 
 			/* Mangle data, if required */
 			foreach ($row as $k => $v) {
+				/* Rename fields that are set in $fields_mapped */
+				if (isset($fields_mapped[$k])) {
+					/* Unset the value */
+					unset($nd_data['result'][$i][$k]);
+					/* Rename to new key, based on map */
+					$k = $fields_mapped[$k];
+					/* Set the new mapped key with the actual value */
+					$nd_data['result'][$i][$k] = $v;
+				}
+
 				/* Filter fields that are not present in $fields_visible */
 				if (count($fields_visible) && !in_array($k, $fields_visible)) {
 					unset($nd_data['result'][$i][$k]);
@@ -698,16 +727,6 @@ class UW_ND extends UW_Module {
 						: /* otherwise, set the value as an empty array */
 						array();
 				}
-
-				/* Rename fields that are set in $fields_mapped */
-				if (isset($fields_mapped[$k])) {
-					/* Reload the value, as it might have changed since the start of this iteration */
-					$v = $nd_data['result'][$i][$k];
-					/* Unset the value */
-					unset($nd_data['result'][$i][$k]);
-					/* Set the new mapped key with the actual value */
-					$nd_data['result'][$i][$fields_mapped[$k]] = $v;
-				}
 			}
 		}
 
@@ -716,13 +735,22 @@ class UW_ND extends UW_Module {
 	}
 
 
-	public function insert($ctrl, $argv = NULL, $input = array(), $fields = array()) {
+	public function insert($ctrl, $argv = NULL, $input = array(), $fields = array(), $public = false) {
 		$fields_accepted = isset($fields['accepted']) ? $fields['accepted'] : array();
 		$fields_mapped   = isset($fields['mapped']) ? $fields['mapped'] : array();
 		$fields_required = isset($fields['required']) ? $fields['required'] : array();
 
-		/* Retrieve authentication and session data from headers */
-		$session = $this->session_init();
+		/* Check if this is a public request or if an authenticated session is required */
+		if ($public === false) {
+			/* Retrieve authentication and session data from headers */
+			$session = $this->session_init();
+			$reqbody = NULL;
+		} else {
+			/* No authenticated session will be used. Public user creditials will be used for this request. */
+			$session = NULL;
+			$reqbody['_userid'] = ND_REQ_PUBLIC_USER_ID;
+			$reqbody['_apikey'] = ND_REQ_PUBLIC_AUTH_TOKEN;
+		}
 
 		/* Validate arguments, if any */
 		if ($argv !== NULL) {
@@ -749,7 +777,6 @@ class UW_ND extends UW_Module {
 
 		/* Sanitize input */
 		$entry = array();
-		$reqbody = array();
 
 		foreach ($input as $k => $v) {
 			/* Any field not present in $fields_accepted will cause a bad request */
@@ -768,8 +795,6 @@ class UW_ND extends UW_Module {
 		}
 
 		/* Set request data for the underlying layer (nd-php) */
-		$reqbody['_userid'] = $session['user_id'];
-		$reqbody['_apikey'] = $session['token'];
 		$reqbody['data'] = $entry;
 
 		/* Forward the insert request to the underlying layer (nd-php) */
@@ -790,12 +815,21 @@ class UW_ND extends UW_Module {
 	}
 
 
-	public function update($ctrl, $argv = NULL, $input = array(), $fields = array()) {
+	public function update($ctrl, $argv = NULL, $input = array(), $fields = array(), $public = false) {
 		$fields_accepted = isset($fields['accepted']) ? $fields['accepted'] : array();
 		$fields_mapped   = isset($fields['mapped']) ? $fields['mapped'] : array();
 
-		/* Retrieve authentication and session data from headers */
-		$session = $this->session_init();
+		/* Check if this is a public request or if an authenticated session is required */
+		if ($public === false) {
+			/* Retrieve authentication and session data from headers */
+			$session = $this->session_init();
+			$reqbody = NULL;
+		} else {
+			/* No authenticated session will be used. Public user creditials will be used for this request. */
+			$session = NULL;
+			$reqbody['_userid'] = ND_REQ_PUBLIC_USER_ID;
+			$reqbody['_apikey'] = ND_REQ_PUBLIC_AUTH_TOKEN;
+		}
 
 		/* Validate arguments, if any */
 		if ($argv === NULL || (count($argv) != 1) || !is_numeric($argv[0])) {
@@ -813,7 +847,6 @@ class UW_ND extends UW_Module {
 
 		/* Sanitize input */
 		$entry = array();
-		$reqbody = array();
 
 		foreach ($input as $k => $v) {
 			if (!in_array($k, $fields_accepted)) {
@@ -832,8 +865,6 @@ class UW_ND extends UW_Module {
 		}
 
 		/* Set request data for the underlying layer (nd-php) */
-		$reqbody['_userid'] = $session['user_id'];
-		$reqbody['_apikey'] = $session['token'];
 		$reqbody['data'] = $entry;
 
 		/* Forward the update request to the underlying layer (nd-php) */
@@ -851,9 +882,18 @@ class UW_ND extends UW_Module {
 	}
 
 
-	public function delete($ctrl, $argv = NULL) {
-		/* Retrieve authentication and session data from headers */
-		$session = $this->session_init();
+	public function delete($ctrl, $argv = NULL, $public = false) {
+		/* Check if this is a public request or if an authenticated session is required */
+		if ($public === false) {
+			/* Retrieve authentication and session data from headers */
+			$session = $this->session_init();
+			$reqbody = NULL;
+		} else {
+			/* No authenticated session will be used. Public user creditials will be used for this request. */
+			$session = NULL;
+			$reqbody['_userid'] = ND_REQ_PUBLIC_USER_ID;
+			$reqbody['_apikey'] = ND_REQ_PUBLIC_AUTH_TOKEN;
+		}
 
 		/* Validate arguments, if any */
 		if ($argv === NULL || (count($argv) != 1) || !is_numeric($argv[0])) {
@@ -863,7 +903,7 @@ class UW_ND extends UW_Module {
 		}
 
 		/* Forward request to the underlying layer (nd-php) */
-		$nd_data = $this->request('/' . $ctrl . '/delete/' . $argv[0], NULL, $session);
+		$nd_data = $this->request('/' . $ctrl . '/delete/' . $argv[0], $reqbody, $session);
 
 		/* Check if the entry was successfully deleted */
 		if (!isset($nd_data['deleted']) || ($nd_data['deleted'] !== true)) {
@@ -877,14 +917,23 @@ class UW_ND extends UW_Module {
 	}
 
 
-	public function search($ctrl, $input = array(), $fields = array(), $validate_method = true) {
+	public function search($ctrl, $input = array(), $fields = array(), $validate_method = true, $public = false) {
 		$fields_accepted    = isset($fields['accepted']) ? $fields['accepted'] : array();
 		$fields_mapped_pre  = isset($fields['mapped_pre']) ? $fields['mapped_pre'] : array();
 		$fields_mapped_post = isset($fields['mapped_post']) ? $fields['mapped_post'] : array();
 		$fields_visible     = isset($fields['visible']) ? $fields['visible'] : array();
 
-		/* Retrieve authentication and session data from headers */
-		$session = $this->session_init();
+		/* Check if this is a public request or if an authenticated session is required */
+		if ($public === false) {
+			/* Retrieve authentication and session data from headers */
+			$session = $this->session_init();
+			$reqbody = NULL;
+		} else {
+			/* No authenticated session will be used. Public user creditials will be used for this request. */
+			$session = NULL;
+			$reqbody['_userid'] = ND_REQ_PUBLIC_USER_ID;
+			$reqbody['_apikey'] = ND_REQ_PUBLIC_AUTH_TOKEN;
+		}
 
 		/* Only POST method is accepted for this call */
 		if ($validate_method === true && $this->restful->method() != 'POST') {
@@ -957,9 +1006,7 @@ class UW_ND extends UW_Module {
 		}
 
 		/* Set request data */
-		$reqbody['_userid'] = $session['user_id'];
-		$reqbody['_apikey'] = $session['token'];
-		$reqbody['data']    = $this->search_ndsl($input, $session);
+		$reqbody['data'] = $this->search_ndsl($input, $session);
 
 		/* Forward the update request to the underlying layer (nd-php) */
 		$nd_data = $this->request('/' . $ctrl . '/result/basic', $reqbody, $session);
@@ -974,7 +1021,6 @@ class UW_ND extends UW_Module {
 		/* If we've received an empty array, the search succeded, but no results were found... */
 		if (!$nd_data['count'])
 			$this->restful->output('201'); /* Search was peformed, but no content was delivered */
-
 
 		/* Iterate over the result array, converting any types required and mapped fields */
 		for ($i = 0; $i < $nd_data['count']; $i ++) {
@@ -1377,6 +1423,8 @@ class UW_ND extends UW_Module {
 					}
 				} break;
 
+				case 'custom': break;
+
 				default: {
 					$this->log('500', __FILE__, __LINE__, __FUNCTION__, 'Unrecognized internal format for type \'' . $ftype . '\' on field: ' . $field);
 					$this->restful->error('Unrecognized internal format for type \'' . $ftype . '\' on field: ' . $field);
@@ -1626,7 +1674,7 @@ class UW_ND extends UW_Module {
 				$properties = $this->properties($object, $method);
 
 				/* Fetch entry data, if exists */
-				$data = $this->view($properties['route'], $argv, $properties['fields']);
+				$data = $this->view($properties['route'], $argv, $properties['fields'], isset($properties['public']) ? $properties['public'] : false);
 
 				/* Validate data types */
 				$this->validate_data_types($object, $method, array('id' => $argv[0], 'output' => $data));
@@ -1643,7 +1691,7 @@ class UW_ND extends UW_Module {
 				$properties = $this->properties($object, $method);
 
 				/* Fetch collection */
-				$data = $this->list_default($properties['route'], $argv, $properties['fields']);
+				$data = $this->list_default($properties['route'], $argv, $properties['fields'], isset($properties['public']) ? $properties['public'] : false);
 
 				/* Validate data types */
 				$this->validate_data_types($object, $method, array('output' => $data));
@@ -1667,7 +1715,7 @@ class UW_ND extends UW_Module {
 				$this->validate_data_types($object, $method, array('input' => $input));
 
 				/* Insert the entry */
-				$data = $this->insert($properties['route'], $argv, $input, $properties['fields']);
+				$data = $this->insert($properties['route'], $argv, $input, $properties['fields'], isset($properties['public']) ? $properties['public'] : false);
 
 				/* All good */
 				return array(
@@ -1688,7 +1736,7 @@ class UW_ND extends UW_Module {
 				$this->validate_data_types($object, $method, array('id' => $argv[0], 'input' => $input));
 
 				/* Insert the entry */
-				$data = $this->update($properties['route'], $argv, $input, $properties['fields']);
+				$data = $this->update($properties['route'], $argv, $input, $properties['fields'], isset($properties['public']) ? $properties['public'] : false);
 
 				/* All good */
 				return array(
@@ -1705,7 +1753,7 @@ class UW_ND extends UW_Module {
 				$this->validate_data_types($object, $method, array('id' => $argv[0]));
 
 				/* Delete the entry */
-				$this->delete($properties['route'], $argv);
+				$this->delete($properties['route'], $argv, isset($properties['public']) ? $properties['public'] : false);
 
 				/* All good */
 				return array(
@@ -1726,7 +1774,7 @@ class UW_ND extends UW_Module {
 				$this->validate_data_types($object, $method, array('input' => $input));
 
 				/* Search the collection */
-				$data = $this->search($properties['route'], $input, $properties['fields']);
+				$data = $this->search($properties['route'], $input, $properties['fields'], true, isset($properties['public']) ? $properties['public'] : false);
 
 				/* Validate output data types */
 				$this->validate_data_types($object, $method, array('output' => $data));
@@ -2072,7 +2120,7 @@ class UW_ND extends UW_Module {
 			} break;
 
 			default: {
-				/* TODO: Raise error */
+				/* Unrecognized function */
 				$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Unrecognized function: ' . $method);
 				$this->restful->error('Unrecognized function: ' . $method);
 				$this->restful->output('400');

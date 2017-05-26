@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 20/05/2017
+ * Date: 27/05/2017
  * License: GPLv3
  */
 
@@ -34,7 +34,10 @@ class UW_Restful extends UW_Model {
 		/* 2xx codes ... */
 		'200' => 'OK',
 		'201' => 'Created',
+		'202' => 'Accepted',
 		'204' => 'No Content',
+		/* 3xx codes ... */
+		'304' => 'Not Modified',
 		/* 4xx codes ... */
 		'400' => 'Bad Request',
 		'401' => 'Unauthorized',
