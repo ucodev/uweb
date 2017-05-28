@@ -46,6 +46,7 @@ class UW_Restful extends UW_Model {
 		'405' => 'Method Not Allowed',
 		'406' => 'Not Acceptable',
 		'409' => 'Conflict',
+		'410' => 'Gone',
 		/* 5xx codes ... */
 		'500' => 'Internal Server Error',
 		'502' => 'Bad Gateway',

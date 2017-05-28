@@ -1346,7 +1346,7 @@ class UW_ND extends UW_Module {
 		if ($ftype == 'integer') {
 			return $vtype == 'integer';
 		} else if (($ftype == 'float') || ($ftype == 'double')) {
-			return $vtype == 'double';
+			return ($vtype == 'double') || ($vtype == 'integer'); /* NOTE: integer is accepted if no decimal representation is present */
 		} else if ($ftype == 'boolean') {
 			return $vtype == 'boolean';
 		} else if (($ftype == 'datetime') || ($ftype == 'time') || ($ftype == 'date')) {
@@ -1387,12 +1387,12 @@ class UW_ND extends UW_Module {
 
 			/* Validate type for each element of the array */
 			foreach ($value as $av) {
-				if (!$this->validate_value_type($field, $matches[1], $av))
+				if (!$this->validate_value_type($field, $matches[1], $av, $ioop))
 					return false;
 			}
 		} else if (substr($ftype, 0, 6) == 'object') {
 			/* Check if value is of type array */
-			if ($vtype != 'array')
+			if (($vtype != 'array') && ($vtype != 'string'))
 				return false;
 
 			/* Get type of the object */
@@ -1405,7 +1405,7 @@ class UW_ND extends UW_Module {
 			}
 
 			/* Validate object type */
-			switch ($matches[0]) {
+			switch ($matches[1]) {
 				case 'file': {
 					if ($ioop == 'input') {
 						/* Check mandatory file attributes */
@@ -1459,7 +1459,7 @@ class UW_ND extends UW_Module {
 
 			/* If method is modify, check if the entry id has a valid format */
 			if ($method == 'modify') {
-				if (!isset($data['id']) || !$data['id'] || (gettype($data['id']) != 'integer') || ($data['id'] < 0)) {
+				if (!isset($data['id']) || !$data['id'] || (intval($data['id']) <= 0)) {
 					$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid entry value set on URI.');
 					$this->restful->error('Invalid entry value set on URI.');
 					$this->restful->output('400');
@@ -1603,7 +1603,7 @@ class UW_ND extends UW_Module {
 				return;
 
 			/* Check if the entry id has a valid format */
-			if (!isset($data['id']) || !$data['id'] || (gettype($data['id']) != 'integer') || ($data['id'] < 0)) {
+			if (!isset($data['id']) || !$data['id'] || (intval($data['id']) <= 0)) {
 				$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid entry value set on URI.');
 				$this->restful->error('Invalid entry value set on URI.');
 				$this->restful->output('400');
