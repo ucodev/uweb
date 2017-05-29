@@ -4,7 +4,7 @@
 # This file is part of uweb (http://github.com/ucodev/uweb)
 # 
 # uWeb RESTful Library - Python
-# Copyright (C) 2014-2016  Pedro A. Hortas (pah@ucodev.org)
+# Copyright (C) 2014-2017  Pedro A. Hortas (pah@ucodev.org)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -30,9 +30,15 @@ import base64
 class rest:
 	auth = None
 	config = None
+	debug = False
+	ssl_verify = True
 
 	file_config = "config.json"
 	file_authcache = ".authcache"
+
+	proxies = {
+		# "https": "http://127.0.0.1:8080"
+	}
 
 	# Required headers
 	req_headers = {
@@ -50,6 +56,19 @@ class rest:
 		with open(self.file_config, "r") as f:
 			self.config = json.loads(f.read())
 
+		if self.config.has_key('debug'):
+			self.debug = self.config['debug']
+
+		if self.config.has_key('ssl_verify'):
+			self.ssl_verify = self.config['ssl_verify']
+
+		if self.config.has_key('proxies'):
+			self.proxies = self.config['proxies']
+
+		if self.config.has_key('headers'):
+			for header in self.config['headers']:
+				self.req_headers[header] = self.config['headers'][header]
+
 	# Load authentication information, if any
 	def auth_load(self):
 		# If there's no authentication cache, return None
@@ -60,6 +79,9 @@ class rest:
 		with open(self.file_authcache, "r") as f:
 			# Return authentication data
 			self.auth = json.loads(f.read())['data']
+
+			if self.debug:
+				print(self.auth)
 
 			# Set the authentication headers
 			self.req_headers[self.config['header_user_id']] = str(self.auth['userid'])
@@ -80,58 +102,68 @@ class rest:
 		# Store the start time
 		t0 = time.time()
 
+		if type(req_data) is dict:
+			req_data = json.dumps(req_data)
+
 		# Peform the request
 		if method == 'POST':
-			r = requests.post(self.config['base_url'] + uri, data = json.dumps(req_data), headers = self.req_headers)
+			r = requests.post(self.config['base_url'] + uri, data = req_data, headers = self.req_headers, proxies = self.proxies, verify = self.ssl_verify)
 
 			# If unauthorized, login and try again
 			if r.status_code == 401 and self.auto_login:
 				self.login()
-				r = requests.post(self.config['base_url'] + uri, data = json.dumps(req_data), headers = self.req_headers)
+				r = requests.post(self.config['base_url'] + uri, data = req_data, headers = self.req_headers, proxies = self.proxies, verify = self.ssl_verify)
 		elif method == 'GET':
-			r = requests.get(self.config['base_url'] + uri, headers = self.req_headers)
+			r = requests.get(self.config['base_url'] + uri, headers = self.req_headers, proxies = self.proxies, verify = self.ssl_verify)
 
 			# If unauthorized, login and try again
 			if r.status_code == 401 and self.auto_login:
 				self.login()
-				r = requests.get(self.config['base_url'] + uri, headers = self.req_headers)
+				r = requests.get(self.config['base_url'] + uri, headers = self.req_headers, proxies = self.proxies, verify = self.ssl_verify)
 		elif method == 'PUT':
-			r = requests.put(self.config['base_url'] + uri, data = json.dumps(req_data), headers = self.req_headers)
+			r = requests.put(self.config['base_url'] + uri, data = req_data, headers = self.req_headers, proxies = self.proxies, verify = self.ssl_verify)
 
 			# If unauthorized, login and try again
 			if r.status_code == 401 and self.auto_login:
-				r = requests.put(self.config['base_url'] + uri, data = json.dumps(req_data), headers = self.req_headers)
+				r = requests.put(self.config['base_url'] + uri, data = req_data, headers = self.req_headers, proxies = self.proxies, verify = self.ssl_verify)
 		elif method == 'PATCH':
-			r = requests.patch(self.config['base_url'] + uri, data = json.dumps(req_data), headers = self.req_headers)
+			r = requests.patch(self.config['base_url'] + uri, data = req_data, headers = self.req_headers, proxies = self.proxies, verify = self.ssl_verify)
 
 			# If unauthorized, login and try again
 			if r.status_code == 401 and self.auto_login:
 				self.login()
-				r = requests.patch(self.config['base_url'] + uri, data = json.dumps(req_data), headers = self.req_headers)
+				r = requests.patch(self.config['base_url'] + uri, data = req_data, headers = self.req_headers, proxies = self.proxies, verify = self.ssl_verify)
 		elif method == 'DELETE':
-			r = requests.delete(self.config['base_url'] + uri, headers = self.req_headers)
+			r = requests.delete(self.config['base_url'] + uri, headers = self.req_headers, proxies = self.proxies, verify = self.ssl_verify)
 
 			# If unauthorized, login and try again
 			if r.status_code == 401 and self.auto_login:
 				self.login()
 				r = requests.delete(self.config['base_url'] + uri, headers = self.req_headers)
 		elif method == 'OPTIONS':
-			r = requests.options(self.config['base_url'] + uri, headers = self.req_headers)
+			r = requests.options(self.config['base_url'] + uri, headers = self.req_headers, proxies = self.proxies, verify = self.ssl_verify)
 
 			# If unauthorized, login and try again
 			if r.status_code == 401 and self.auto_login:
 				self.login()
-				r = requests.options(self.config['base_url'] + uri, headers = self.req_headers)
+				r = requests.options(self.config['base_url'] + uri, headers = self.req_headers, proxies = self.proxies, verify = self.ssl_verify)
 		else:
 			raise Exception("Unrecognized method: " + method)
 
 		# Store the end time
 		tend = time.time()
 
+		if self.debug:
+			print r
+			#print r.content
+
 		# Craft the return value
 		ret = {}
 		ret['code'] = r.status_code
-		ret['json'] = r.json()
+		try:
+			ret['json'] = r.json()
+		except:
+			ret['json'] = "No JSON response was found. Response content: " + r.content
 		ret['time'] = tend - t0
 
 		# All good
@@ -234,8 +266,8 @@ class rest:
 		return self.request('GET', obj, args = str(entry_id))
 
 	# LISTING: Fetch the obj collection
-	def listing(self, obj, limit = 10, offset = 0, order_field = 'id', ordering = 'asc'):
-		return self.request('GET', obj, args = map(lambda x: str(x), [ limit, offset, order_field, ordering ]))
+	def listing(self, obj, limit = 10, offset = 0, order_field = 'id', ordering = 'asc', totals = '0'):
+		return self.request('GET', obj, args = map(lambda x: str(x), [ limit, offset, order_field, ordering, totals ]))
 
 	# INSERT: Inserts an entry into obj collection
 	def insert(self, obj, json_data):
@@ -251,8 +283,8 @@ class rest:
 				data[item] = {
 					"name": req_data[item].split('/')[-1],
 					"type": req_data[item].split('.')[-1].upper(),
-					"created": datetime.datetime.fromtimestamp(st.st_ctime).strftime("%Y-%m-%d %H:%M:%S"),
-					"modified": datetime.datetime.fromtimestamp(st.st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
+					"created": datetime.datetime.fromtimestamp(st.st_ctime).strftime("%Y-%m-%dT%H:%M:%SZ"),
+					"modified": datetime.datetime.fromtimestamp(st.st_mtime).strftime("%Y-%m-%dT%H:%M:%SZ"),
 					"encoding": "base64",
 					"contents": self.file_b64contents(req_data[item])
 				}
@@ -272,8 +304,8 @@ class rest:
 			req_data[k] = {
 				"name": v.split('/')[-1],
 				"type": v.split('.')[-1].upper(),
-				"created": datetime.datetime.fromtimestamp(st.st_ctime).strftime("%Y-%m-%d %H:%M:%S"),
-				"modified": datetime.datetime.fromtimestamp(st.st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
+				"created": datetime.datetime.fromtimestamp(st.st_ctime).strftime("%Y-%m-%dT%H:%M:%SZ"),
+				"modified": datetime.datetime.fromtimestamp(st.st_mtime).strftime("%Y-%m-%dT%H:%M:%SZ"),
 				"encoding": "base64",
 				"contents": self.file_b64contents(v)
 			}
