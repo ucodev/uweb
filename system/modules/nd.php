@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 27/05/2017
+ * Date: 28/05/2017
  * License: GPLv3
  */
 
@@ -1542,16 +1542,28 @@ class UW_ND extends UW_Module {
 							$this->restful->output('400');
 						}
 					} else if (($k == 'in') || ($k == 'not_in')) {
-						/* This criteria requires the value to be array (set of values) */
+						/* This criteria requires the search value to be array (set of values) */
 						if (!is_array($v)) {
 							$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid data type detected on criteria \'' . $k . '\' for field \'' . $f . '\': Expecting array.');
 							$this->restful->error('Invalid data type detected on criteria \'' . $k . '\' for field \'' . $f . '\': Expecting array.');
 							$this->restful->output('400');
 						}
 
+						/* If field is of type array, extract the type of elements (basic type) */
+						$matches = array();
+						$sftype = NULL; /* Field basic type */
+
+						if (preg_match('/^array\(([a-z0-9\_\(\)]+)\)$/i', $ftypes[$f], $matches)) {
+							$sftype = $matches[1];
+						} else {
+							/* Otherwise, use the type of the field */
+							$sftype = $ftypes[$f];
+						}
+
+						/* Validate each search value type against the most basic type of the field */
 						foreach ($v as $av) {
 							/* Check value type */
-							if (!$this->validate_value_type($f, $ftypes[$f], $av, 'input')) {
+							if (!$this->validate_value_type($f, $sftype, $av, 'input')) {
 								$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid data type detected on criteria \'' . $k . '\' for field: ' . $f);
 								$this->restful->error('Invalid data type detected on criteria \'' . $k . '\' for field: ' . $f);
 								$this->restful->output('400');
@@ -1658,7 +1670,7 @@ class UW_ND extends UW_Module {
 			}
 		} else if ($method == 'delete') { /* N/A */
 			/* Check if the entry id has a valid format */
-			if (!isset($data['id']) || !$data['id'] || (gettype($data['id']) != 'integer') || ($data['id'] < 0)) {
+			if (!isset($data['id']) || !$data['id'] || (intval($data['id']) <= 0)) {
 				$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid entry value set on URI.');
 				$this->restful->error('Invalid entry value set on URI.');
 				$this->restful->output('400');
