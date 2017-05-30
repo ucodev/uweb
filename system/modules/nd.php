@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 28/05/2017
+ * Date: 30/05/2017
  * License: GPLv3
  */
 
@@ -1487,125 +1487,131 @@ class UW_ND extends UW_Module {
 				}
 			}
 		} else if ($method == 'search') { /* Input / Output */
-			/* Check if input type validation is disabled */
-			if (ND_REQ_VALIDATE_INPUT_TYPES === false)
-				return;
-
 			/* Check if data input is set */
-			if (!isset($data['input']))
-				return;
+			if (isset($data['input'])) {
+				/* Check if input type validation is disabled */
+				if (ND_REQ_VALIDATE_INPUT_TYPES === false)
+					return;
 
-			/* Validate fields under 'show' array, if present */
-			if (isset($data['input']['show'])) {
-				/* Grant that 'show' is of type array */
-				if (!is_array($data['input']['show'])) {
-					$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid data type for property \'show\': Expecting array of strings.');
-					$this->restful->error('Invalid data type for property \'show\': Expecting array of strings.');
+				/* Validate fields under 'show' array, if present */
+				if (isset($data['input']['show'])) {
+					/* Grant that 'show' is of type array */
+					if (!is_array($data['input']['show'])) {
+						$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid data type for property \'show\': Expecting array of strings.');
+						$this->restful->error('Invalid data type for property \'show\': Expecting array of strings.');
+						$this->restful->output('400');
+					}
+
+					/* Grant that all fields set under 'show' are defined */
+					foreach ($data['input']['show'] as $v) {
+						if (!isset($ftypes[$v])) {
+							$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Undefined field detected under \'show\' property: ' . $v);
+							$this->restful->error('Undefined field detected under \'show\' property: ' . $v);
+							$this->restful->output('400'); /* Bad Request */
+						}
+					}
+				}
+
+				/* Check if a 'query' was set */
+				if (!isset($data['input']['query'])) {
+					$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'No \'query\' was found.');
+					$this->restful->error('No \'query\' was found.');
 					$this->restful->output('400');
 				}
 
-				/* Grant that all fields set under 'show' are defined */
-				foreach ($data['input']['show'] as $v) {
-					if (!isset($ftypes[$v])) {
-						$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Undefined field detected under \'show\' property: ' . $v);
-						$this->restful->error('Undefined field detected under \'show\' property: ' . $v);
+				/* Validate input types */
+				foreach ($data['input']['query'] as $f => $c) {
+					/* $f -> field, $c -> criteria */
+
+					/* Check if field is defined */
+					if (!isset($ftypes[$f])) {
+						$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Undefined field detected: ' . $f);
+						$this->restful->error('Undefined field detected: ' . $f);
 						$this->restful->output('400'); /* Bad Request */
 					}
-				}
-			}
 
-			/* Check if a 'query' was set */
-			if (!isset($data['input']['query'])) {
-				$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'No \'query\' was found.');
-				$this->restful->error('No \'query\' was found.');
-				$this->restful->output('400');
-			}
-
-			/* Validate input types */
-			foreach ($data['input']['query'] as $f => $c) {
-				/* $f -> field, $c -> criteria */
-
-				/* Check if field is defined */
-				if (!isset($ftypes[$f])) {
-					$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Undefined field detected: ' . $f);
-					$this->restful->error('Undefined field detected: ' . $f);
-					$this->restful->output('400'); /* Bad Request */
-				}
-
-				/* Validate data types for each criteria value, also validating if criteria name exists */
-				foreach ($c as $k => $v) {
-					if (in_array($k, array('ne', 'eq', 'lt', 'lte', 'gt', 'gte', 'contains', 'is', 'is_not'))) {
-						/* Check value type */
-						if (!$this->validate_value_type($f, $ftypes[$f], $v, 'input')) {
-							$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid data type detected on criteria \'' . $k . '\' for field: ' . $f);
-							$this->restful->error('Invalid data type detected on criteria \'' . $k . '\' for field: ' . $f);
-							$this->restful->output('400');
-						}
-					} else if (($k == 'in') || ($k == 'not_in')) {
-						/* This criteria requires the search value to be array (set of values) */
-						if (!is_array($v)) {
-							$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid data type detected on criteria \'' . $k . '\' for field \'' . $f . '\': Expecting array.');
-							$this->restful->error('Invalid data type detected on criteria \'' . $k . '\' for field \'' . $f . '\': Expecting array.');
-							$this->restful->output('400');
-						}
-
-						/* If field is of type array, extract the type of elements (basic type) */
-						$matches = array();
-						$sftype = NULL; /* Field basic type */
-
-						if (preg_match('/^array\(([a-z0-9\_\(\)]+)\)$/i', $ftypes[$f], $matches)) {
-							$sftype = $matches[1];
-						} else {
-							/* Otherwise, use the type of the field */
-							$sftype = $ftypes[$f];
-						}
-
-						/* Validate each search value type against the most basic type of the field */
-						foreach ($v as $av) {
+					/* Validate data types for each criteria value, also validating if criteria name exists */
+					foreach ($c as $k => $v) {
+						if (in_array($k, array('ne', 'eq', 'lt', 'lte', 'gt', 'gte', 'contains', 'is', 'is_not'))) {
 							/* Check value type */
-							if (!$this->validate_value_type($f, $sftype, $av, 'input')) {
+							if (!$this->validate_value_type($f, $ftypes[$f], $v, 'input')) {
 								$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid data type detected on criteria \'' . $k . '\' for field: ' . $f);
 								$this->restful->error('Invalid data type detected on criteria \'' . $k . '\' for field: ' . $f);
 								$this->restful->output('400');
 							}
-						}
-					} else if (($k == 'diff') || ($k == 'exact') || ($k == 'or')) {
-						if (gettype($v) != 'boolean') {
-							$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid data type detected on criteria \'' . $k . '\' for field \'' . $f . '\': Expecting boolean for: ' . $k);
-							$this->restful->error('Invalid data type detected on criteria \'' . $k . '\' for field \'' . $f . '\': Expecting boolean for: ' . $k);
+						} else if (($k == 'in') || ($k == 'not_in')) {
+							/* This criteria requires the search value to be array (set of values) */
+							if (!is_array($v)) {
+								$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid data type detected on criteria \'' . $k . '\' for field \'' . $f . '\': Expecting array.');
+								$this->restful->error('Invalid data type detected on criteria \'' . $k . '\' for field \'' . $f . '\': Expecting array.');
+								$this->restful->output('400');
+							}
+
+							/* If field is of type array, extract the type of elements (basic type) */
+							$matches = array();
+							$sftype = NULL; /* Field basic type */
+
+							if (preg_match('/^array\(([a-z0-9\_\(\)]+)\)$/i', $ftypes[$f], $matches)) {
+								$sftype = $matches[1];
+							} else {
+								/* Otherwise, use the type of the field */
+								$sftype = $ftypes[$f];
+							}
+
+							/* Validate each search value type against the most basic type of the field */
+							foreach ($v as $av) {
+								/* Check value type */
+								if (!$this->validate_value_type($f, $sftype, $av, 'input')) {
+									$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid data type detected on criteria \'' . $k . '\' for field: ' . $f);
+									$this->restful->error('Invalid data type detected on criteria \'' . $k . '\' for field: ' . $f);
+									$this->restful->output('400');
+								}
+							}
+						} else if (($k == 'diff') || ($k == 'exact') || ($k == 'or')) {
+							if (gettype($v) != 'boolean') {
+								$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid data type detected on criteria \'' . $k . '\' for field \'' . $f . '\': Expecting boolean for: ' . $k);
+								$this->restful->error('Invalid data type detected on criteria \'' . $k . '\' for field \'' . $f . '\': Expecting boolean for: ' . $k);
+								$this->restful->output('400');
+							}
+						} else {
+							$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Unrecognized criteria: ' . $k);
+							$this->restful->error('Unrecognized criteria: ' . $k);
 							$this->restful->output('400');
 						}
-					} else {
-						$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Unrecognized criteria: ' . $k);
-						$this->restful->error('Unrecognized criteria: ' . $k);
-						$this->restful->output('400');
 					}
 				}
 			}
 
-			/* Check if output type validation is disabled */
-			if (ND_REQ_VALIDATE_OUTPUT_TYPES === false)
-				return;
-
 			/* Check if data output is set */
-			if (!isset($data['output']))
-				return;
+			if (isset($data['output'])) {
+				/* Check if output type validation is disabled */
+				if (ND_REQ_VALIDATE_OUTPUT_TYPES === false)
+					return;
 
-			/* Validate output types */
-			foreach ($data['output']['result'] as $row) {
-				foreach ($row as $k => $v) {
-					/* Check if field is defined */
-					if (!isset($ftypes[$k])) {
-						$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Undefined field detected: ' . $k);
-						$this->restful->error('Undefined field detected: ' . $k);
-						$this->restful->output('400'); /* Bad Request */
-					}
+				/* Check if data output is set */
+				if (!isset($data['output']))
+					return;
 
-					/* Check value type */
-					if (!$this->validate_value_type($k, $ftypes[$k], $v, 'output')) {
-						$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid data type detected on field: ' . $k);
-						$this->restful->error('Invalid data type detected on field: ' . $k);
-						$this->restful->output('400');
+				/* Validate output types */
+				foreach ($data['output']['result'] as $row) {
+					foreach ($row as $k => $v) {
+						/* Check for reserved / exceptional keys and ignore them... */
+						if ($k == '_aggregations')
+							continue;
+
+						/* Check if field is defined */
+						if (!isset($ftypes[$k])) {
+							$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Undefined field detected: ' . $k);
+							$this->restful->error('Undefined field detected: ' . $k);
+							$this->restful->output('400'); /* Bad Request */
+						}
+
+						/* Check value type */
+						if (!$this->validate_value_type($k, $ftypes[$k], $v, 'output')) {
+							$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid data type detected on field: ' . $k);
+							$this->restful->error('Invalid data type detected on field: ' . $k);
+							$this->restful->output('400');
+						}
 					}
 				}
 			}
