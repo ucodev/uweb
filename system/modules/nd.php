@@ -1462,7 +1462,7 @@ class UW_ND extends UW_Module {
 				if (!isset($data['id']) || !$data['id'] || (intval($data['id']) <= 0)) {
 					$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid entry value set on URI.');
 					$this->restful->error('Invalid entry value set on URI.');
-					$this->restful->output('400');
+					$this->restful->output('400'); /* Bad Request */
 				}
 			}
 
@@ -1483,7 +1483,7 @@ class UW_ND extends UW_Module {
 				if (!$this->validate_value_type($k, $ftypes[$k], $v, 'input')) {
 					$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid data type detected on field: ' . $k);
 					$this->restful->error('Invalid data type detected on field: ' . $k);
-					$this->restful->output('400');
+					$this->restful->output('400'); /* Bad Request */
 				}
 			}
 		} else if ($method == 'search') { /* Input / Output */
@@ -1499,7 +1499,7 @@ class UW_ND extends UW_Module {
 					if (!is_array($data['input']['show'])) {
 						$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid data type for property \'show\': Expecting array of strings.');
 						$this->restful->error('Invalid data type for property \'show\': Expecting array of strings.');
-						$this->restful->output('400');
+						$this->restful->output('400'); /* Bad Request */
 					}
 
 					/* Grant that all fields set under 'show' are defined */
@@ -1516,7 +1516,7 @@ class UW_ND extends UW_Module {
 				if (!isset($data['input']['query'])) {
 					$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'No \'query\' was found.');
 					$this->restful->error('No \'query\' was found.');
-					$this->restful->output('400');
+					$this->restful->output('400'); /* Bad Request */
 				}
 
 				/* Validate input types */
@@ -1537,14 +1537,14 @@ class UW_ND extends UW_Module {
 							if (!$this->validate_value_type($f, $ftypes[$f], $v, 'input')) {
 								$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid data type detected on criteria \'' . $k . '\' for field: ' . $f);
 								$this->restful->error('Invalid data type detected on criteria \'' . $k . '\' for field: ' . $f);
-								$this->restful->output('400');
+								$this->restful->output('400'); /* Bad Request */
 							}
 						} else if (($k == 'in') || ($k == 'not_in')) {
 							/* This criteria requires the search value to be array (set of values) */
 							if (!is_array($v)) {
 								$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid data type detected on criteria \'' . $k . '\' for field \'' . $f . '\': Expecting array.');
 								$this->restful->error('Invalid data type detected on criteria \'' . $k . '\' for field \'' . $f . '\': Expecting array.');
-								$this->restful->output('400');
+								$this->restful->output('400'); /* Bad Request */
 							}
 
 							/* If field is of type array, extract the type of elements (basic type) */
@@ -1564,19 +1564,19 @@ class UW_ND extends UW_Module {
 								if (!$this->validate_value_type($f, $sftype, $av, 'input')) {
 									$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid data type detected on criteria \'' . $k . '\' for field: ' . $f);
 									$this->restful->error('Invalid data type detected on criteria \'' . $k . '\' for field: ' . $f);
-									$this->restful->output('400');
+									$this->restful->output('400'); /* Bad Request */
 								}
 							}
 						} else if (($k == 'diff') || ($k == 'exact') || ($k == 'or')) {
 							if (gettype($v) != 'boolean') {
 								$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid data type detected on criteria \'' . $k . '\' for field \'' . $f . '\': Expecting boolean for: ' . $k);
 								$this->restful->error('Invalid data type detected on criteria \'' . $k . '\' for field \'' . $f . '\': Expecting boolean for: ' . $k);
-								$this->restful->output('400');
+								$this->restful->output('400'); /* Bad Request */
 							}
 						} else {
 							$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Unrecognized criteria: ' . $k);
 							$this->restful->error('Unrecognized criteria: ' . $k);
-							$this->restful->output('400');
+							$this->restful->output('400'); /* Bad Request */
 						}
 					}
 				}
@@ -1586,10 +1586,6 @@ class UW_ND extends UW_Module {
 			if (isset($data['output'])) {
 				/* Check if output type validation is disabled */
 				if (ND_REQ_VALIDATE_OUTPUT_TYPES === false)
-					return;
-
-				/* Check if data output is set */
-				if (!isset($data['output']))
 					return;
 
 				/* Validate output types */
@@ -1610,7 +1606,7 @@ class UW_ND extends UW_Module {
 						if (!$this->validate_value_type($k, $ftypes[$k], $v, 'output')) {
 							$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid data type detected on field: ' . $k);
 							$this->restful->error('Invalid data type detected on field: ' . $k);
-							$this->restful->output('400');
+							$this->restful->output('400'); /* Bad Request */
 						}
 					}
 				}
@@ -1624,7 +1620,7 @@ class UW_ND extends UW_Module {
 			if (!isset($data['id']) || !$data['id'] || (intval($data['id']) <= 0)) {
 				$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid entry value set on URI.');
 				$this->restful->error('Invalid entry value set on URI.');
-				$this->restful->output('400');
+				$this->restful->output('400'); /* Bad Request */
 			}
 
 			/* Check if data output is set */
@@ -1644,7 +1640,7 @@ class UW_ND extends UW_Module {
 				if (!$this->validate_value_type($k, $ftypes[$k], $v, 'output')) {
 					$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid data type detected on field: ' . $k);
 					$this->restful->error('Invalid data type detected on field: ' . $k);
-					$this->restful->output('400');
+					$this->restful->output('400'); /* Bad Request */
 				}
 			}
 		} else if ($method == 'listing') { /* Output */
@@ -1670,7 +1666,7 @@ class UW_ND extends UW_Module {
 					if (!$this->validate_value_type($k, $ftypes[$k], $v, 'output')) {
 						$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid data type detected on field: ' . $k);
 						$this->restful->error('Invalid data type detected on field: ' . $k);
-						$this->restful->output('400');
+						$this->restful->output('400'); /* Bad Request */
 					}
 				}
 			}
@@ -1679,7 +1675,7 @@ class UW_ND extends UW_Module {
 			if (!isset($data['id']) || !$data['id'] || (intval($data['id']) <= 0)) {
 				$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid entry value set on URI.');
 				$this->restful->error('Invalid entry value set on URI.');
-				$this->restful->output('400');
+				$this->restful->output('400'); /* Bad Request */
 			}
 		}
 	}
@@ -2141,7 +2137,7 @@ class UW_ND extends UW_Module {
 				/* Unrecognized function */
 				$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Unrecognized function: ' . $method);
 				$this->restful->error('Unrecognized function: ' . $method);
-				$this->restful->output('400');
+				$this->restful->output('400'); /* Bad Request */
 			}
 		}
 	}
