@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 30/05/2017
+ * Date: 01/06/2017
  * License: GPLv3
  */
 
@@ -83,11 +83,12 @@ class UW_ND extends UW_Module {
 		/* Set cURL request headers */
 		curl_setopt($ch, CURLOPT_HTTPHEADER, $req_headers);
 
+		/* Set request method to POST */
+		curl_setopt($ch, CURLOPT_POST, true);
+
 		/* Set request body data, if any */
-		if ($data !== NULL) {
-			curl_setopt($ch, CURLOPT_POST, true);
+		if ($data !== NULL)
 			curl_setopt($ch, CURLOPT_POSTFIELDS, is_array($data) ? json_encode($data) : $data);
-		}
 
 		/* Set session cookie data, if any */
 		if ($session !== NULL) {
@@ -685,7 +686,7 @@ class UW_ND extends UW_Module {
 		}
 
 		/* Forward request to the underlying layer (nd-php) */
-		if ($reqbody['data'] !== NULL) {
+		if ($reqbody['data'] !== NULL || (isset($reqbody['_userid']) && isset($reqbody['_apikey']))) {
 			$nd_data = $this->request('/' . $ctrl . '/list_default', $reqbody, $session);
 		} else {
 			$nd_data = $this->request('/' . $ctrl . '/list_default', NULL, $session);
@@ -840,7 +841,7 @@ class UW_ND extends UW_Module {
 
 		/* Check if there's any input */
 		if (!count($input)) {
-			$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'No input data fields could found.', $session);
+			$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'No input data fields could be found.', $session);
 			$this->restful->error('No input data fields could be found.');
 			$this->restful->output('400'); /* Bad Request */
 		}
