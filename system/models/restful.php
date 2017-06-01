@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 27/05/2017
+ * Date: 01/06/2017
  * License: GPLv3
  */
 
@@ -745,8 +745,10 @@ class UW_Restful extends UW_Model {
 			$this->_doc['method'][$method]['request']['headers'][$func] = $request_headers;
 
 		/* Body */
-		foreach ($request_body_args as $k => $v) {
-			$this->_doc['method'][$method]['request']['body'][$func][$k] = $v;
+		if ($request_body_args !== false) {
+			foreach ($request_body_args as $k => $v) {
+				$this->_doc['method'][$method]['request']['body'][$func][$k] = $v;
+			}
 		}
 
 		/* Additional Notes */
