@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 01/06/2017
+ * Date: 04/06/2017
  * License: GPLv3
  */
 
@@ -164,8 +164,15 @@ class UW_ND extends UW_Module {
 			$this->restful->output('401'); /* Unauthorized */
 		}
 
+		/* Load auth cache context */
+		$cache_context_orig = $this->cache->context();
+		$this->cache->load(ND_REQ_CACHE_CONTEXT_AUTH);
+
 		/* Get session cookie */
 		$enc_session_cookie = $this->cache->get('nd_user_session_' . $user_id);
+
+		/* Reload original cache context */
+		$this->cache->load($cache_context_orig);
 
 		/* If we're unable to fetch the session cookie, the user needs to re-authenticate */
 		if (!$enc_session_cookie) {
@@ -193,8 +200,15 @@ class UW_ND extends UW_Module {
 	}
 
 	public function session_destroy($session) {
+		/* Load auth cache context */
+		$cache_context_orig = $this->cache->context();
+		$this->cache->load(ND_REQ_CACHE_CONTEXT_AUTH);
+
 		/* Delete cached session data */
 		$this->cache->delete('nd_user_session_' . $session['user_id']);
+
+		/* Reload original cache context */
+		$this->cache->load($cache_context_orig);
 	}
 
 	public function user_register($register) {
@@ -362,6 +376,7 @@ class UW_ND extends UW_Module {
 		/* Set user properties */
 		$user_data = array();
 		$user_data['userid'] = $data['userid'];
+		$user_data['roles'] = $data['roles'];
 		$user_data['username'] = $auth['username'];
 		$user_data['photo'] = $data_raw['data']['photo'];
 		$user_data['is_admin'] = $data_raw['data']['is_admin'];
@@ -369,11 +384,18 @@ class UW_ND extends UW_Module {
 		$user_data['timezone'] = $data_raw['data']['timezone'];
 		$user_data['sessions_id'] = $data_raw['data']['session_id'];
 
+		/* Load auth cache context */
+		$cache_context_orig = $this->cache->context();
+		$this->cache->load(ND_REQ_CACHE_CONTEXT_AUTH);
+
 		/* Cache session information */
 		$this->cache->set('nd_user_session_' . $data['userid'], $enc_session_cookie, $session_lifetime);
 
 		/* Cache user data */		
 		$this->cache->set('nd_user_data_' . $data['userid'], $user_data, $session_lifetime);
+
+		/* Reload generic cache context */
+		$this->cache->load($cache_context_orig);
 
 		/* All good */
 		return $data;
@@ -383,7 +405,18 @@ class UW_ND extends UW_Module {
 		if ($user_id === NULL)
 			$user_id = $this->restful->header(ND_REQ_HEADER_USER_ID);
 
-		return $this->cache->get('nd_user_data_' . $user_id);
+		/* Load auth cache context */
+		$cache_context_orig = $this->cache->context();
+		$this->cache->load(ND_REQ_CACHE_CONTEXT_AUTH);
+
+		/* Get user data from auth cache */
+		$user_data = $this->cache->get('nd_user_data_' . $user_id);
+
+		/* Reload original cache context */
+		$this->cache->load($cache_context_orig);
+
+		/* All good */
+		return $user_data;
 	}
 
 	public function user_logout() {
@@ -675,8 +708,26 @@ class UW_ND extends UW_Module {
 			if (isset($argv[1]))
 				$reqbody['data']['_offset'] = abs(intval($argv[1]));
 
-			if (isset($argv[2]))
-				$reqbody['data']['_orderby'] = preg_match('/^[a-zA-Z0-9_]+$/', $argv[2]) ? $argv[2] : 'id';
+			if (isset($argv[2])) {
+				$orderby_field = preg_match('/^[a-zA-Z0-9_]+$/', $argv[2]) ? $argv[2] : 'id';
+
+				/* Check if orderby field is part of visible fields */
+				if (!in_array($orderby_field, $fields['visible'])) {
+					$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid or non-existent orderby field: ' . $orderby_field, $session);
+					$this->restful->error('Invalid orderby field: ' . $orderby_field);
+					$this->restful->output('400'); /* Bad Request */
+				}
+
+				/* Translate orderby field, if mapped */
+				foreach ($fields['mapped'] as $k => $v) {
+					if ($v == $orderby_field) {
+						$orderby_field = $k;
+						break;
+					}
+				}
+
+				$reqbody['data']['_orderby'] = $orderby_field;
+			}
 
 			if (isset($argv[3]))
 				$reqbody['data']['_ordering'] = (strtolower($argv[3]) == 'desc') ? 'desc' : 'asc';
@@ -950,7 +1001,23 @@ class UW_ND extends UW_Module {
 			$this->restful->output('400'); /* Bad Request */
 		}
 
-		/* Sanitize input and rename any mapped fields */
+		/* Validate and rename orderby field, if set */
+		if (isset($input['orderby'])) {
+			$orderby_field = $input['orderby'];
+
+			/* Check if orderby field is part of visible or accepted fields */
+			if (!in_array($orderby_field, $fields['visible']) && !in_array($orderby_field, $fields['accepted'])) {
+				$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid or non-existent orderby field: ' . $orderby_field, $session);
+				$this->restful->error('Invalid orderby field: ' . $orderby_field);
+				$this->restful->output('400'); /* Bad Request */
+			}
+
+			/* Translate orderby field, if mapped */
+			if (isset($fields['mapped_pre'][$orderby_field]))
+				$input['orderby'] = $fields['mapped_pre'][$orderby_field];
+		}
+
+		/* Sanitize input and rename any mapped fields from query */
 		$query = array();
 
 		foreach ($input['query'] as $k => $v) {

@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 31/10/2016
+ * Date: 04/06/2017
  * License: GPLv3
  */
 
@@ -437,85 +437,110 @@ class UW_Session extends UW_Base {
 
 class UW_Cache extends UW_Base {
 	private $_c = NULL;
-	private $_kp = '';
+	private $_kp = array();
+	private $_context = 'default';
 
 	public function __construct() {
 		global $config;
 
 		parent::__construct();
 
+		/* Initialize all caching contexts */
+		foreach ($config['cache'] as $context => $parameters)
+			$this->_init($context);
+
+		/* Set default context */
+		$this->_context = 'default';
+	}
+
+	private function _init($context) {
+		global $config;
+
+		/* Set cache context */
+		$this->_context = $context;
+
 		/* If no cache system is configured, do not try to load it */
-		if (!isset($config['cache']) || !count($config['cache'])) {
-			$config['cache'] = array();
-			$config['cache']['active'] = false;
+		if (!isset($config['cache'][$this->_context]) || !count($config['cache'][$this->_context])) {
+			$config['cache'][$this->_context] = array();
+			$config['cache'][$this->_context]['active'] = false;
 			return;
 		}
 
 		/* If it is configured, but disabled, do not proceed */
-		if ($config['cache']['active'] !== true)
+		if ($config['cache'][$this->_context]['active'] !== true)
 			return;
 
 		/* Currently, only a single instance of memcached is supported */
-		if ($config['cache']['driver'] == 'memcached') {
-			$this->_c = new Memcached($config['cache']['key_prefix']);
-			$this->_c->setOption(Memcached::OPT_LIBKETAMA_COMPATIBLE, true);
+		if ($config['cache'][$this->_context]['driver'] == 'memcached') {
+			$this->_c[$this->_context] = new Memcached($config['cache'][$this->_context]['key_prefix']);
+			$this->_c[$this->_context]->setOption(Memcached::OPT_LIBKETAMA_COMPATIBLE, true);
 
 			/* Only add servers if the list is empty.
 			 * TODO: FIXME: Instead of counting, check for differences and change the server list accordingly.
 			 */
-			if (!count($this->_c->getServerList()))
-				$this->_c->addServer($config['cache']['host'], intval($config['cache']['port']));
+			if (!count($this->_c[$this->_context]->getServerList()))
+				$this->_c[$this->_context]->addServer($config['cache'][$this->_context]['host'], intval($config['cache'][$this->_context]['port']));
 		}
 
-		$this->_kp = $config['cache']['key_prefix'];
+		$this->_kp[$this->_context] = $config['cache'][$this->_context]['key_prefix'];
+	}
+
+	public function context() {
+		return $this->_context;
+	}
+
+	public function load($context) {
+		$this->_context = $context;
+
+		return $this;
 	}
 
 	public function is_active() {
 		global $config;
 
-		return $config['cache']['active'];
+		return $config['cache'][$this->_context]['active'];
 	}
 
 	public function add($k, $v, $expiration = 0) {
 		if ($this->is_active() !== true)
 			return false;
 
-		return $this->_c->add($this->_kp . $k, $v, $expiration);
+		return $this->_c[$this->_context]->add($this->_kp[$this->_context] . $k, $v, $expiration);
 	}
 
 	public function set($k, $v, $expiration = 0) {
 		if ($this->is_active() !== true)
 			return false;
 
-		return $this->_c->set($this->_kp . $k, $v, $expiration);
+		return $this->_c[$this->_context]->set($this->_kp[$this->_context] . $k, $v, $expiration);
 	}
 
 	public function get($k) {
 		if ($this->is_active() !== true)
 			return false;
 
-		return $this->_c->get($this->_kp . $k);
+		return $this->_c[$this->_context]->get($this->_kp[$this->_context] . $k);
 	}
 
 	public function delete($k, $time = 0) {
 		if ($this->is_active() !== true)
 			return false;
 
-		return $this->_c->delete($this->_kp . $k, $time);
+		return $this->_c[$this->_context]->delete($this->_kp[$this->_context] . $k, $time);
 	}
 
 	public function flush($delay = 0) {
 		if ($this->is_active() !== true)
 			return false;
 
-		return $this->_c->flush($delay);
+		return $this->_c[$this->_context]->flush($delay);
 	}
 
 	public function result() {
 		if ($this->is_active() !== true)
 			return false;
 
-		return $this->_c->getResultCode();
+		return $this->_c[$this->_context]->getResultCode();
 	}
 }
 
@@ -1372,7 +1397,7 @@ class UW_Database extends UW_Base {
 			$new_column = str_replace('`', '', $new_column);
 		}
 
-		return $this->query('ALTER TABLE `' . $table . '` CHANGE COLUMN `' . $column . '` `' . $new_column . '` ' . $type . ($is_null ? ' NULL' : ' NOT NULL') . ' DEFAULT ' . $default . ($after ? ' AFTER `' . $after . '`' : ''));
+		return $this->query('ALTER TABLE `' . $table . '` CHANGE COLUMN `' . $column . '` `' . $new_column . '` ' . $type . ($is_null ? ' NULL' : ' NOT NULL') . ((!$is_null && $default == 'NULL') ? '' : (' DEFAULT ' . $default)) . ($after ? ' AFTER `' . $after . '`' : ''));
 	}
 
 	public function table_column_unique_add($table, $column, $enforce = true) {
@@ -2051,25 +2076,13 @@ class UW_Database extends UW_Base {
 	}
 
 	public function stmt_disable() {
-		global $config;
-
 		/* Disable prepared statements */
 		$this->_cfg_use_stmt = false;
-
-		/* Set MySQL specific attributes */
-		if ($config['database'][$this->_cur_db]['driver'] == 'mysql')
-			$this->_db[$this->_cur_db]->setAttribute(PDO::ATTR_EMULATE_PREPARES, true);
 	}
 
 	public function stmt_enable() {
-		global $config;
-
 		/* Enable prepared statements (enabled by default) */
 		$this->_cfg_use_stmt = true;
-
-		/* Set MySQL specific attributes */
-		if ($config['database'][$this->_cur_db]['driver'] == 'mysql')
-			$this->_db[$this->_cur_db]->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
 	}
 
 	public function dump($charset = 'utf8', $timezone = '+00:00', $newline = "\r\n") {

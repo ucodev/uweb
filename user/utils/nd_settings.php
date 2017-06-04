@@ -14,4 +14,7 @@ define('ND_REQ_TRUSTED_SRC_IPADDR',	[ '127.0.0.1' ]);
 define('ND_REQ_VALIDATE_TYPES',		true);
 define('ND_REQ_VALIDATE_INPUT_TYPES',	true);
 define('ND_REQ_VALIDATE_OUTPUT_TYPES',	true);
+define('ND_REQ_CACHE_CONTEXT_GENERIC',  'default');
+define('ND_REQ_CACHE_CONTEXT_AUTH',     'default');
+
 
