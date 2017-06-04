@@ -294,23 +294,42 @@ class rest:
 		return self.request('POST', obj, data)
 
 	# MODIFY: Modifies an object property
-	def modify(self, obj, entry_id, k, v):
+	def modify(self, obj, entry_id, k = None, v = None, json_data = None):
 		req_data = {}
 
-		# Files have a special treatment
-		if "_file_" in k:
-			st = os.stat(v)
+		# Check if there's enough data provided to process the request
+		if not k and not entry:
+			raise Exception("One of 'k' or 'json_data' parameters must be filled.")
 
-			req_data[k] = {
-				"name": v.split('/')[-1],
-				"type": v.split('.')[-1].upper(),
-				"created": datetime.datetime.fromtimestamp(st.st_ctime).strftime("%Y-%m-%dT%H:%M:%SZ"),
-				"modified": datetime.datetime.fromtimestamp(st.st_mtime).strftime("%Y-%m-%dT%H:%M:%SZ"),
-				"encoding": "base64",
-				"contents": self.file_b64contents(v)
-			}
-		else:
-			req_data[k] = v
+		if k and entry:
+			raise Exception("Only on of 'k' or 'json_data' can be filled.")
+
+		# Decode entry
+		if entry:
+			entry = json.loads(json_data)
+		elif k:
+			# Craft entry based on k/v
+			entry = { }
+			entry[k] = v
+
+		# Pre-process entry data
+		for k in entry:
+			v = entry[k]
+
+			# Files have a special treatment
+			if "_file_" in k:
+				st = os.stat(v)
+
+				req_data[k] = {
+					"name": v.split('/')[-1],
+					"type": v.split('.')[-1].upper(),
+					"created": datetime.datetime.fromtimestamp(st.st_ctime).strftime("%Y-%m-%dT%H:%M:%SZ"),
+					"modified": datetime.datetime.fromtimestamp(st.st_mtime).strftime("%Y-%m-%dT%H:%M:%SZ"),
+					"encoding": "base64",
+					"contents": self.file_b64contents(v)
+				}
+			else:
+				req_data[k] = v
 
 		return self.request('PATCH', obj, data = req_data, args = str(entry_id))
 
