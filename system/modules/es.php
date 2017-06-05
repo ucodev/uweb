@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 11/05/2017
+ * Date: 04/06/2017
  * License: GPLv3
  */
 
@@ -165,10 +165,20 @@ class UW_ES extends UW_Module {
                         ));
                     } break;
 
-                    case 'is': /* Validate if the type is NULL */
+                    case 'is': {
+                        /* Validate if the type is NULL */
+                        if ($value !== NULL) {
+                            $this->restful->error('Invalid type found in condition \'' . $cond . '\' on field \'' . $field . '\': Expecting NULL.');
+                            $this->restful->output('400');                            
+                        }
+
+                        /* TODO: FIXME: Elasticsearch (<= 5.x) does not allow null searches. https://www.elastic.co/guide/en/elasticsearch/reference/5.4/null-value.html */
+                        $this->restful->error('NULL searches are not supported.');
+                        $this->restful->output('400');
+                    }
                     case 'eq': {
                         /* Validate if $value is integer or float */
-                        if (gettype($value) != 'integer' && gettype($value) != 'float') {
+                        if ($cond != 'is' && gettype($value) != 'integer' && gettype($value) != 'float') {
                             $this->restful->error('Invalid type found in condition \'' . $cond . '\' on field \'' . $field . '\': Expecting integer or float.');
                             $this->restful->output('400');
                         }
@@ -184,10 +194,20 @@ class UW_ES extends UW_Module {
                         ));
                     } break;
 
-                    case 'is_not': /* Validate if the type is NULL */
+                    case 'is_not': {
+                        /* Validate if the type is NULL */
+                        if ($value !== NULL) {
+                            $this->restful->error('Invalid type found in condition \'' . $cond . '\' on field \'' . $field . '\': Expecting NULL.');
+                            $this->restful->output('400');                            
+                        }
+
+                        /* TODO: FIXME: Elasticsearch (<= 5.x) does not allow null searches. https://www.elastic.co/guide/en/elasticsearch/reference/5.4/null-value.html */
+                        $this->restful->error('NULL searches are not supported.');
+                        $this->restful->output('400');
+                    }
                     case 'ne': {
                         /* Validate if $value is integer or float */
-                        if (gettype($value) != 'integer' && gettype($value) != 'float') {
+                        if ($cond != 'is_not' && gettype($value) != 'integer' && gettype($value) != 'float') {
                             $this->restful->error('Invalid type found in condition \'' . $cond . '\' on field \'' . $field . '\': Expecting integer or float.');
                             $this->restful->output('400');
                         }

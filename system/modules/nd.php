@@ -1748,15 +1748,71 @@ class UW_ND extends UW_Module {
 		}
 	}
 
+	public function cache_data_get($object, $method, $args) {
+		/* Check if cache control demands no caching */
+		if (($hdr_cache_control = $this->restful->header('Cache-Control'))) {
+			$ctrls = explode(',', $hdr_cache_control);
+
+			/* Search for no-cache control */
+			foreach ($ctrls as $ctrl) {
+				if (trim(strtolower($ctrl)) == 'no-cache')
+					return NULL; /* If no-cache is set, do not read cached data */
+			}
+		}
+
+		/* Load the context where object data resides */
+		$cache_context_orig = $this->cache->context();
+		$this->cache->load(ND_REQ_CACHE_CONTEXT_GENERIC);
+
+		/* NOTE: Cache may be a security risk since it doesn't account for the current session privileges. Take care when enabling it. */
+		$data = $this->cache->get('nd_object_' . $object . '_' . $method . '_' . md5(json_encode($args)));
+
+		/* Reload the original cache context */
+		$this->cache->load($cache_context_orig);
+
+		/* All good */
+		return $data;
+	}
+
+	public function cache_data_set($object, $method, $args, $data, $lifetime = NULL) {
+		/* Load the context where object data resides */
+		$cache_context_orig = $this->cache->context();
+		$this->cache->load(ND_REQ_CACHE_CONTEXT_GENERIC);
+
+		/* NOTE: Cache may be a security risk since it doesn't account for the current session privileges. Take care when enabling it. */
+		$this->cache->set('nd_object_' . $object . '_' . $method . '_' . md5(json_encode($args)), $data, ($lifetime === NULL) ? ND_REQ_CACHE_LIFETIME_GENERIC : $lifetime);
+
+		/* Reload the original cache context */
+		$this->cache->load($cache_context_orig);
+	}
+
 	public function forward($object, $method, $argv, $input = NULL) {
 		/* Forward request */
 		switch ($method) {
 			case 'view': {
+				/* Initialize data */
+				$data = NULL;
+
 				/* Fetch object properties */
 				$properties = $this->properties($object, $method);
 
-				/* Fetch entry data, if exists */
-				$data = $this->view($properties['route'], $argv, $properties['fields'], isset($properties['public']) ? $properties['public'] : false);
+				/* Check if caching is enabled */
+				if (isset($properties['cache']) && ($properties['cache'] === true)) {
+					/* If so, try to retrieve data from the cached entry */
+					$data = $this->cache_data_get($object, $method, $argv);
+				}
+
+				/* Fetch data from the underlying layer only if we didn't have it already (from cache) */
+				if (!$data) {
+					/* Fetch entry data, if exists */
+					$data = $this->view($properties['route'], $argv, $properties['fields'], isset($properties['public']) ? $properties['public'] : false);
+
+					/* Check if caching is enabled */
+					if (isset($properties['cache']) && ($properties['cache'] === true)) {
+						/* If so, cache the retrieved data */
+						$this->cache_data_set($object, $method, $argv, $data, isset($properties['cache_lifetime']) ? $properties['cache_lifetime'] : NULL);
+					}
+				}
 
 				/* Validate data types */
 				$this->validate_data_types($object, $method, array('id' => $argv[0], 'output' => $data));
@@ -1769,11 +1825,29 @@ class UW_ND extends UW_Module {
 			} break;
 
 			case 'listing': {
+				/* Initialize data */
+				$data = NULL;
+
 				/* Fetch object properties */
 				$properties = $this->properties($object, $method);
 
-				/* Fetch collection */
-				$data = $this->list_default($properties['route'], $argv, $properties['fields'], isset($properties['public']) ? $properties['public'] : false);
+				/* Check if caching is enabled */
+				if (isset($properties['cache']) && ($properties['cache'] === true)) {
+					/* If so, try to retrieve data from the cached entry */
+					$data = $this->cache_data_get($object, $method, $argv);
+				}
+
+				/* Fetch data from the underlying layer only if we didn't have it already (from cache) */
+				if (!$data) {
+					/* Fetch collection */
+					$data = $this->list_default($properties['route'], $argv, $properties['fields'], isset($properties['public']) ? $properties['public'] : false);
+
+					/* Check if caching is enabled */
+					if (isset($properties['cache']) && ($properties['cache'] === true)) {
+						/* If so, cache the retrieved data */
+						$this->cache_data_set($object, $method, $argv, $data, isset($properties['cache_lifetime']) ? $properties['cache_lifetime'] : NULL);
+					}
+				}
 
 				/* Validate data types */
 				$this->validate_data_types($object, $method, array('output' => $data));
@@ -1799,6 +1873,8 @@ class UW_ND extends UW_Module {
 				/* Insert the entry */
 				$data = $this->insert($properties['route'], $argv, $input, $properties['fields'], isset($properties['public']) ? $properties['public'] : false);
 
+				/* NOTE: Cache invalidation isn't supported yet */
+
 				/* All good */
 				return array(
 					'code' => $properties['status']['success'][0], /* Created */
@@ -1820,6 +1896,8 @@ class UW_ND extends UW_Module {
 				/* Insert the entry */
 				$data = $this->update($properties['route'], $argv, $input, $properties['fields'], isset($properties['public']) ? $properties['public'] : false);
 
+				/* NOTE: Cache invalidation isn't supported yet */
+
 				/* All good */
 				return array(
 					'code' => $properties['status']['success'][0], /* OK */
@@ -1837,6 +1915,8 @@ class UW_ND extends UW_Module {
 				/* Delete the entry */
 				$this->delete($properties['route'], $argv, isset($properties['public']) ? $properties['public'] : false);
 
+				/* NOTE: Cache invalidation isn't supported yet */
+
 				/* All good */
 				return array(
 					'code' => $properties['status']['success'][0], /* OK */
@@ -1845,6 +1925,9 @@ class UW_ND extends UW_Module {
 			} break;
 
 			case 'search': {
+				/* Initialize data */
+				$data = NULL;
+
 				/* Fetch object properties */
 				$properties = $this->properties($object, $method);
 
@@ -1855,8 +1938,23 @@ class UW_ND extends UW_Module {
 				/* Validate input data types */
 				$this->validate_data_types($object, $method, array('input' => $input));
 
-				/* Search the collection */
-				$data = $this->search($properties['route'], $input, $properties['fields'], true, isset($properties['public']) ? $properties['public'] : false);
+				/* Check if caching is enabled */
+				if (isset($properties['cache']) && ($properties['cache'] === true)) {
+					/* If so, try to retrieve data from the cached entry */
+					$data = $this->cache_data_get($object, $method, $input);
+				}
+
+				/* Fetch data from the underlying layer only if we didn't have it already (from cache) */
+				if (!$data) {
+					/* Search the collection */
+					$data = $this->search($properties['route'], $input, $properties['fields'], true, isset($properties['public']) ? $properties['public'] : false);
+
+					/* Check if caching is enabled */
+					if (isset($properties['cache']) && ($properties['cache'] === true)) {
+						/* If so, cache the retrieved data */
+						$this->cache_data_set($object, $method, $input, $data, isset($properties['cache_lifetime']) ? $properties['cache_lifetime'] : NULL);
+					}
+				}
 
 				/* Validate output data types */
 				$this->validate_data_types($object, $method, array('output' => $data));

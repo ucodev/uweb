@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 01/06/2017
+ * Date: 04/06/2017
  * License: GPLv3
  */
 
@@ -29,6 +29,8 @@
 
 class UW_Restful extends UW_Model {
 	/** Private **/
+
+	private $_debug = false;
 
 	private $_codes = array(
 		/* 2xx codes ... */
@@ -143,6 +145,12 @@ class UW_Restful extends UW_Model {
 		/* Fetch raw data */
 		$raw_data = file_get_contents('php://input');
 
+		/* Check if debug is enabled. */
+		if ($this->_debug) {
+			/* If so, dump input contents to error log */
+			error_log($raw_data);
+		}
+
 		/* Decode json data */
 		$json_data = json_decode($raw_data, true);
 
@@ -201,6 +209,12 @@ class UW_Restful extends UW_Model {
 
 		/* Set Content-Length to avoid chunked transfer encodings */
 		$this->header('Content-Length', strlen($output));
+
+		/* Check if debug is enabled. */
+		if ($this->_debug) {
+			/* If so, dump output contents to error log */
+			error_log($output);
+		}
 
 		/* Send the body contents and terminate execution */
 		exit($output);
