@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 04/06/2017
+ * Date: 01/06/2017
  * License: GPLv3
  */
 
@@ -49,6 +49,7 @@ class UW_Restful extends UW_Model {
 		'406' => 'Not Acceptable',
 		'409' => 'Conflict',
 		'410' => 'Gone',
+		'412' => 'Precondition Failed',
 		/* 5xx codes ... */
 		'500' => 'Internal Server Error',
 		'502' => 'Bad Gateway',
@@ -352,6 +353,81 @@ class UW_Restful extends UW_Model {
 				}
 			}
 		}
+	}
+
+	public function request($method, $url, $data = NULL, $headers = NULL) {
+            /* Set required request headers */
+			if ($headers === NULL) {
+				$req_headers = array(
+					'Accept: application/json',
+					'Content-Type: application/json'
+				);
+			} else {
+				$req_headers = $headers;
+			}
+
+            /* Forward request to the underlying layer (notify) */
+            $ch = curl_init();
+
+            /* Set the request URL */
+            curl_setopt($ch, CURLOPT_URL, $url);
+
+            /* Set cURL request headers */
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $req_headers);
+
+			/* Process method */
+			switch (strtoupper($method)) {
+				case 'DELETE': {
+					/* Set DELETE method */
+					curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
+				} break;
+
+				case 'GET': {
+					/* Default */
+				} break;
+
+				case 'OPTIONS': {
+					/* Set OPTIONS method */
+					curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'OPTIONS');
+				} break;
+
+				case 'PATCH': {
+					/* Set PATCH method */
+					curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PATCH');
+				} break;
+
+				case 'POST': {
+					/* Set request method to POST */
+					curl_setopt($ch, CURLOPT_POST, true);
+				} break;
+
+				case 'PUT': {
+					/* Set PUT method */
+					curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PUT');
+				} break;
+
+				default: {
+					/* Set custom method (experimental). NOTE: In the future, this may be the default, less verbose way to all the other explicit cases */
+					curl_setopt($ch, CURLOPT_CUSTOMREQUEST, strtoupper($method));
+				}
+			}
+
+			if ($data !== NULL) {
+				/* Set request body data */
+				curl_setopt($ch, CURLOPT_POSTFIELDS, is_array($data) ? json_encode($data) : $data);
+			}
+
+            /* Grant that cURL will return the response output */
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+            /* Execute the request */
+            $output = curl_exec($ch);
+
+            /* Close the cURL handler */
+            curl_close($ch);
+
+            /* All good */
+            return $output;
 	}
 
 	public function doc_init($object) {

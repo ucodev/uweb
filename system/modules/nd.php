@@ -1749,6 +1749,8 @@ class UW_ND extends UW_Module {
 	}
 
 	public function cache_data_get($object, $method, $args) {
+		/* NOTE: Cache may be a security risk since it doesn't account for the current session privileges. Take care when enabling it. */
+
 		/* Check if cache control demands no caching */
 		if (($hdr_cache_control = $this->restful->header('Cache-Control'))) {
 			$ctrls = explode(',', $hdr_cache_control);
@@ -1760,12 +1762,42 @@ class UW_ND extends UW_Module {
 			}
 		}
 
+		/* Craft key suffix */
+		$ksuffix = $object . '_' . $method . '_' . md5(json_encode($args));
+
+		/* Get current timestamp */
+		$ctime = time();
+
 		/* Load the context where object data resides */
 		$cache_context_orig = $this->cache->context();
 		$this->cache->load(ND_REQ_CACHE_CONTEXT_GENERIC);
 
-		/* NOTE: Cache may be a security risk since it doesn't account for the current session privileges. Take care when enabling it. */
-		$data = $this->cache->get('nd_object_' . $object . '_' . $method . '_' . md5(json_encode($args)));
+		/* Get object creation and invalidation time */
+		$tcreated = $this->cache->get('nd_created_' . $ksuffix);
+		$tinvalid = $this->cache->get('nd_invalidated_' . $object);
+
+		/* Check if cache is still valid */
+		if  ($tcreated &&
+			($tcreated > $tinvalid) &&
+			($data = $this->cache->get('nd_data_' . $object . '_' . $method . '_' . md5(json_encode($args)))))
+		{
+			/* Get cache lifetime */
+			$tlifetime = $this->cache->get('nd_lifetime_' . $ksuffix);
+
+			/* Set expiration time header if lifetime is available */
+			if ($tlifetime)
+				$this->restful->header('Expires', date('l, d-M-Y H:i:s T', $tcreated + $tlifetime));
+			
+			/* Get document ETag */
+			$etag = $this->cache->get('nd_etag_' . $ksuffix);
+
+			/* Set ETag header if a document hash is available */
+			if ($etag)
+				$this->restful->header('ETag', 'W/"' . $etag . '"'); /* NOTE: Currently, we assume a weak ETag validation */
+		} else {
+			/* If the cache was created before it was invalidated, do not return any cached data */
+			$data = NULL;
+		}
 
 		/* Reload the original cache context */
 		$this->cache->load($cache_context_orig);
@@ -1775,15 +1807,42 @@ class UW_ND extends UW_Module {
 	}
 
 	public function cache_data_set($object, $method, $args, $data, $lifetime = NULL) {
+		/* NOTE: Cache may be a security risk since it doesn't account for the current session privileges. Take care when enabling it. */
+
+		/* Craft key suffix */
+		$ksuffix = $object . '_' . $method . '_' . md5(json_encode($args));
+
+		/* If no lifetime is set, use the default value */
+		if ($lifetime === NULL)
+			$lifetime = ND_REQ_CACHE_LIFETIME_GENERIC;
+
+		/* Get current timestamp */
+		$ctime = time();
+
 		/* Load the context where object data resides */
 		$cache_context_orig = $this->cache->context();
 		$this->cache->load(ND_REQ_CACHE_CONTEXT_GENERIC);
 
-		/* NOTE: Cache may be a security risk since it doesn't account for the current session privileges. Take care when enabling it. */
-		$this->cache->set('nd_object_' . $object . '_' . $method . '_' . md5(json_encode($args)), $data, ($lifetime === NULL) ? ND_REQ_CACHE_LIFETIME_GENERIC : $lifetime);
+		/* Set cache data, creation and life time */
+		$this->cache->set('nd_data_' . $ksuffix, $data, $lifetime);
+		$this->cache->set('nd_created_' . $ksuffix, $ctime, $lifetime);
+		$this->cache->set('nd_lifetime_' . $ksuffix, $lifetime, $lifetime);
+		$this->cache->set('nd_invalidated_' . $object, 0, $lifetime);
+
+		/* Set ETag */
+		if (($json_data = json_encode($data)))
+			$this->cache->set('nd_etag_' . $ksuffix, sha1($json_data), $lifetime);
 
 		/* Reload the original cache context */
 		$this->cache->load($cache_context_orig);
+	}
+
+	public function cache_data_invalidate($object, $lifetime = NULL) {
+		/* If no lifetime is set, use the default value */
+		if ($lifetime === NULL)
+			$lifetime = ND_REQ_CACHE_LIFETIME_GENERIC;
+		
+		$this->cache->set('nd_invalidated_' . $object, time(), $lifetime);
 	}
 
 	public function forward($object, $method, $argv, $input = NULL) {
@@ -1873,7 +1932,12 @@ class UW_ND extends UW_Module {
 				/* Insert the entry */
 				$data = $this->insert($properties['route'], $argv, $input, $properties['fields'], isset($properties['public']) ? $properties['public'] : false);
 
-				/* NOTE: Cache invalidation isn't supported yet */
+				/* Perform cache invalidation for referenced objects */
+				if (isset($properties['invalidate']) && is_array($properties['invalidate'])) {
+					foreach ($properties['invalidate'] as $invalid_obj) {
+						$this->cache_data_invalidate($invalid_obj);
+					}
+				}
 
 				/* All good */
 				return array(
@@ -1896,7 +1960,12 @@ class UW_ND extends UW_Module {
 				/* Insert the entry */
 				$data = $this->update($properties['route'], $argv, $input, $properties['fields'], isset($properties['public']) ? $properties['public'] : false);
 
-				/* NOTE: Cache invalidation isn't supported yet */
+				/* Perform cache invalidation for referenced objects */
+				if (isset($properties['invalidate']) && is_array($properties['invalidate'])) {
+					foreach ($properties['invalidate'] as $invalid_obj) {
+						$this->cache_data_invalidate($invalid_obj);
+					}
+				}
 
 				/* All good */
 				return array(
@@ -1915,7 +1984,12 @@ class UW_ND extends UW_Module {
 				/* Delete the entry */
 				$this->delete($properties['route'], $argv, isset($properties['public']) ? $properties['public'] : false);
 
-				/* NOTE: Cache invalidation isn't supported yet */
+				/* Perform cache invalidation for referenced objects */
+				if (isset($properties['invalidate']) && is_array($properties['invalidate'])) {
+					foreach ($properties['invalidate'] as $invalid_obj) {
+						$this->cache_data_invalidate($invalid_obj);
+					}
+				}
 
 				/* All good */
 				return array(
