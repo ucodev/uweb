@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 04/06/2017
+ * Date: 11/06/2017
  * License: GPLv3
  */
 
@@ -169,7 +169,7 @@ class UW_ND extends UW_Module {
 		$this->cache->load(ND_REQ_CACHE_CONTEXT_AUTH);
 
 		/* Get session cookie */
-		$enc_session_cookie = $this->cache->get('nd_user_session_' . $user_id);
+		$enc_session_cookie = $this->cache->get('nd_user_session_' . sha1($user_id . $auth_token));
 
 		/* Reload original cache context */
 		$this->cache->load($cache_context_orig);
@@ -205,7 +205,7 @@ class UW_ND extends UW_Module {
 		$this->cache->load(ND_REQ_CACHE_CONTEXT_AUTH);
 
 		/* Delete cached session data */
-		$this->cache->delete('nd_user_session_' . $session['user_id']);
+		$this->cache->delete('nd_user_session_' . sha1($session['user_id'] . $session['token']));
 
 		/* Reload original cache context */
 		$this->cache->load($cache_context_orig);
@@ -389,10 +389,10 @@ class UW_ND extends UW_Module {
 		$this->cache->load(ND_REQ_CACHE_CONTEXT_AUTH);
 
 		/* Cache session information */
-		$this->cache->set('nd_user_session_' . $data['userid'], $enc_session_cookie, $session_lifetime);
+		$this->cache->set('nd_user_session_' . sha1($data['userid'] . $data['token']), $enc_session_cookie, $session_lifetime);
 
 		/* Cache user data */		
-		$this->cache->set('nd_user_data_' . $data['userid'], $user_data, $session_lifetime);
+		$this->cache->set('nd_user_data_' . sha1($data['userid'] . $data['token']), $user_data, $session_lifetime);
 
 		/* Reload generic cache context */
 		$this->cache->load($cache_context_orig);
@@ -401,16 +401,28 @@ class UW_ND extends UW_Module {
 		return $data;
 	}
 
-	public function user_data($user_id = NULL) {
+	public function user_data($user_id = NULL, $auth_token = NULL) {
+		/* If no user ID was set, determine it from the headers */
 		if ($user_id === NULL)
 			$user_id = $this->restful->header(ND_REQ_HEADER_USER_ID);
+
+		/* If no authentication token was set, determine it from the headers */
+		if ($auth_token === NULL)
+			$auth_token = $this->restful->header(ND_REQ_HEADER_AUTH_TOKEN);
+
+		/* Weak validation for user ID and authentication token */
+		if (!$user_id || !$auth_token) {
+			$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Unable to retrieve session data for the provided credentials.');
+			$this->restful->error('Unable to retrieve session data for the provided credentials.');
+			$this->restful->output('400'); /* Bad Request */
+		}
 
 		/* Load auth cache context */
 		$cache_context_orig = $this->cache->context();
 		$this->cache->load(ND_REQ_CACHE_CONTEXT_AUTH);
 
 		/* Get user data from auth cache */
-		$user_data = $this->cache->get('nd_user_data_' . $user_id);
+		$user_data = $this->cache->get('nd_user_data_' . sha1($user_id . $auth_token));
 
 		/* Reload original cache context */
 		$this->cache->load($cache_context_orig);
@@ -429,12 +441,10 @@ class UW_ND extends UW_Module {
 		/* Check if the logout was successful */
 		if ($nd_data['logout'] !== true) {
 			/* Not found */
-			$this->log('403', __FILE__, __LINE__, __FUNCTION__, 'Logout failed.', $session);
+			$this->log('502', __FILE__, __LINE__, __FUNCTION__, 'Logout failed.', $session);
 			$this->restful->error('Logout failed.');
-			$this->restful->output('403'); /* Forbidden */
+			$this->restful->output('502'); /* Bad Gateway */
 		}
-
-		/* TODO: FIXME: Call /login/logout on ndphp layer */
 
 		/* Destroy user session */
 		$this->session_destroy($session);
