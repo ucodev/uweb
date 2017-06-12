@@ -427,7 +427,7 @@ class UW_Restful extends UW_Model {
             curl_close($ch);
 
             /* All good */
-            return $output;
+            return json_decode($output, true);
 	}
 
 	public function doc_init($object) {
