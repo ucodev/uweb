@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 22/07/2016
+ * Date: 11/06/2017
  * License: GPLv3
  */
 
@@ -28,6 +28,13 @@
  */
 
 /** THIS FILE IS LOADED FROM system/index.php **/
+
+/* uWeb Base Class */
+class UW_Base {
+	public function __construct() {
+		return;
+	}
+}
 
 /* Include all system core modules */
 foreach (glob("system/core/*.php") as $sys_core) {

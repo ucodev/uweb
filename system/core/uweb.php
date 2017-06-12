@@ -27,12 +27,6 @@
  *
  */
 
-class UW_Base {
-	public function __construct() {
-		return;
-	}
-}
-
 class UW_View extends UW_Base {
 	public function load($file, $data = NULL, $export_content = false, $enforce = true) {
 		/* If enforce is set, grant that no potential harmful tags are exported to the view */
