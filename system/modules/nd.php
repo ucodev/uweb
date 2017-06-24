@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 11/06/2017
+ * Date: 24/06/2017
  * License: GPLv3
  */
 
@@ -107,6 +107,9 @@ class UW_ND extends UW_Module {
 		/* Grant that cURL will return the response output */
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 
+		/* Get HTTP Status Code */
+		$http_status_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
 		/* Execute the request */
 		$output = curl_exec($ch);
 
@@ -126,9 +129,18 @@ class UW_ND extends UW_Module {
 		/* Check if JSON data was successfully decoded */
 		if ($nd_data === NULL) {
 			/* Cannot decode JSON data */
-			$this->log('502', __FILE__, __LINE__, __FUNCTION__, 'Unable to decode JSON data from the underlying layer response. Output: ' . $output, $session);
-			$this->restful->error('An error ocurred while decoding data from the underlying layer. Please contact support.');
-			$this->restful->output('502'); /* Bad Gateway */
+
+			/* Always explicitly inform about unauthorized or forbidden status codes */
+			if (in_array($http_status_code, array(401, 403)) {
+				$this->log($http_status_code, __FILE__, __LINE__, __FUNCTION__, 'An An authorization or access request was denied while processing the request at the underlying layer: ' . $output, $session);
+				$this->restful->error('An authorization or access request was denied while processing the request at the underlying layer: ' . $output);
+				$this->restful->output($http_status_code); /* [401] Unauthorized / [403] Forbidden */				
+			} else {
+				/* Mask any other status as Bad Gateway */
+				$this->log('502', __FILE__, __LINE__, __FUNCTION__, 'Unable to decode JSON data from the underlying layer response. Output: ' . $output, $session);
+				$this->restful->error('An error ocurred while decoding data from the underlying layer. Please contact support.');
+				$this->restful->output('502'); /* Bad Gateway */
+			}
 		} else if ($nd_data['status'] !== true) {
 			/* The request was understood, but the underlying layer is refusing to fulfill it */
 			$this->log(isset($nd_data['code']) ? $nd_data['code'] : '502', __FILE__, __LINE__, __FUNCTION__, 'Request was not successful: ' . $nd_data['content'] . '.', $session);
@@ -227,7 +239,7 @@ class UW_ND extends UW_Module {
 		}
 
 		/* Grant that we've all the required fields */
-		foreach (array('first_name', 'last_name', 'username', 'password', 'password_check', 'email', 'countries_id', 'terms') as $field) {
+		foreach (array('username', 'password', 'password_check', 'email', 'terms') as $field) {
 			if (!isset($register[$field])) {
 				$this->log('403', __FILE__, __LINE__, __FUNCTION__, 'Registration failed: Missing required field: ' . $field . '. (Requested by username ' . $register['username'] . ')');
 				$this->restful->error('Missing required field: ' . $field);
