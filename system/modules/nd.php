@@ -132,7 +132,7 @@ class UW_ND extends UW_Module {
 
 			/* Always explicitly inform about unauthorized or forbidden status codes */
 			if (in_array($http_status_code, array(401, 403))) {
-				$this->log($http_status_code, __FILE__, __LINE__, __FUNCTION__, 'An An authorization or access request was denied while processing the request at the underlying layer: ' . $output, $session);
+				$this->log($http_status_code, __FILE__, __LINE__, __FUNCTION__, 'An authorization or access request was denied while processing the request at the underlying layer: ' . $output, $session);
 				$this->restful->error('An authorization or access request was denied while processing the request at the underlying layer: ' . $output);
 				$this->restful->output($http_status_code); /* [401] Unauthorized / [403] Forbidden */				
 			} else {
