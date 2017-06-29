@@ -130,11 +130,17 @@ class UW_ND extends UW_Module {
 		if ($nd_data === NULL) {
 			/* Cannot decode JSON data */
 
-			/* Always explicitly inform about unauthorized or forbidden status codes */
+			/* Map relevant underlying layer errors */
 			if (in_array($http_status_code, array(401, 403))) {
+				/* Always explicitly inform about unauthorized or forbidden status codes */
 				$this->log($http_status_code, __FILE__, __LINE__, __FUNCTION__, 'An authorization or access request was denied while processing the request at the underlying layer: ' . $output, $session);
 				$this->restful->error('An authorization or access request was denied while processing the request at the underlying layer: ' . $output);
-				$this->restful->output($http_status_code); /* [401] Unauthorized / [403] Forbidden */				
+				$this->restful->output($http_status_code); /* [401] Unauthorized / [403] Forbidden */
+			} else if ($http_status_code == 409) {
+				/* Conflicting data should be forwarded from the underlying layer to the client */
+				$this->log($http_status_code, __FILE__, __LINE__, __FUNCTION__, 'A conflict occured while processing the request at the underlying layer: ' . $output, $session);
+				$this->restful->error('A conflict occured while processing the request at the underlying layer: ' . $output);
+				$this->restful->output($http_status_code); /* [409] Conflict */
 			} else {
 				/* Mask any other status as Bad Gateway */
 				$this->log('502', __FILE__, __LINE__, __FUNCTION__, 'Unable to decode JSON data from the underlying layer response. Output: ' . $output, $session);

@@ -45,6 +45,9 @@ function base_dir() {
 function base_url($with_index = false) {
 	global $config;
 
+	if (isset($config['base']['url']) && ($config['base']['url'] !== NULL))
+		return $config['base']['url'] . ($with_index ? 'index.php/' : '');
+
 	$server_port = '';
 
 	if (!isset($_SERVER['HTTPS']) && $_SERVER['SERVER_PORT'] != '80') {
