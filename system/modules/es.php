@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 04/06/2017
+ * Date: 01/07/2017
  * License: GPLv3
  */
 
@@ -326,7 +326,7 @@ class UW_ES extends UW_Module {
         if (isset($input['limit'])) {
             /* Check if limit value is an integer */
             if (gettype($input['limit']) != 'integer') {
-                $this->restful->error('Paramter \'limit\' is set, but it\'s not of integer type.');
+                $this->restful->error('Parameter \'limit\' is set, but it\'s not of integer type.');
                 $this->restful->output('400');
             }
 
@@ -346,7 +346,7 @@ class UW_ES extends UW_Module {
         if (isset($input['offset'])) {
             /* Check if offset value is an integer */
             if (gettype($input['offset']) != 'integer') {
-                $this->restful->error('Paramter \'offset\' is set, but it\'s not of integer type.');
+                $this->restful->error('Parameter \'offset\' is set, but it\'s not of integer type.');
                 $this->restful->output('400');
             }
 
@@ -360,7 +360,7 @@ class UW_ES extends UW_Module {
         if (isset($input['orderby'])) {
             /* Check if orderby value is a string */
             if (gettype($input['orderby']) != 'string') {
-                $this->restful->error('Paramter \'orderby\' is set, but it\'s not of string type.');
+                $this->restful->error('Parameter \'orderby\' is set, but it\'s not of string type.');
                 $this->restful->output('400');
             }
 
@@ -371,13 +371,34 @@ class UW_ES extends UW_Module {
         /* Ordering */
         if (isset($input['ordering'])) {
             /* Check if ordering value is a string */
-            if (strtolower($input['ordering']) != 'asc' && strtolower($input['ordering']) != 'desc') {
-                $this->restful->error('Paramter \'ordering\' is set, but it\'s not of \'asc\' nor \'desc\'.');
+            if ((strtolower($input['ordering']) != 'asc') && (strtolower($input['ordering']) != 'desc') && (strtolower($input['ordering'] != 'in'))) {
+                $this->restful->error('Parameter \'ordering\' is set, but it\'s not one of \'asc\', \'desc\' nor \'in\'.');
                 $this->restful->output('400');
             }
 
-            /* Set the ordering of the result */
-            $search['ordering'] = strtolower($input['ordering']);
+            /* Check if this is an in-order ordering */
+            if (strtolower($input['ordering']) == 'in') {
+                /* Ordering by 'in' requires 'orderby' parameter to be explicitly set */
+                if (!isset($input['orderby'])) {
+                    $this->restful->error('Parameter \'ordering\' is set as \'in\', but no \'orderby\' parameter was found.');
+                    $this->restful->output('400');
+                }
+
+                /* Ordering by 'in' requires 'query' parameter to contain a 'in' criteria for the 'orderby' field. */
+                if (!isset($input['query'][$input['orderby']]['in'])) {
+                    $this->restful->error('Parameter \'ordering\' is set as \'in\', but \'query\' does not contain a \'in\' criteria for the field set for \'orderby\' parameter.');
+                    $this->restful->output('400');
+                }
+
+                /* Mark this search for reordering based on 'in' criteria */
+                $search['inorder'] = true;
+
+                /* Set order to ascending (could also be descending, as the result will be reordered) */
+                $search['ordering'] = 'asc';
+            } else {
+                /* Set the ordering of the result */
+                $search['ordering'] = strtolower($input['ordering']);
+            }
         } else if (isset($input['orderby'])) {
             /* If orderby was set, use a default 'asc' ordering */
             $search['ordering'] = 'asc';
@@ -430,11 +451,29 @@ class UW_ES extends UW_Module {
         $data = array();
         $data[$index]['total'] = $output['hits']['total'];
         $data[$index]['count'] = count($output['hits']['hits']);
-        $data[$index]['result'] = array();
 
-        /* Remap result */
-        foreach ($output['hits']['hits'] as $hit)
-            array_push($data[$index]['result'], $hit['_source']);
+        /* inorder results require a pre-existing array, filled with empty (false) values */
+        if (isset($search['inorder']) && ($search['inorder'] === true)) {
+            /* Get 'in' criteria values */
+            $in_values = $input['query'][$input['orderby']]['in'];
+
+            /* Initialize array */
+            $data[$index]['result'] = array_fill(0, count($in_values), false);
+
+            /* Remap and reorder the result */
+            foreach ($output['hits']['hits'] as $hit)
+                $data[$index]['result'][intval(array_search($hit['_source'][$search['orderby']], $in_values))] = $hit['_source'];
+
+            /* Filter empty values (values that are set to false, which were not filled by the above iteration) */
+            $data[$index]['result'] = array_values(array_filter($data[$index]['result']));
+        } else {
+            $data[$index]['result'] = array();
+
+            /* Remap result */
+            foreach ($output['hits']['hits'] as $hit)
+                array_push($data[$index]['result'], $hit['_source']);
+        }
+
 
         /* All good */
         return $data;

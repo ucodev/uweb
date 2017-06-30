@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 24/06/2017
+ * Date: 01/07/2017
  * License: GPLv3
  */
 
@@ -888,7 +888,7 @@ class UW_ND extends UW_Module {
 		}
 
 		/* Set inserted id */
-		$data['id'] = $nd_data['insert_id'];
+		$data['id'] = intval($nd_data['insert_id']);
 
 		/* All good */
 		return $data;
@@ -1045,6 +1045,32 @@ class UW_ND extends UW_Module {
 				$input['orderby'] = $fields['mapped_pre'][$orderby_field];
 		}
 
+		/* Validate ordering field and check for special case 'in' (inorder) */
+		if (isset($input['ordering']) && (strtolower($input['ordering']) == 'in')) {
+                /* Ordering by 'in' requires 'orderby' parameter to be explicitly set */
+                if (!isset($input['orderby'])) {
+					$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Parameter \'ordering\' is set as \'in\', but no \'orderby\' parameter was found.', $session);
+                    $this->restful->error('Parameter \'ordering\' is set as \'in\', but no \'orderby\' parameter was found.');
+                    $this->restful->output('400'); /* Bad Request */
+                }
+
+                /* Ordering by 'in' requires 'query' parameter to contain a 'in' criteria for the 'orderby' field. */
+                if (!isset($input['query'][$input['orderby']]['in'])) {
+					$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Parameter \'ordering\' is set as \'in\', but \'query\' does not contain a \'in\' criteria for the field set for \'orderby\' parameter.', $session);
+                    $this->restful->error('Parameter \'ordering\' is set as \'in\', but \'query\' does not contain a \'in\' criteria for the field set for \'orderby\' parameter.');
+                    $this->restful->output('400'); /* Bad Request */
+                }
+
+                /* Mark this search for reordering based on 'in' criteria */
+                $inorder = true;
+
+                /* Set order to ascending (could also be descending, as the result will be reordered) */
+                $input['ordering'] = 'asc';
+		} else {
+			/* If no ordering was set, inorder is always false */
+			$inorder = false;
+		}
+
 		/* Sanitize input and rename any mapped fields from query */
 		$query = array();
 
@@ -1118,6 +1144,15 @@ class UW_ND extends UW_Module {
 		if (!$nd_data['count'])
 			$this->restful->output('201'); /* Search was peformed, but no content was delivered */
 
+		/* inorder results require a pre-existing array, filled with empty (false) values */
+		if ($inorder === true) {
+            /* Get 'in' criteria values */
+            $in_values = $input['query'][$input['orderby']]['in'];
+
+            /* Initialize array */
+            $data_inorder = array_fill(0, count($in_values), false);
+		}
+
 		/* Iterate over the result array, converting any types required and mapped fields */
 		for ($i = 0; $i < $nd_data['count']; $i ++) {
 			/* Set a temporary row to be safely iterated */
@@ -1148,7 +1183,15 @@ class UW_ND extends UW_Module {
 					$nd_data['result'][$i][$fields_mapped_post[$k]] = $v;
 				}
 			}
+
+			/* Populate inorder data array (reordered result) */
+			if ($inorder === true)
+				$data_inorder[intval(array_search($row[$input['orderby']], $in_values))] = $nd_data['result'][$i];
 		}
+
+		/* If inorder reordering was requested, filter out empty results (from non-existing entries that were included under the 'in' criteria) */
+		if ($inorder === true)
+			$nd_data['result'] = array_values(array_filter($data_inorder));
 
 		/* Check for aggregation requests */
 		if (isset($aggregations) && (count($aggregations) > 0)) {
