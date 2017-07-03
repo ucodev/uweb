@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 01/07/2017
+ * Date: 02/07/2017
  * License: GPLv3
  */
 
@@ -436,8 +436,19 @@ class UW_ES extends UW_Module {
 		/* Execute the request */
 		$es_output = curl_exec($ch);
 
+		/* Get HTTP Status Code */
+		$http_status_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
 		/* Close the cURL handler */
 		curl_close($ch);
+
+
+        /** Status **/
+        if (!in_array($http_status_code, array(200, 201))) {
+            $this->restful->error('Unable to retrieve data from the search engine.');
+            $this->restful->output('502'); /* Bad Gateway */
+        }
+
 
         /** Output **/
         $output = json_decode($es_output, true);
