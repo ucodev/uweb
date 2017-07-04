@@ -46,9 +46,10 @@ class ut:
 	force_passed = False
 	force_failed = False
 
-	def __init__(self, ignore_list = [], expect_list = {}):
+	def __init__(self, ignore_list = [], expect_list = {}, acceptable_list = {}):
 		self.obj_list_ignore = ignore_list
 		self.obj_list_expect = expect_list
+		self.obj_list_acceptable = acceptable_list
 		# Initialize uweb interface
 		self.u = uweb.rest()
 
@@ -78,17 +79,31 @@ class ut:
 			# Retrieve a few elements from the collection
 			r_list = self.u.listing(self.obj_name, 10, 0, 'id', 'desc', False)
 
+			# Initialize expected status list
+			status_expected = []
+
+			if self.obj_list_expect.has_key(self.obj_name) and self.obj_list_expect[self.obj_name].has_key('listing') and self.obj_list_expect[self.obj_name]['listing'].has_key('codes'):
+				status_expected = self.obj_list_expect[self.obj_name]['listing']['codes']
+			else:
+				status_expected = self.r_options['json']['data']['method']['GET']['response']['codes']['collection']['success']
+
 			# Check if the received status code is outside of the expected success codes
-			if (r_list['json']['info']['code'] not in self.r_options['json']['data']['method']['GET']['response']['codes']['collection']['success']) or r_list['json']['info']['errors']:
-				# Check if this status code was set as expected for this object
-				if self.obj_list_expect.has_key(self.obj_name) and self.obj_list_expect[self.obj_name].has_key('listing') and (r_list['json']['info']['code'] in self.obj_list_expect[self.obj_name]['listing']['codes']):
-					self.log(ATC_YELLOW + "Expected" + ATC_RESET + " [" + str(r_list['json']['info']['code']) + "]: " + r_list['json']['errors']['message'])
+			if r_list['json']['info']['code'] not in status_expected:
+				# Check if this status code was set as acceptable for this object
+				if self.obj_list_acceptable.has_key(self.obj_name) and self.obj_list_acceptable[self.obj_name].has_key('listing') and (r_list['json']['info']['code'] in self.obj_list_acceptable[self.obj_name]['listing']['codes']):
+					self.log(ATC_YELLOW + "Acceptable" + ATC_RESET + " [" + str(r_list['json']['info']['code']) + "]: " + r_list['json']['errors']['message'])
 					self.force_acceptable = True
 					return True
 				else:
 					self.log(ATC_RED + "Failed" + ATC_RESET + " [" + str(r_list['json']['info']['code']) + "]: " + r_list['json']['errors']['message'])
 					self.failed()
 					return False
+
+			# If the status is expected but if there are errors, mark the check as expected and bail out
+			if r_list['json']['info']['errors']:
+				self.log(ATC_YELLOW + "Expected" + ATC_RESET + " [" + str(r_list['json']['info']['code']) + "]: " + r_list['json']['errors']['message'])
+				self.force_passed = True
+				return True
 
 			# Check if the collection is empty
 			if r_list['json']['info']['data'] == True and r_list['json']['data']['count'] == 0:
@@ -119,17 +134,31 @@ class ut:
 			# Retrieve the pivot element
 			r_view = self.u.view(self.obj_name, self.id_pivot)
 
+			# Initialize expected status list
+			status_expected = []
+
+			if self.obj_list_expect.has_key(self.obj_name) and self.obj_list_expect[self.obj_name].has_key('view') and self.obj_list_expect[self.obj_name]['view'].has_key('codes'):
+				status_expected = self.obj_list_expect[self.obj_name]['view']['codes']
+			else:
+				status_expected = self.r_options['json']['data']['method']['GET']['response']['codes']['single']['success']
+
 			# Check if the received status code is outside of the expected success codes
-			if (r_view['json']['info']['code'] not in self.r_options['json']['data']['method']['GET']['response']['codes']['single']['success']) or r_view['json']['info']['errors']:
-				# Check if this status code was set as expected for this object
-				if self.obj_list_expect.has_key(self.obj_name) and self.obj_list_expect[self.obj_name].has_key('view') and (r_view['json']['info']['code'] in self.obj_list_expect[self.obj_name]['view']['codes']):
-					self.log(ATC_YELLOW + "Expected" + ATC_RESET + " [" + str(r_view['json']['info']['code']) + "]: " + r_view['json']['errors']['message'])
+			if r_view['json']['info']['code'] not in status_expected:
+				# Check if this status code was set as acceptable for this object
+				if self.obj_list_acceptable.has_key(self.obj_name) and self.obj_list_acceptable[self.obj_name].has_key('view') and (r_view['json']['info']['code'] in self.obj_list_acceptable[self.obj_name]['view']['codes']):
+					self.log(ATC_YELLOW + "Acceptable" + ATC_RESET + " [" + str(r_view['json']['info']['code']) + "]: " + r_view['json']['errors']['message'])
 					self.force_acceptable = True
 					return True
 				else:
 					self.log(ATC_RED + "Failed" + ATC_RESET + " [" + str(r_view['json']['info']['code']) + "]: " + r_view['json']['errors']['message'])
 					self.failed()
 					return False
+
+			# If the status is expected but if there are errors, mark the check as expected and bail out
+			if r_view['json']['info']['errors']:
+				self.log(ATC_YELLOW + "Expected" + ATC_RESET + " [" + str(r_view['json']['info']['code']) + "]: " + r_view['json']['errors']['message'])
+				self.force_passed = True
+				return True
 
 			self.log(ATC_GREEN + "OK" + ATC_RESET + " [" + str(r_view['json']['info']['code']) + "]")
 		else:
@@ -152,11 +181,19 @@ class ut:
 				# If pivot is set, request the element that matches the pivot id
 				r_search = self.u.request('POST', self.obj_name, '{ "limit": 10, "offset": 0, "orderby": "id", "ordering": "asc", "show": [ "id" ], "query": { "id": { "eq": ' + str(self.id_pivot) + '} } }', args = 'search')
 
+			# Initialize expected status list
+			status_expected = []
+
+			if self.obj_list_expect.has_key(self.obj_name) and self.obj_list_expect[self.obj_name].has_key('search') and self.obj_list_expect[self.obj_name]['search'].has_key('codes'):
+				status_expected = self.obj_list_expect[self.obj_name]['search']['codes']
+			else:
+				status_expected = self.r_options['json']['data']['method']['POST']['response']['codes']['search']['success']
+
 			# Check if the received status code is outside of the expected success codes
-			if (r_search['json']['info']['code'] not in self.r_options['json']['data']['method']['POST']['response']['codes']['search']['success']) or r_search['json']['info']['errors']:
-				# Check if this status code was set as expected for this object
-				if self.obj_list_expect.has_key(self.obj_name) and self.obj_list_expect[self.obj_name].has_key('search') and (r_search['json']['info']['code'] in self.obj_list_expect[self.obj_name]['search']['codes']):
-					self.log(ATC_YELLOW + "Expected" + ATC_RESET + " [" + str(r_search['json']['info']['code']) + "]: " + r_search['json']['errors']['message'])
+			if r_search['json']['info']['code'] not in status_expected:
+				# Check if this status code was set as acceptable for this object
+				if self.obj_list_acceptable.has_key(self.obj_name) and self.obj_list_acceptable[self.obj_name].has_key('search') and (r_search['json']['info']['code'] in self.obj_list_acceptable[self.obj_name]['search']['codes']):
+					self.log(ATC_YELLOW + "Acceptable" + ATC_RESET + " [" + str(r_search['json']['info']['code']) + "]: " + r_search['json']['errors']['message'])
 					self.force_acceptable = True
 					return True
 				else:
@@ -164,6 +201,12 @@ class ut:
 					self.failed()
 					return False
 
+			# If the status is expected but if there are errors, mark the check as expected and bail out
+			if r_search['json']['info']['errors']:
+				self.log(ATC_YELLOW + "Expected" + ATC_RESET + " [" + str(r_search['json']['info']['code']) + "]: " + r_search['json']['errors']['message'])
+				self.force_passed = True
+				return True
+			
 			# Grant that we received data
 			if r_search['json']['info']['data'] == False or r_search['json']['data']['count'] < 1:
 				self.log(ATC_RED + "Failed" + ATC_RESET + " [" + str(r_search['json']['info']['code']) + "] (Empty result for ID: " + str(r_list['json']['data']['result'][0]['id']) + ")")
@@ -280,7 +323,7 @@ class ut:
 
 		self.log("\n")
 
-		self.log("Total      : " + ATC_BOLD +              ("%d" % (self.count_total)) + ATC_RESET + "\t(100%%)\n")
+		self.log("Total      : " + ATC_BOLD +              ("%d" % (self.count_total)) + ATC_RESET + "\t(100%)\n")
 		self.log("           -\n")
 		self.log("Passed     : " + ATC_BOLD + ATC_GREEN  + ("%d" % (self.count_passed))     + ATC_RESET + ("\t(%.2f%%)\n" % (self.count_passed * 100.0 / self.count_total)))
 		self.log("Acceptable : " + ATC_BOLD + ATC_YELLOW + ("%d" % (self.count_acceptable)) + ATC_RESET + ("\t(%.2f%%)\n" % (self.count_acceptable * 100.0 / self.count_total)))
