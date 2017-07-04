@@ -71,6 +71,10 @@ class rest:
 
 	# Load authentication information, if any
 	def auth_load(self):
+		# Ignore authentication procedures if this is a public profile
+		if self.config.has_key('public') and self.config['public'] == True:
+			return None
+
 		# If there's no authentication cache, return None
 		if not os.path.isfile(self.file_authcache):
 			return None
@@ -172,6 +176,10 @@ class rest:
 	
 	# Authentication: Sign-in
 	def login(self, username = None, password = None):
+		# Ignore authentication procedures if this is a public profile
+		if self.config.has_key('public') and self.config['public'] == True:
+			return True
+
 		req_data = {}
 
 		if username and password:
@@ -203,12 +211,20 @@ class rest:
 		return True
 
 	def session_status(self):
+		# Ignore session procedures if this is a public profile
+		if self.config.has_key('public') and self.config['public'] == True:
+			return True
+
 		r = self.request('GET', 'auth')
 
 		return r['code'] == 200
 			
 	# Authentication: Sign-out
 	def logout(self):
+		# Ignore authentication procedures if this is a public profile
+		if self.config.has_key('public') and self.config['public'] == True:
+			return True
+
 		r = self.request('DELETE', 'auth')
 
 		if r['code'] != 200:
@@ -246,6 +262,10 @@ class rest:
 
 		# Load REST API configuration
 		self.config_load()
+
+		# If this is a public profile, no need to continue for authentication setup
+		if self.config.has_key('public') and self.config['public'] == True:
+			return
 
 		# Load any authentication cache
 		self.auth_load()
@@ -298,14 +318,14 @@ class rest:
 		req_data = {}
 
 		# Check if there's enough data provided to process the request
-		if not k and not entry:
+		if not k and not json_data:
 			raise Exception("One of 'k' or 'json_data' parameters must be filled.")
 
-		if k and entry:
+		if k and json_data:
 			raise Exception("Only on of 'k' or 'json_data' can be filled.")
 
 		# Decode entry
-		if entry:
+		if json_data:
 			entry = json.loads(json_data)
 		elif k:
 			# Craft entry based on k/v
@@ -317,7 +337,7 @@ class rest:
 			v = entry[k]
 
 			# Files have a special treatment
-			if "_file_" in k:
+			if ("_file_" in k) and (v is not None):
 				st = os.stat(v)
 
 				req_data[k] = {
@@ -331,7 +351,7 @@ class rest:
 			else:
 				req_data[k] = v
 
-		return self.request('PATCH', obj, data = req_data, args = str(entry_id))
+		return self.request('PATCH', obj, req_data, args = str(entry_id))
 
 	# DELETE: Deletes an entry from obj collection
 	def delete(self, obj, entry_id):
