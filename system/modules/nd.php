@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 01/07/2017
+ * Date: 08/07/2017
  * License: GPLv3
  */
 
@@ -28,6 +28,8 @@
  */
 
 class UW_ND extends UW_Module {
+	private $_session = NULL;
+
 	public function log($code, $file, $line, $function, $message, $session = NULL) {
 		error_log(
 			'[' . $code . ']: ' .
@@ -164,6 +166,10 @@ class UW_ND extends UW_Module {
 	}
 
 	public function session_init() {
+		/* Evaluate if session was already initiated / retrieved. If so, deliver the stored data */
+		if ($this->_session !== NULL)
+			return $this->_session;
+
 		/* Get user id and authentication token from request headers */
 		$user_id    = $this->restful->header(ND_REQ_HEADER_USER_ID);
 		$auth_token = $this->restful->header(ND_REQ_HEADER_AUTH_TOKEN);
@@ -209,12 +215,15 @@ class UW_ND extends UW_Module {
 			$this->restful->output('401'); /* Unauthorized */
 		}
 
-		/* Return session data */
-		return array(
+		/* Store session data */
+		$this->_session = array(
 			'user_id' => $user_id,
 			'token'   => $auth_token,
 			'cookie'  => $session_cookie
 		);
+
+		/* Return session data */
+		return $this->_session;
 	}
 
 	public function session_destroy($session) {
@@ -227,6 +236,9 @@ class UW_ND extends UW_Module {
 
 		/* Reload original cache context */
 		$this->cache->load($cache_context_orig);
+
+		/* Destroy stored session data */
+		$this->_session = NULL;
 	}
 
 	public function user_register($register) {
@@ -760,8 +772,16 @@ class UW_ND extends UW_Module {
 			if (isset($argv[3]))
 				$reqbody['data']['_ordering'] = (strtolower($argv[3]) == 'desc') ? 'desc' : 'asc';
 
-			if (isset($argv[4]))
+			if (isset($argv[4])) {
+				/* Check if 'totals' is either 0 or 1 */
+				if (($argv[4] !== '0') && ($argv[4] !== '1')) {
+					$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid value for \'totals\' argument: ' . $argv[4] . '. It must be set to 0 or 1.', $session);
+					$this->restful->error('Invalid value for \'totals\' argument: ' . $argv[4] . '. It must be set to 0 or 1.');
+					$this->restful->output('400'); /* Bad Request */
+				}
+
 				$reqbody['data']['_totals'] = intval($argv[4]) ? true : false;
+			}
 		}
 
 		/* Forward request to the underlying layer (nd-php) */
@@ -1928,6 +1948,10 @@ class UW_ND extends UW_Module {
 
 				/* Check if caching is enabled */
 				if (isset($properties['cache']) && ($properties['cache'] === true)) {
+					/* Before retrieving cached data, if this object requires authentication, first evaluate if there's a valid session */
+					if (isset($properties['auth']) && $properties['auth'] === true)
+						$this->session_init(); /* This will prevent public requests from acessing data that requires authenticated users */
+
 					/* If so, try to retrieve data from the cached entry */
 					$data = $this->cache_data_get($object, $method, $argv);
 				}
@@ -1963,6 +1987,10 @@ class UW_ND extends UW_Module {
 
 				/* Check if caching is enabled */
 				if (isset($properties['cache']) && ($properties['cache'] === true)) {
+					/* Before retrieving cached data, if this object requires authentication, first evaluate if there's a valid session */
+					if (isset($properties['auth']) && $properties['auth'] === true)
+						$this->session_init(); /* This will prevent public requests from acessing data that requires authenticated users */
+
 					/* If so, try to retrieve data from the cached entry */
 					$data = $this->cache_data_get($object, $method, $argv);
 				}
@@ -2085,6 +2113,10 @@ class UW_ND extends UW_Module {
 
 				/* Check if caching is enabled */
 				if (isset($properties['cache']) && ($properties['cache'] === true)) {
+					/* Before retrieving cached data, if this object requires authentication, first evaluate if there's a valid session */
+					if (isset($properties['auth']) && $properties['auth'] === true)
+						$this->session_init(); /* This will prevent public requests from acessing data that requires authenticated users */
+
 					/* If so, try to retrieve data from the cached entry */
 					$data = $this->cache_data_get($object, $method, $input);
 				}

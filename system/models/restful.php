@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 11/06/2017
+ * Date: 08/07/2017
  * License: GPLv3
  */
 
@@ -66,9 +66,10 @@ class UW_Restful extends UW_Model {
 	);
 
 	private $_info = array(
+		'id' => NULL,
 		'data' => false,
 		'errors' => false,
-		'method' => 'NONE',
+		'method' => NULL,
 		'code' => '400'
 	);
 
@@ -77,6 +78,10 @@ class UW_Restful extends UW_Model {
 	);
 
 	private $_headers = array();
+
+	private $_call = NULL; /* Call information */
+
+	private $_id = NULL; /* Request ID */
 
 	private function _headers_http_collect() {
 		if (count($this->_headers))
@@ -94,6 +99,39 @@ class UW_Restful extends UW_Model {
 
 
 	/** Public **/
+
+	public function id($id = NULL) {
+		if  ($id !== NULL)
+			$this->_info['id'] = $id;
+
+		if ($this->_info['id'] === NULL)
+			$this->_info['id'] = sha1(random_bytes(256));
+
+		return $this->_info['id'];
+	}
+
+	public function call_start($object = NULL, $function = NULL, $argv = NULL) {
+		$this->_call = array();
+		$this->_call['from'] = $_SERVER['REMOTE_ADDR'];
+		$this->_call['to'] = $_SERVER['SERVER_NAME'];
+		$this->_call['object'] = $object;
+		$this->_call['function'] = $function;
+		$this->_call['argv'] = $argv;
+		$this->_call['start'] = microtime(true);
+		$this->_call['end'] = NULL;
+
+		return $this->_call;
+	}
+
+	public function call_end() {
+		$this->_call['end'] = microtime(true);
+
+		return $this->_call;
+	}
+
+	public function call_info() {
+		return $this->_call;
+	}
 
 	public function code($code, $protocol = 'HTTP/1.1') {
 		$this->_info['code'] = intval($code);
@@ -169,6 +207,10 @@ class UW_Restful extends UW_Model {
 	}
 
 	public function output($code, $data = NULL) {
+		/* Check if there's a method set */
+		if ($this->_info['method'] === NULL)
+			$this->method(); /* Initialize method */
+
 		/* Set status code */
 		$this->code($code);
 
@@ -202,6 +244,12 @@ class UW_Restful extends UW_Model {
 			}
 		}
 
+		/* Inform that this request call is about to end */
+		$this->call_end();
+
+		/* Set call information */
+		$body['info']['call'] = $this->call_info();
+
 		/* Encode response to JSON */
 		if (($output = json_encode($body)) === false) {
 			$this->error('Unable to encode content.');
@@ -219,6 +267,14 @@ class UW_Restful extends UW_Model {
 
 		/* Send the body contents and terminate execution */
 		exit($output);
+	}
+
+	public function init($ctrl, $obj_function, $argv = NULL) {
+		/* Initialize request id */
+		$this->id();
+
+		/* Set object name and called function */
+		$this->call_start(strtolower(get_class($ctrl)), $obj_function, $argv);
 	}
 
 	public function validate() {
@@ -242,13 +298,16 @@ class UW_Restful extends UW_Model {
 	}
 
 	public function process(&$ctrl, $argv = NULL) {
-		/* Validate RESTful request */
-		$this->validate();
-
 		/* Process method */
 		switch ($this->method()) {
 			case 'GET': {
 				if (($argv == NULL) || (count($argv) > 1)) {
+					/* Initialize environment */
+					$this->init($ctrl, 'listing', $argv);
+
+					/* Validate RESTful request */
+					$this->validate();
+
 					/* If no argument, we'll target the collection */
 					if (method_exists($ctrl, 'listing')) {
 						$ctrl->listing($argv);
@@ -260,6 +319,12 @@ class UW_Restful extends UW_Model {
 						$this->output('404');
 					}
 				} else {
+					/* Initialize environment */
+					$this->init($ctrl, 'view', $argv);
+
+					/* Validate RESTful request */
+					$this->validate();
+
 					/* Otherwise, we'll target the collection item identified by the argument */
 					if (method_exists($ctrl, 'view')) {
 						$ctrl->view($argv);
@@ -274,6 +339,12 @@ class UW_Restful extends UW_Model {
 			} break;
 
 			case 'POST': {
+				/* Initialize environment */
+				$this->init($ctrl, 'insert', $argv);
+
+				/* Validate RESTful request */
+				$this->validate();
+
 				if (method_exists($ctrl, 'insert')) {
 					$ctrl->insert($argv);
 				} else {
@@ -286,6 +357,12 @@ class UW_Restful extends UW_Model {
 			} break;
 
 			case 'PATCH': {
+				/* Initialize environment */
+				$this->init($ctrl, 'modify', $argv);
+
+				/* Validate RESTful request */
+				$this->validate();
+
 				if (method_exists($ctrl, 'modify')) {
 					$ctrl->modify($argv);
 				} else {
@@ -298,6 +375,12 @@ class UW_Restful extends UW_Model {
 			} break;
 
 			case 'PUT': {
+				/* Initialize environment */
+				$this->init($ctrl, 'update', $argv);
+
+				/* Validate RESTful request */
+				$this->validate();
+
 				if (method_exists($ctrl, 'update')) {
 					$ctrl->update($argv);
 				} else {
@@ -310,6 +393,12 @@ class UW_Restful extends UW_Model {
 			} break;
 
 			case 'DELETE': {
+				/* Initialize environment */
+				$this->init($ctrl, 'delete', $argv);
+
+				/* Validate RESTful request */
+				$this->validate();
+
 				if (method_exists($ctrl, 'delete')) {
 					$ctrl->delete($argv);
 				} else {
@@ -322,6 +411,13 @@ class UW_Restful extends UW_Model {
 			} break;
 
 			case 'OPTIONS': {
+				/* Initialize environment */
+				$this->init($ctrl, 'options', $argv);
+
+				/* Validate RESTful request */
+				$this->validate();
+
+				/* Initialize allow array (used to set Allow header) */
 				$allow = array();
 
 				/* Populate allow array */
@@ -351,6 +447,14 @@ class UW_Restful extends UW_Model {
 					/* Otherwise just return 200 OK */
 					$this->output('200');
 				}
+			} break;
+
+			default: {
+				/* Initialize environment */
+				$this->init($ctrl, NULL, NULL);
+
+				/* Validate RESTful request */
+				$this->validate(); /* This is expected to fail with: 405 Method Not Allowed */
 			}
 		}
 	}
@@ -856,8 +960,10 @@ class UW_Restful extends UW_Model {
 		$this->_doc['method'][$method]['response']['types'][$func] = $response_types;
 
 		/* Body */
-		foreach ($response_body_args as $k => $v) {
-			$this->_doc['method'][$method]['response']['body'][$func][$k] = $v;
+		if ($response_body_args !== false) {
+			foreach ($response_body_args as $k => $v) {
+				$this->_doc['method'][$method]['response']['body'][$func][$k] = $v;
+			}
 		}
 
 		/* Status Codes */
