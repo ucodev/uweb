@@ -1,0 +1,145 @@
+  =======================
+  NDSL Usage Overview
+  =======================
+
+  1. Base Search Object
+
+   1.1.  Syntax
+
+    {
+        "limit"        : <unsigned integer>,
+        "offset"       : <unsigned integer>,
+        "totals"       : <boolean>,
+        "distinct"     : <boolean>,
+        "orderby"      : "<string>",
+        "ordering"     : "<string>",
+        "show"         : [ "<array>", "<of>", "<strings>" ],
+        "aggregations" : { <object> },
+        "query":       : { <object> }
+    }
+
+
+   1.2.  Property - limit
+
+      * Limits the size of the result array to the first N ocurrences in the result, where N is the value specified as the limit.
+
+
+   1.3.  Property - offset
+
+      * Skips the first N occurrences from the result, where N is the value specified as the offset.
+
+
+   1.4.  Property - totals
+
+      * Populates the "totals" parameter in the result. Otherwise it will be set as zero.
+
+
+   1.5.  Property - distinct
+
+      * Will discard any primary keys from the result, and print only distinct (unique) entries.
+
+
+   1.6.  Property - orderby
+
+      * Receives a valid field name as its value and will order the result by this field. Defaults to "id".
+
+
+   1.7.  Property - ordering
+
+      * Sets how the result will be ordered. "asc", "desc" and "in" values are acceptable, corresponding respectively to ascending, descending and in-order.
+
+
+   1.8.  Property - show
+
+      * An array of field names that must be present in the search result. Lack of reading privileges for fields stated in "show" array will cause these fields to be omitted, regardless of its presence in the array.
+
+
+   1.9.  Property - aggregations
+
+      * Specific to ND modeled objects, allows the results to include aggregated values for foreign keys, allowing the result to include information from a foreign object that is related to that foreign key field (see section 2).
+
+
+   1.10. Property - query
+
+      * The query object, where search criteria is set (see section 3).
+
+
+
+  2. Aggregations Object
+
+    * The following examples (2.1 and 2.2) assume that object "foo" contains a primary key "id" and two other fields named "bar" and "xpto".
+
+
+   2.1.  Short Syntax
+
+    * Short syntax will cause the search routine to try to determine the name of the foreign object based, only if the field representing a foreign object identifier is in the format <object>_id.
+
+    "aggregations": {
+        "foo_id": [ "id", "bar", "xpto" ]
+    }
+
+
+   2.2.  Full syntax
+
+    * Full syntax is required when a particular field from the object being searched does not follow the <object>_id convention when refering to a foreign object identifier. In this case, a full description for the aggregation is required.
+
+    "aggregations": {
+        "foo_id": {
+            "field"  : "id",
+            "object" : "foo",
+            "show"   : [ "id", "bar", "xpto" ]
+        }
+    }
+
+
+
+  3. Query Object (Basic)
+
+    * Query object contains the criteria of the search. One or multiple fields can be set and assigned with a criteria, but only one criteria per field is allowed.
+
+    * The following syntax describes the criteria properties and types that can be assigned to fields. Note that the field type must match the criteria type, otherwise the search will be rejected.
+
+    "query": {
+        /* Equal to */
+        "field1"   : { "eq": <integer>|<float>|"<date>"|"<time>"|"<datetime>" },
+
+        /* Not equal to */
+        "field2"   : { "ne": <integer>|<float>|"<date>"|"<time>"|"<datetime>" },
+
+        /* Greater than */
+        "field3"   : { "gt": <integer>|<float>|"<date>"|"<time>"|"<datetime>" },
+
+        /* Lesser than */
+        "field4"   : { "lt": <integer>|<float>|"<date>"|"<time>"|"<datetime>" },
+
+        /* Ranges */
+        "field5"   : {
+            "from"     : <integer>|<float>|"<date>"|"<time>"|"<datetime>",
+            "to"       : <integer>|<float>|"<date>"|"<time>"|"<datetime>"
+        },
+
+        /* Is (used to match true, false or null) */
+        "field6"   : { "is"     : <boolean>|null },
+
+        /* Is not (used to match true, false of null */
+        "field7"   : { "is_not" : <boolean>|null },
+
+        /* In array (field value is in the criteria array) */
+        "field8"   : { "in"     : [ <array>, <of>, <integers>, ... ] },
+
+        /* Not In array (field value is not in the criteria array) */
+        "field9"   : { "not_in" : [ <array>, <of>, <integers>, ... ] },
+
+        /*
+         * String matching.
+         *  - "diff" will negate the match;
+         *  - "exact" will match only what is exactly set in "contains" (no substring matching)
+         */
+        "field10"  : {
+            "contains" : "<string>",
+            "diff"     : <boolean>,
+            "exact"    : <boolean>
+        }
+    }
+
+
