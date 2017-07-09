@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 08/07/2017
+ * Date: 09/07/2017
  * License: GPLv3
  */
 
@@ -2461,7 +2461,9 @@ class UW_ND extends UW_Module {
 							'Content-Type: application/json'
 						),
 						/* Additional Notes - Request */
-						false,
+						array(
+							'NDSL Reference: https://github.com/ucodev/uweb/blob/master/documentation/ndsl.txt'
+						),
 						/* Additional Notes - Response */
 						array(
 							'Maximum number of entries per result: ' . $properties['search']['limit']
