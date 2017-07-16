@@ -459,7 +459,7 @@ class UW_Restful extends UW_Model {
 		}
 	}
 
-	public function request($method, $url, $data = NULL, $headers = NULL) {
+	public function request($method, $url, $data = NULL, $headers = NULL, &$status_code = false, &$raw_output = false) {
             /* Set required request headers */
 			if ($headers === NULL) {
 				$req_headers = array(
@@ -526,6 +526,14 @@ class UW_Restful extends UW_Model {
 
             /* Execute the request */
             $output = curl_exec($ch);
+
+			/* Set status code, if requested */
+			if ($status_code !== false)
+				$status_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+			/* Set raw output, if requested */
+			if ($raw_output !== false)
+				$raw_output = $output;
 
             /* Close the cURL handler */
             curl_close($ch);

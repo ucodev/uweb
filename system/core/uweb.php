@@ -89,7 +89,7 @@ class UW_Model {
 		$this->encrypt = new UW_Encrypt;
 	}
 	
-	public function load($model, $is_library = false, $tolower = false) {
+	public function load($model, $is_library = false, $tolower = false, $class_path = NULL) {
 		global $__objects;
 
 		if (!preg_match('/^[a-zA-Z0-9_]+$/', $model))
@@ -97,7 +97,7 @@ class UW_Model {
 
 		if ($is_library === true) {
 			/* We're loading a library */
-			eval('$this->' . ($tolower ? strtolower($model) : $model) . ' = new ' . $model . '();');
+			eval('$this->' . ($tolower ? strtolower($model) : $model) . ' = new ' . ($class_path !== NULL ? $class_path : $model) . '();');
 		} else {
 			/* Be default, model objects are instantiated only once and, on subsequent calls, a reference to the existing
 			 * (instantiated) object is passed.
@@ -166,9 +166,9 @@ class UW_Load extends UW_Model {
 		return $this->_model->load($extension);
 	}
 
-	public function library($library, $tolower = true) {
+	public function library($library, $tolower = true, $class_path = NULL) {
 		/* Libraries loading are treated as models, with some minor changes (no UW_ prefix required on library main class and optional $tolower parameter) */
-		return $this->_model->load($library, true, $tolower);
+		return $this->_model->load($library, true, $tolower, $class_path);
 	}
 }
 

@@ -407,7 +407,7 @@ class UW_ND extends UW_Module {
 		$user_data = array();
 		$user_data['userid'] = $data['userid'];
 		$user_data['roles'] = $data['roles'];
-		$user_data['username'] = $auth['username'];
+		$user_data['username'] = $data_raw['data']['username'];
 		$user_data['photo'] = $data_raw['data']['photo'];
 		$user_data['is_admin'] = $data_raw['data']['is_admin'];
 		$user_data['is_superuser'] = $data_raw['data']['is_superuser'];
@@ -1214,7 +1214,7 @@ class UW_ND extends UW_Module {
 			$nd_data['result'] = array_values(array_filter($data_inorder));
 
 		/* Check for aggregation requests */
-		if (isset($aggregations) && (count($aggregations) > 0)) {
+		if (isset($aggregations) && is_array($aggregations) && (count($aggregations) > 0)) {
 			/*
 			 * Full syntax:
 			 *
