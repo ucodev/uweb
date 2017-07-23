@@ -845,7 +845,7 @@ class UW_Restful extends UW_Model {
 		}
 
 		if ($uri_collection === NULL || $uri_collection === false) {
-			if (method_exists($this->_doc_object, 'insert') && $accepted_collection && $uri_single !== false)
+			if (method_exists($this->_doc_object, 'insert') && $accepted_collection && $uri_collection !== false)
 				$this->_doc['method']['POST']['request']['uri']['collection'] = '/' . $this->_doc_object;
 		} else {
 			$this->_doc['method']['POST']['request']['uri']['collection'] = $uri_collection;
@@ -965,7 +965,8 @@ class UW_Restful extends UW_Model {
 			$this->_doc['method'][$method]['response']['headers'][$func] = $response_headers;
 
 		/* Return Types */
-		$this->_doc['method'][$method]['response']['types'][$func] = $response_types;
+		if ($response_types !== false)
+			$this->_doc['method'][$method]['response']['types'][$func] = $response_types;
 
 		/* Body */
 		if ($response_body_args !== false) {

@@ -121,7 +121,7 @@
         /* Is (used to match true, false or null) */
         "field6"   : { "is"     : <boolean>|null },
 
-        /* Is not (used to match true, false of null */
+        /* Is not (used to match true, false or null */
         "field7"   : { "is_not" : <boolean>|null },
 
         /* In array (field value is in the criteria array) */
@@ -136,7 +136,7 @@
          *  - "exact" will match only what is exactly set in "contains" (no substring matching)
          */
         "field10"  : {
-            "contains" : "<string>",
+            "contains" : "<string>"|[ "<array>", "<of>", "<strings>" ],
             "diff"     : <boolean>,
             "exact"    : <boolean>
         }

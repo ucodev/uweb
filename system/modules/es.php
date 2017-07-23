@@ -56,6 +56,12 @@ class UW_ES extends UW_Module {
                 $this->restful->output('400');
             }
 
+            /* $criteria must be an associative array, containing a criteria keyword and value */
+            if ((gettype($criteria) != 'array') || !count(array_filter(array_keys($criteria), 'is_string'))) {
+                $this->restful->error('Invalid criteria type detected for field \'' . $field . '\': ' . $criteria);
+                $this->restful->output('400'); /* Bad Request */
+            }
+
             /* Iterate over field criteria */
             foreach ($criteria as $cond => $value) {
                 switch ($cond) {
@@ -64,7 +70,7 @@ class UW_ES extends UW_Module {
                     case 'diff': continue;
 
                     case 'contains': {
-                        /* Validate if $value is string */
+                        /* Validate if $value is string. TODO: FIXME: 'contains' shall also accept array of strings */
                         if (gettype($value) != 'string') {
                             $this->restful->error('Invalid type found in condition \'' . $cond . '\' on field \'' . $field . '\': Expecting string.');
                             $this->restful->output('400');
@@ -167,14 +173,17 @@ class UW_ES extends UW_Module {
 
                     case 'is': {
                         /* Validate if the type is NULL */
-                        if ($value !== NULL) {
-                            $this->restful->error('Invalid type found in condition \'' . $cond . '\' on field \'' . $field . '\': Expecting NULL.');
-                            $this->restful->output('400');                            
+                        if ($value === NULL) {
+                            /* TODO: FIXME: Elasticsearch (<= 5.x) does not allow null searches. https://www.elastic.co/guide/en/elasticsearch/reference/5.4/null-value.html */
+                            $this->restful->error('NULL searches are not supported.');
+                            $this->restful->output('400');
                         }
 
-                        /* TODO: FIXME: Elasticsearch (<= 5.x) does not allow null searches. https://www.elastic.co/guide/en/elasticsearch/reference/5.4/null-value.html */
-                        $this->restful->error('NULL searches are not supported.');
-                        $this->restful->output('400');
+                        /* Validate if the type is boolean */
+                        if (gettype($value) != 'boolean') {
+                            $this->restful->error('Invalid type found in condition \'' . $cond . '\' on field \'' . $field . '\': Expecting boolean.');
+                            $this->restful->output('400');
+                        }
                     }
                     case 'eq': {
                         /* Validate if $value is integer or float */
@@ -196,14 +205,23 @@ class UW_ES extends UW_Module {
 
                     case 'is_not': {
                         /* Validate if the type is NULL */
-                        if ($value !== NULL) {
-                            $this->restful->error('Invalid type found in condition \'' . $cond . '\' on field \'' . $field . '\': Expecting NULL.');
-                            $this->restful->output('400');                            
+                        if ($value === NULL) {
+                            /* TODO: FIXME: Elasticsearch (<= 5.x) does not allow null searches. https://www.elastic.co/guide/en/elasticsearch/reference/5.4/null-value.html */
+                            $this->restful->error('NULL searches are not supported.');
+                            $this->restful->output('400');
                         }
 
-                        /* TODO: FIXME: Elasticsearch (<= 5.x) does not allow null searches. https://www.elastic.co/guide/en/elasticsearch/reference/5.4/null-value.html */
-                        $this->restful->error('NULL searches are not supported.');
-                        $this->restful->output('400');
+                        /* Validate if the type is boolean */
+                        if (gettype($value) != 'boolean') {
+                            $this->restful->error('Invalid type found in condition \'' . $cond . '\' on field \'' . $field . '\': Expecting boolean.');
+                            $this->restful->output('400');
+                        }
+
+                        /* Avoid double negation */
+                        if ($value === false) {
+                            $this->restful->error('Avoid double negation. Use \'{ "' . $field . '": { "is": true } }\'.');
+                            $this->restful->output('400');
+                        }
                     }
                     case 'ne': {
                         /* Validate if $value is integer or float */

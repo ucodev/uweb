@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 09/07/2017
+ * Date: 16/07/2017
  * License: GPLv3
  */
 
@@ -163,6 +163,31 @@ class UW_ND extends UW_Module {
 
 		/* All good */
 		return $nd_data['data'];
+	}
+
+	public function session_exists() {
+		/* NOTE: Even if this routine returns true, it does not always grant that a session was initialized.
+		 *       It should only be used to evaluate if session data was sent along with the request.
+		 */
+
+		/* Evaluate if session was already initiated / retrieved. If so, deliver the stored data */
+		if ($this->_session !== NULL)
+			return true;
+
+		/* Get user id and authentication token from request headers */
+		$user_id    = $this->restful->header(ND_REQ_HEADER_USER_ID);
+		$auth_token = $this->restful->header(ND_REQ_HEADER_AUTH_TOKEN);
+
+		/* Grant that user id header is set */
+		if (!$user_id || !is_numeric($user_id))
+			return false;
+
+		/* Grant that authentication token header is set */
+		if (!$auth_token || strlen($auth_token) != 40 || hex2bin($auth_token) === false)
+			return false;
+
+		/* All good */
+		return true;
 	}
 
 	public function session_init() {
@@ -601,7 +626,99 @@ class UW_ND extends UW_Module {
 				$this->restful->output('400'); /* Bad Request */
 			}
 
-			/* TODO: Pre-check/validate NDSL Query value */
+			/* Validate query criteria keywords. Also validate obvious types */
+			foreach ($input['query'] as $k => $v) {
+				/* $v must be an associative array, containing a criteria keyword and value */
+				if ((gettype($v) != 'array') || !count(array_filter(array_keys($v), 'is_string'))) {
+					$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid criteria type detected for field \'' . $k . '\': ' . $v, $session);
+					$this->restful->error('Invalid criteria type detected for field \'' . $k . '\': ' . $v);
+					$this->restful->output('400'); /* Bad Request */
+				}
+
+				foreach ($v as $ck => $cv) {
+					switch ($ck) {
+						case 'eq':
+						case 'ne':
+						case 'lt':
+						case 'gt':
+						case 'from':
+						case 'to': {
+							switch (gettype($cv)) {
+								case 'string':
+								case 'double':
+								case 'integer': break;
+
+								default: {
+									$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid value type for criteria \'' . $ck . '\' under field \'' . $k . '\': ' . $cv . '. Only string, datetime, date, time, float, double or integer types are accepted.', $session);
+									$this->restful->error('Invalid value type for criteria \'' . $ck . '\' under field \'' . $k . '\': ' . $cv . '. Only string, datetime, date, time, float, double or integer types are accepted.');
+									$this->restful->output('400'); /* Bad Request */									
+								}
+							}
+						} break;
+
+						case 'contains': {
+							switch (gettype($cv)) {
+								case 'string':
+								case 'array': break;
+
+								default: {
+									$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid value type for criteria \'' . $ck . '\' under field \'' . $k . '\': ' . $cv . '. Only string or array types are accepted.', $session);
+									$this->restful->error('Invalid value type for criteria \'' . $ck . '\' under field \'' . $k . '\': ' . $cv . '. Only string or array types are accepted.');
+									$this->restful->output('400'); /* Bad Request */									
+								}
+							}
+						} break;
+
+						case 'in':
+						case 'not_in': {
+							switch (gettype($cv)) {
+								case 'array': break;
+
+								default: {
+									$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid value type for criteria \'' . $ck . '\' under field \'' . $k . '\': ' . $cv . '. Only array type is accepted.', $session);
+									$this->restful->error('Invalid value type for criteria \'' . $ck . '\' under field \'' . $k . '\': ' . $cv . '. Only array type is accepted.');
+									$this->restful->output('400'); /* Bad Request */									
+								}
+							}
+						} break;
+
+						case 'diff':
+						case 'exact': {
+							switch (gettype($cv)) {
+								case true:
+								case false: break;
+
+								default: {
+									$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid value type for criteria \'' . $ck . '\' under field \'' . $k . '\': ' . $cv . '. Only boolean type is accepted.', $session);
+									$this->restful->error('Invalid value type for criteria \'' . $ck . '\' under field \'' . $k . '\': ' . $cv . '. Only boolean type is accepted.');
+									$this->restful->output('400'); /* Bad Request */									
+								}
+							}
+						} break;
+
+						case 'is':
+						case 'is_not': {
+							switch (gettype($cv)) {
+								case true:
+								case false:
+								case NULL: break;
+
+								default: {
+									$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid value type for criteria \'' . $ck . '\' under field \'' . $k . '\': ' . $cv . '. Only boolean type or null values are accepted.', $session);
+									$this->restful->error('Invalid value type for criteria \'' . $ck . '\' under field \'' . $k . '\': ' . $cv . '. Only boolean type or null values are accepted.');
+									$this->restful->output('400'); /* Bad Request */									
+								}
+							}
+						} break;
+
+						default: {
+							$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid criteria keyword detected for field \'' . $k . '\': ' . $ck, $session);
+							$this->restful->error('Invalid criteria keyword detected for field \'' . $k . '\': ' . $ck);
+							$this->restful->output('400'); /* Bad Request */
+						}
+					}
+				}
+			}
 
 			/* Set  Query */
 			$ndslq = $input['query'];
@@ -1691,12 +1808,34 @@ class UW_ND extends UW_Module {
 
 					/* Validate data types for each criteria value, also validating if criteria name exists */
 					foreach ($c as $k => $v) {
-						if (in_array($k, array('ne', 'eq', 'lt', 'lte', 'gt', 'gte', 'contains', 'is', 'is_not'))) {
+						if (in_array($k, array('ne', 'eq', 'lt', 'lte', 'gt', 'gte', 'is', 'is_not'))) {
 							/* Check value type */
 							if (!$this->validate_value_type($f, $ftypes[$f], $v, 'input')) {
 								$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid data type detected on criteria \'' . $k . '\' for field: ' . $f);
 								$this->restful->error('Invalid data type detected on criteria \'' . $k . '\' for field: ' . $f);
 								$this->restful->output('400'); /* Bad Request */
+							}
+						} else if ($k == 'contains') {
+							/* The 'contains' criteria can receive a single value or multiple values. We first check if it is of array type, and if so,
+							 * we need to check each individual value inside the array
+							 */
+							if (is_array($v)) {
+								/* Validate each search value type against the most basic type of the field */
+								foreach ($v as $av) {
+									/* Check value type */
+									if (!$this->validate_value_type($f, $ftypes[$f], $av, 'input')) {
+										$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid data type detected on criteria \'' . $k . '\' for field: ' . $f);
+										$this->restful->error('Invalid data type detected on criteria \'' . $k . '\' for field: ' . $f);
+										$this->restful->output('400'); /* Bad Request */
+									}
+								}
+							} else {
+								/* If 'contains' it is not of array type, check the type of the single value */
+								if (!$this->validate_value_type($f, $ftypes[$f], $v, 'input')) {
+									$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid data type detected on criteria \'' . $k . '\' for field: ' . $f);
+									$this->restful->error('Invalid data type detected on criteria \'' . $k . '\' for field: ' . $f);
+									$this->restful->output('400'); /* Bad Request */
+								}	
 							}
 						} else if (($k == 'in') || ($k == 'not_in')) {
 							/* This criteria requires the search value to be array (set of values) */
