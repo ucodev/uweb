@@ -35,6 +35,9 @@ class udoc:
 		self.fmt = fmt
 		self.store_dir = store_dir
 
+	def has_method_function(self, doc_struct, method, function):
+		return method in doc_struct['method'] and function in doc_struct['method'][method]['request']['uri']
+
 	def get_method_list(self, doc_struct):
 		method_list = []
 
@@ -42,9 +45,6 @@ class udoc:
 			method_list.append(method)
 
 		return set(method_list)
-
-	def has_method_function(self, doc_struct, method, function):
-		return method in doc_struct['method'] and function in doc_struct['method'][method]['request']['uri']
 
 	def get_function_list(self, doc_struct, exclude_list = [ 'collection', 'single', 'search' ]):
 		function_list = []
@@ -83,7 +83,7 @@ class udoc:
 		# Section - URL
 		d.section("Base URL")
 		d.code_begin()
-		d.writeline(url)
+		d.writeline("\t" + url)
 		d.code_end()
 
 		# Section - Fields
@@ -154,10 +154,9 @@ class udoc:
 				d.paragraph("Deletes the specified entry ``id``:")
 				d.uweb_function(method, 'single')
 
-		# Section - Operations - Search
-		d.section("RESTful Operations - Search")
-
 		if self.has_method_function(doc_struct, 'POST', 'search'):
+			# Section - Operations - Search
+			d.section("RESTful Operations - Search")
 			d.subsection("Search collection")
 			d.paragraph("Performs a NDSL query over the entry collection:")
 			d.uweb_function('POST', 'search', entry_repr = False)
@@ -187,6 +186,7 @@ class udoc:
 
 		base_struct = r['json']['data']
 
+		# Create endpoint document files
 		for obj in base_struct['objects']:
 			r = u.options(obj)
 
@@ -226,6 +226,9 @@ class udoc_rst:
 		self.endpoint = endpoint
 		self.description = description
 		self.f = open(store_dir.strip('/') + '/' + endpoint + '.rst', 'w+')
+
+	def pre_process(self, string):
+		return string.replace('*', '\\*')
 
 	def writeline(self, t, newline = True):
 		self.f.write(t + ("\n" if newline else ""))
@@ -328,6 +331,8 @@ class udoc_rst:
 			if v2str:
 				v = str(v)
 
+			v = self.pre_process(v)
+
 			# Print column
 			self.writeline("\t" + "| " + (k + (" " * (max_len_key - len(k)))) + " | " + (v + (" " * (max_len_value - len(v)))) + " |")
 			# Print row separator
@@ -341,8 +346,8 @@ class udoc_rst:
 	def uweb_field_types(self, field_types):
 		self.table_kv("Field", "Type", field_types)
 
-	def uweb_field_options(self, field_options, v2concat = True):
-		self.table_kv("Field", "Options", field_options)
+	def uweb_field_options(self, field_options):
+		self.table_kv("Field", "Options", field_options, v2concat = True)
 
 	def uweb_field_defaults(self, field_defaults):
 		self.table_kv("Field", "Default value", field_defaults)
@@ -437,7 +442,6 @@ class udoc_rst:
 			for note in self.uweb_doc_struct['method'][method]['request']['notes'][function]:
 				self.bullet(note)
 			self.newline()
-
 
 		# Response headers
 		if 'headers' in self.uweb_doc_struct['method'][method]['response'] and function in self.uweb_doc_struct['method'][method]['response']['headers']:

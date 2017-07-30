@@ -682,6 +682,7 @@ class UW_ND extends UW_Module {
 							}
 						} break;
 
+						case 'or':
 						case 'diff':
 						case 'exact': {
 							switch (gettype($cv)) {
