@@ -50,6 +50,8 @@ class UW_Restful extends UW_Model {
 		'409' => 'Conflict',
 		'410' => 'Gone',
 		'412' => 'Precondition Failed',
+		'415' => 'Unsupported Media Type',
+		'422' => 'Unprocessable Entity',
 		/* 5xx codes ... */
 		'500' => 'Internal Server Error',
 		'502' => 'Bad Gateway',
