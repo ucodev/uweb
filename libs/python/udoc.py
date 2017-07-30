@@ -228,7 +228,7 @@ class udoc_rst:
 		self.f = open(store_dir.strip('/') + '/' + endpoint + '.rst', 'w+')
 
 	def pre_process(self, string):
-		return string.replace('*', '\\*')
+		return string
 
 	def writeline(self, t, newline = True):
 		self.f.write(t + ("\n" if newline else ""))
