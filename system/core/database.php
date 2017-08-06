@@ -1470,6 +1470,7 @@ class UW_Database extends UW_Base {
 
 	public function query($query, $data = NULL) {
 		if (!$query) {
+			$this->trans_rollback(); /* Will attempt to rollback transaction, if we are inside a transaction */
 			header('HTTP/1.1 500 Internal Server Error');
 			die('query(): No query was specified.');
 		}
@@ -1480,11 +1481,13 @@ class UW_Database extends UW_Base {
 				
 				if (!$this->_stmt) {
 					error_log('$this->db->query(): PDOStatement::prepare(): Failed.');
+					$this->trans_rollback(); /* Will attempt to rollback transaction, if we are inside a transaction */
 					header('HTTP/1.1 500 Internal Server Error');
 					die('query(): PDOStatement::prepare(): Failed.');
 				}
 			} catch (PDOException $e) {
 				error_log('$this->db->query(): PDOStatement::prepare(): ' . $e);
+				$this->trans_rollback(); /* Will attempt to rollback transaction, if we are inside a transaction */
 				header('HTTP/1.1 500 Internal Server Error');
 				die('query(): PDOStatement::prepare(): Failed.');
 			}
@@ -1496,6 +1499,7 @@ class UW_Database extends UW_Base {
 
 					switch ($err_info[0]) {
 						case '23000': {
+							$this->trans_rollback(); /* Will attempt to rollback transaction, if we are inside a transaction */
 							header('HTTP/1.1 409 Conflict');
 							die($err_info[2]);
 						} break;
@@ -1505,6 +1509,7 @@ class UW_Database extends UW_Base {
 						}
 					}
 					
+					$this->trans_rollback(); /* Will attempt to rollback transaction, if we are inside a transaction */
 					die('query(): Failed to execute prepared statement: ' . $err_info[0] . ': ' . $err_info[1] . ': ' . $err_info[2]);
 				}
 			} else {
@@ -1514,6 +1519,7 @@ class UW_Database extends UW_Base {
 
 					switch ($err_info[0]) {
 						case '23000': {
+							$this->trans_rollback(); /* Will attempt to rollback transaction, if we are inside a transaction */
 							header('HTTP/1.1 409 Conflict');
 							die($err_info[2]);
 						} break;
@@ -1523,12 +1529,14 @@ class UW_Database extends UW_Base {
 						}
 					}
 
+					$this->trans_rollback(); /* Will attempt to rollback transaction, if we are inside a transaction */
 					die('query(): Failed to execute prepared statement: ' . $err_info[0] . ': ' . $err_info[1] . ': ' . $err_info[2]);
 				}
 			}
 		} else {
 			/* Execute query without prepared statement allocation */
 			if (!($this->_stmt = $this->_db[$this->_cur_db]->query($this->_query_aggregate_args($query, $data)))) {
+				$this->trans_rollback(); /* Will attempt to rollback transaction, if we are inside a transaction */
 				header('HTTP/1.1 500 Internal Server Error');
 				die('query(): Failed to execute query.');
 			}
