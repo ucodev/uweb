@@ -1493,14 +1493,36 @@ class UW_Database extends UW_Base {
 				if (!$this->_stmt->execute($data)) {
 					$err_info = $this->_stmt->errorInfo();
 					error_log('query(): Failed to execute prepared statement: ' . $err_info[0] . ': ' . $err_info[1] . ': ' . $err_info[2]);
-					header('HTTP/1.1 500 Internal Server Error');
+
+					switch ($err_info[0]) {
+						case '23000': {
+							header('HTTP/1.1 409 Conflict');
+							die($err_info[2]);
+						} break;
+
+						default: {
+							header('HTTP/1.1 500 Internal Server Error');
+						}
+					}
+					
 					die('query(): Failed to execute prepared statement: ' . $err_info[0] . ': ' . $err_info[1] . ': ' . $err_info[2]);
 				}
 			} else {
 				if (!$this->_stmt->execute()) {
 					$err_info = $this->_stmt->errorInfo();
 					error_log('query(): Failed to execute prepared statement: ' . $err_info[0] . ': ' . $err_info[1] . ': ' . $err_info[2]);
-					header('HTTP/1.1 500 Internal Server Error');
+
+					switch ($err_info[0]) {
+						case '23000': {
+							header('HTTP/1.1 409 Conflict');
+							die($err_info[2]);
+						} break;
+
+						default: {
+							header('HTTP/1.1 500 Internal Server Error');
+						}
+					}
+
 					die('query(): Failed to execute prepared statement: ' . $err_info[0] . ': ' . $err_info[1] . ': ' . $err_info[2]);
 				}
 			}

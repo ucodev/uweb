@@ -109,11 +109,11 @@ class UW_ND extends UW_Module {
 		/* Grant that cURL will return the response output */
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 
-		/* Get HTTP Status Code */
-		$http_status_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-
 		/* Execute the request */
 		$output = curl_exec($ch);
+
+		/* Get HTTP Status Code */
+		$http_status_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
 		/* Close the cURL handler */
 		curl_close($ch);

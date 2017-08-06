@@ -1,0 +1,52 @@
+========
+  NDFS
+========
+
+ 1. Properties
+
+    name         - string  - in/out - The original filename
+    type         - string  - in/out - The normalized file extension, indicating the file format.
+    created      - string  - in/out - The date and time in ISO-8601 format of when the file was originally created.
+    modified     - string  - in/out - The date and time in ISO-8601 format of when the file was last modified.
+    encoding     - string  - in     - The encoding used for 'contents'. Currently, only base64 is supported.
+    contents     - string  - in     - The contents of the file, encoded in base64 (see 'encoding').
+    size         - integer - out    - The file size in bytes
+    url          - string  - out    - The current URL location for the file.
+    path         - string  - out    - The base path indication the location of the file, excluding dynamic prefixes.
+    image        - object  - out    - If the file is of image type, this object contains the extracted image properties.
+    image.height - integer - out    - The height of the image in pixels.
+    image.width  - integer - out    - The width of the image in pixels.
+
+
+ 2. Input
+
+    {
+        "name"     : "myfile.jpg",
+        "type"     : "JPG",
+        "created"  : "2016-05-17T01:30:00+00:00",
+        "modified" : "2016-05-17T01:30:00+00:00",
+        "encoding" : "base64",
+        "contents" : "<string>"
+    }
+
+
+
+ 3. Output
+
+    {
+        "_file_field": {
+            "name"      : "myfile.jpg",
+            "type"      : "JPG",
+            "size"      : 2147483648,
+            "url"       : "https://cdn.somedomain.tld/path/to/myfile.jpg",
+            "path"      : "path/to/myfile.jpg",
+            "image"     : {
+                              "height": 1920,
+                              "width" : 1080
+                          },
+            "created"   : "2016-05-17T01:30:00+00:00",
+            "modified"  : "2016-05-17T01:30:00+00:00"
+        }
+    }
+
+
