@@ -1,9 +1,9 @@
 <?php if (!defined('FROM_BASE')) { header('HTTP/1.1 403 Forbidden'); die('Invalid requested path.'); }
 
-/* Author: Pedro A. Hortas
- * Email: pah@ucodev.org
- * Date: 16/07/2017
- * License: GPLv3
+/* Author:   Pedro A. Hortas
+ * Email:    pah@ucodev.org
+ * Modified: 20/08/2017
+ * License:  GPLv3
  */
 
 /*
@@ -1373,6 +1373,7 @@ class UW_ND extends UW_Module {
 					$_v['field'] = 'id';
 					$_v['object'] = substr($k, 0, -3);
 					$_v['show'] = $v;
+					$_v['recursive'] = false;
 
 					/* Overwrite short syntax */
 					$v = $_v;
@@ -1397,6 +1398,17 @@ class UW_ND extends UW_Module {
 						$this->restful->error('Property \'show\' is missing for the following aggregation: ' . $k);
 						$this->restful->output('400'); /* Bad request */
 					}
+
+					/* Check if 'recursive' property is set and is of type boolean. If not set, assume false by default */
+					if (isset($v['recursive'])) {
+						if (gettype($v['recursive']) != 'boolean') {
+							$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Property \'recursive\' must be of boolean type.');
+							$this->restful->error('Property \'recursive\' must be of boolean type.');
+							$this->restful->output('400'); /* Bad request */
+						}
+					} else {
+						$v['recursive'] = false;
+					}
 				}
 
 				/* Fetch entry details (prepare for aggregation) */
@@ -1413,43 +1425,83 @@ class UW_ND extends UW_Module {
 				foreach ($nd_data['result'] as $row)
 					array_push($ids, $row[$k]);
 
-				/* Fetch method properties from aggregation object */
-				$method_properties = $this->properties($v['object'], 'search');
-				$fields = $method_properties['fields'];
-				$route = $method_properties['route'];
-
-				/* Grant that all fields in $v are present in acceptable fields for this aggregation */
-				foreach ($v['show'] as $f) {
-					if (!in_array($f, $fields['visible'])) {
-						$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Unacceptable output field \'' . $f . '\' under aggregation: ' . $k, $session);
-						$this->restful->error('Unacceptable output field \'' . $f . '\' under aggregation: ' . $k);
-						$this->restful->output('400'); /* Bad request */
-					}
-				}
-
-				/* Retrieve entry details for all the entry ID's belonging to this aggregation */
-				$ndsl_output = $this->search(
-					/* Object */
-					$route,
-					/* NDSL query */
-					array(
-						'limit' => count($ids),
-						'offset' => 0,
-						'show' => $v['show'],
-						'query' => array(
-							$v['field'] => array(
-								'in' => $ids
+				/* If this is a recursive aggregation, we shall make a recur to the API to fetch the data instead of calling directly the ND underlying layer */
+				if ($v['recursive'] === true) {
+					/* Perform a NDSL query to the API (self) */
+					$r_ndsl = $this->restful->request(
+						'POST',
+						base_url(true) . $v['object'],
+						array(
+							'limit' => count($ids),
+							'offset' => 0,
+							'show' => $v['show'],
+							'query' => array(
+								$v['field'] => array(
+									'in' => $ids
+								)
 							)
+						),
+						array(
+							ND_REQ_HEADER_USER_ID . ': ' . $this->restful->header(ND_REQ_HEADER_USER_ID),
+							ND_REQ_HEADER_AUTH_TOKEN . ': ' . $this->restful->header(ND_REQ_HEADER_AUTH_TOKEN),
+							'Content-Type: application/json',
+							'Accept: application/json'
+						),
+						$status_code
+					);
+
+					/* Check if the search was successful */
+					if ($status_code != 201) {
+						$this->log($status_code, __FILE__, __LINE__, __FUNCTION__, 'Unable to perform recursive NDSL search: ' . $r_ndsl['errors']['message']);
+						$this->restful->error('Unable to perform recursive NDSL search: ' . $r_ndsl['errors']['message']);
+						$this->restful->output($status_code);
+					}
+
+					/* Set the results */
+					if (isset($r_ndsl['data'][array_pop(explode('/', $v['object']))]['result'])) {
+						$ndsl_output['result'] = $r_ndsl['data'][array_pop(explode('/', $v['object']))]['result'];
+					} else {
+						$ndsl_output['result'] = $r_ndsl['data']['result'];
+					}
+				} else {
+					/* Fetch method properties from aggregation object */
+					$method_properties = $this->properties($v['object'], 'search');
+					$fields = $method_properties['fields'];
+					$route = $method_properties['route'];
+
+					/* Grant that all fields in $v are present in acceptable fields for this aggregation */
+					foreach ($v['show'] as $f) {
+						if (!in_array($f, $fields['visible'])) {
+							$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Unacceptable output field \'' . $f . '\' under aggregation: ' . $k, $session);
+							$this->restful->error('Unacceptable output field \'' . $f . '\' under aggregation: ' . $k);
+							$this->restful->output('400'); /* Bad request */
+						}
+					}
+
+					/* Retrieve entry details for all the entry ID's belonging to this aggregation */
+					$ndsl_output = $this->search(
+						/* Object */
+						$route,
+						/* NDSL query */
+						array(
+							'limit' => count($ids),
+							'offset' => 0,
+							'show' => $v['show'],
+							'query' => array(
+								$v['field'] => array(
+									'in' => $ids
+								)
+							)
+						),
+						/* Mappings */
+						array(
+							'accepted' => array($v['field']),
+							'visible' => $fields['visible'],
+							'mapped_pre' => $fields['mapped_pre'],
+							'mapped_post' => $fields['mapped_post']
 						)
-					),
-					/* Mappings */
-					array(
-						'accepted' => array($v['field']),
-						'visible' => $fields['visible'],
-						'mapped_pre' => $fields['mapped_pre'],
-						'mapped_post' => $fields['mapped_post']
-					)
-				);
+					);
+				}
 
 				/* Aggregate results */
 				$nd_data['result'] = $this->aggregation->join(
@@ -1809,7 +1861,7 @@ class UW_ND extends UW_Module {
 
 					/* Validate data types for each criteria value, also validating if criteria name exists */
 					foreach ($c as $k => $v) {
-						if (in_array($k, array('ne', 'eq', 'lt', 'lte', 'gt', 'gte', 'is', 'is_not'))) {
+						if (in_array($k, array('ne', 'eq', 'lt', 'lte', 'gt', 'gte', 'is', 'is_not', 'from', 'to'))) {
 							/* Check value type */
 							if (!$this->validate_value_type($f, $ftypes[$f], $v, 'input')) {
 								$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid data type detected on criteria \'' . $k . '\' for field: ' . $f);

@@ -1,9 +1,9 @@
 <?php if (!defined('FROM_BASE')) { header('HTTP/1.1 403 Forbidden'); die('Invalid requested path.'); }
 
-/* Author: Pedro A. Hortas
- * Email: pah@ucodev.org
- * Date: 08/07/2017
- * License: GPLv3
+/* Author:   Pedro A. Hortas
+ * Email:    pah@ucodev.org
+ * Modified: 20/08/2017
+ * License:  GPLv3
  */
 
 /*
@@ -51,11 +51,19 @@ class UW_Restful extends UW_Model {
 		'410' => 'Gone',
 		'412' => 'Precondition Failed',
 		'415' => 'Unsupported Media Type',
+		'416' => 'Requested Range Not Satisfiable',
+		'417' => 'Expectation Failed',
 		'422' => 'Unprocessable Entity',
+		'423' => 'Locked',
+		'424' => 'Failed Dependency',
+		'428' => 'Precondition Required',
+		'429' => 'Too Many Requests',
 		/* 5xx codes ... */
 		'500' => 'Internal Server Error',
 		'502' => 'Bad Gateway',
-		'503' => 'Service Unavailable'
+		'503' => 'Service Unavailable',
+		'504' => 'Gateway Timeout',
+		'505' => 'HTTP Version Not Supported'
 	);
 
 	private $_methods = array(

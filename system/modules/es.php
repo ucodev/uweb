@@ -1,9 +1,9 @@
 <?php if (!defined('FROM_BASE')) { header('HTTP/1.1 403 Forbidden'); die('Invalid requested path.'); }
 
-/* Author: Pedro A. Hortas
- * Email: pah@ucodev.org
- * Date: 02/07/2017
- * License: GPLv3
+/* Author:   Pedro A. Hortas
+ * Email:    pah@ucodev.org
+ * Modified: 20/08/2017
+ * License:  GPLv3
  */
 
 /*
@@ -187,7 +187,7 @@ class UW_ES extends UW_Module {
                     }
                     case 'eq': {
                         /* Validate if $value is integer or float */
-                        if ($cond != 'is' && gettype($value) != 'integer' && gettype($value) != 'float') {
+                        if ($cond != 'is' && gettype($value) != 'integer' && gettype($value) != 'double') {
                             $this->restful->error('Invalid type found in condition \'' . $cond . '\' on field \'' . $field . '\': Expecting integer or float.');
                             $this->restful->output('400');
                         }
@@ -225,7 +225,7 @@ class UW_ES extends UW_Module {
                     }
                     case 'ne': {
                         /* Validate if $value is integer or float */
-                        if ($cond != 'is_not' && gettype($value) != 'integer' && gettype($value) != 'float') {
+                        if ($cond != 'is_not' && gettype($value) != 'integer' && gettype($value) != 'double') {
                             $this->restful->error('Invalid type found in condition \'' . $cond . '\' on field \'' . $field . '\': Expecting integer or float.');
                             $this->restful->output('400');
                         }
@@ -252,8 +252,8 @@ class UW_ES extends UW_Module {
                     case 'gte':
                     case 'lt':
                     case 'lte': {
-                        /* Validate if $value is integer or float */
-                        if (gettype($value) != 'integer' && gettype($value) != 'float' && gettype($value) != 'string') {
+                        /* Validate if $value is integer, float/double or string*/
+                        if (gettype($value) != 'integer' && gettype($value) != 'double' && gettype($value) != 'string') {
                             $this->restful->error('Invalid type found in condition \'' . $cond . '\' on field \'' . $field . '\': Expecting integer, float, time, date or datetime.');
                             $this->restful->output('400');
                         }
