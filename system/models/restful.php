@@ -28,9 +28,13 @@
  */
 
 class UW_Restful extends UW_Model {
-	/** Private **/
+	/** Protected **/
 
-	private $_debug = false;
+	protected $_debug = false;
+	protected $_logging = true;
+
+
+	/** Private **/
 
 	private $_codes = array(
 		/* 2xx codes ... */
@@ -38,6 +42,7 @@ class UW_Restful extends UW_Model {
 		'201' => 'Created',
 		'202' => 'Accepted',
 		'204' => 'No Content',
+		'207' => 'Multi-Status',
 		/* 3xx codes ... */
 		'304' => 'Not Modified',
 		/* 4xx codes ... */
@@ -89,11 +94,21 @@ class UW_Restful extends UW_Model {
 
 	private $_headers = array();
 
+	private $_input = NULL; /* Cached input */
+
 	private $_call = NULL; /* Call information */
 
 	private $_id = NULL; /* Request ID */
 
+	/* Multi entry requests parameters */
+	private $_multi_enabled = false;
+	private $_multi_responses = array();
+	private $_multi_errors = false;
+
+	/* Private methods */
 	private function _headers_http_collect() {
+		/* Collect HTTP Headers */
+
 		if (count($this->_headers))
 			return $this->_headers;
 
@@ -105,6 +120,21 @@ class UW_Restful extends UW_Model {
 		}
 
 		return $this->_headers;
+	}
+
+	private function _multi_init() {
+		/* Initialize multiple entry request */
+
+		$this->_multi_enabled = true; /* Setting this property to true will cause output() to queue responses until _multi_commit() is called */
+		$this->_multi_responses = array();
+	}
+
+	private function _multi_commit() {
+		/* Commit multiple entry responses */
+
+		$this->_multi_enabled = false; /* Setting this property to false will cause output() to actually answer to the client */
+
+		$this->output('207', $this->_multi_responses);
 	}
 
 
@@ -182,6 +212,10 @@ class UW_Restful extends UW_Model {
 	}
 
 	public function input() {
+		/* Check if there's a cached version of the input (meaning input() was already called before) */
+		if ($this->_input !== NULL)
+			return $this->_input;
+
 		/* If the content type isn't set as application/json, we'll not accept this request */
 		if (strstr($this->header('Content-Type'), 'application/json') === false) {
 			/* Content type is not acceptable here */
@@ -212,11 +246,53 @@ class UW_Restful extends UW_Model {
 			$this->output('400');
 		}
 
+		/* Cache input */
+		$this->_input = $json_data;
+
 		/* Return the decoded data */
 		return $json_data;
 	}
 
-	public function output($code, $data = NULL) {
+	public function output($code, $data = NULL, $force_close = false) {
+		/* If we are in the middle of a multiple entry request, store the response until all the requests are processed */
+		if ($this->_multi_enabled === true) {
+			if ($force_close === true) {
+				error_log(__FILE__ . ': ' . __FUNCTION__ . ': ' .
+					'A multi entry request was performed under a method that sets \'force_close\' to \'true\'. ' .
+					'Unlike a single entry request, this may cause unexpected behaviour since the connection won\'t be closed until all the entries are processed. ' .
+					'Call trace: ' . json_encode($this->_call)
+				);
+			}
+
+			/* Initialize entry response */
+			$response = array();
+
+			/* Set response status code */
+			$response['code'] = intval($code);
+
+			/* Check if the request was successful and contains data */
+			if ($data !== NULL && !$this->_info['errors']) {
+				/* Set response data */
+				$response['data'] = $data;
+			} else if ($this->_info['errors']) {
+				/* Mark this multi entry request as containing errors */
+				$this->_multi_errors = true;
+
+				/* Set response errors */
+				$response['errors'] = $this->_errors;
+
+				/* Reset errors, so the next request starts clean */
+				$this->_info['errors'] = false;
+				$this->_errors = array('message' => NULL);
+			}
+
+			/* Store the request response */
+			array_push($this->_multi_responses, $response);
+
+			/* Handle next request, if any */
+			return true;
+		}
+
 		/* Check if there's a method set */
 		if ($this->_info['method'] === NULL)
 			$this->method(); /* Initialize method */
@@ -276,7 +352,23 @@ class UW_Restful extends UW_Model {
 		}
 
 		/* Send the body contents and terminate execution */
-		exit($output);
+		if ($force_close === true) {
+			/* Close user connection */
+			$this->header('Connection', 'close');
+
+			/* Send the response to user */
+			echo($output);
+
+			/* Flush data */
+			ob_end_flush();
+			ob_flush();
+			flush();
+
+			/* Finish request for FastCGI */
+			fastcgi_finish_request();
+		} else {
+			exit($output);
+		}
 	}
 
 	public function init($ctrl, $obj_function, $argv = NULL) {
@@ -287,7 +379,7 @@ class UW_Restful extends UW_Model {
 		$this->call_start(strtolower(get_class($ctrl)), $obj_function, $argv);
 	}
 
-	public function validate() {
+	public function validate($method = NULL) {
 		/* If the client does not accept application/json content, we'll not accept this request */
 		if (strstr($this->header('Accept'), 'application/json') === false) {
 			/* Content type is not acceptable here */
@@ -298,7 +390,7 @@ class UW_Restful extends UW_Model {
 		}
 
  		/* Check if this is an allowed method */
-		if (!in_array($this->method(), $this->_methods)) {
+		if (!in_array($this->method(), $this->_methods) || ($method !== NULL && ($this->method() != $method))) {
 			/* Method is not present in the allowed methods array */
 			$this->error('Method ' . $this->method() . ' is not allowed.');
 
@@ -356,7 +448,22 @@ class UW_Restful extends UW_Model {
 				$this->validate();
 
 				if (method_exists($ctrl, 'insert')) {
-					$ctrl->insert($argv);
+					/* Check if this is a request with a single entity entry... */
+					if (count(array_filter(array_keys($this->input()), 'is_string')) > 0) {
+						/* Single entry */
+						$ctrl->insert($argv);
+					} else {
+						/* Multiple entries */
+						$this->_multi_init();
+
+						/* Iterate over each entry */
+						for ($i = 0; $i < count($this->input()); $i ++) {
+							$ctrl->insert($argv);
+						}
+
+						/* Commit responses */
+						$this->_multi_commit();
+					}
 				} else {
 					/* Object method is not implemented (no handler declared) */
 					$this->error('No handler declared for POST (insert).');
@@ -374,7 +481,22 @@ class UW_Restful extends UW_Model {
 				$this->validate();
 
 				if (method_exists($ctrl, 'modify')) {
-					$ctrl->modify($argv);
+					/* Check if this is a request with a single entity entry... */
+					if (count(array_filter(array_keys($this->input()), 'is_string')) > 0) {
+						/* Single entry */
+						$ctrl->modify($argv);
+					} else {
+						/* Multiple entries */
+						$this->_multi_init();
+
+						/* Iterate over each entry */
+						for ($i = 0; $i < count($this->input()); $i ++) {
+							$ctrl->modify($argv);
+						}
+
+						/* Commit responses */
+						$this->_multi_commit();
+					}
 				} else {
 					/* Object method is not implemented (no handler declared) */
 					$this->error('No handler declared for PATCH (modify).');
@@ -392,7 +514,22 @@ class UW_Restful extends UW_Model {
 				$this->validate();
 
 				if (method_exists($ctrl, 'update')) {
-					$ctrl->update($argv);
+					/* Check if this is a request with a single entity entry... */
+					if (count(array_filter(array_keys($this->input()), 'is_string')) > 0) {
+						/* Single entry */
+						$ctrl->update($argv);
+					} else {
+						/* Multiple entries */
+						$this->_multi_init();
+
+						/* Iterate over each entry */
+						for ($i = 0; $i < count($this->input()); $i ++) {
+							$ctrl->update($argv);
+						}
+
+						/* Commit responses */
+						$this->_multi_commit();
+					}
 				} else {
 					/* Object method is not implemented (no handler declared) */
 					$this->error('No handler declared for PUT (update).');
