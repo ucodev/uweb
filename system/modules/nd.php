@@ -2,7 +2,7 @@
 
 /* Author:   Pedro A. Hortas
  * Email:    pah@ucodev.org
- * Modified: 20/08/2017
+ * Modified: 01/10/2017
  * License:  GPLv3
  */
 
@@ -2158,6 +2158,8 @@ class UW_ND extends UW_Module {
 						/* If so, cache the retrieved data */
 						$this->cache_data_set($object, $method, $argv, $data, isset($properties['cache_lifetime']) ? $properties['cache_lifetime'] : NULL);
 					}
+				} else {
+					$this->restful->cache_hit(true);
 				}
 
 				/* Validate data types */
@@ -2197,6 +2199,8 @@ class UW_ND extends UW_Module {
 						/* If so, cache the retrieved data */
 						$this->cache_data_set($object, $method, $argv, $data, isset($properties['cache_lifetime']) ? $properties['cache_lifetime'] : NULL);
 					}
+				} else {
+					$this->restful->cache_hit(true);
 				}
 
 				/* Validate data types */
@@ -2323,6 +2327,8 @@ class UW_ND extends UW_Module {
 						/* If so, cache the retrieved data */
 						$this->cache_data_set($object, $method, $input, $data, isset($properties['cache_lifetime']) ? $properties['cache_lifetime'] : NULL);
 					}
+				} else {
+					$this->restful->cache_hit(true);
 				}
 
 				/* Validate output data types */

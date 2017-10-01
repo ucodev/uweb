@@ -2,7 +2,7 @@
 
 /* Author:   Pedro A. Hortas
  * Email:    pah@ucodev.org
- * Modified: 20/08/2017
+ * Modified: 01/10/2017
  * License:  GPLv3
  */
 
@@ -100,6 +100,8 @@ class UW_Restful extends UW_Model {
 
 	private $_id = NULL; /* Request ID */
 
+	private $_cache_hit = false; /* Set to true if this request was cache sourced */
+
 	/* Multi entry requests parameters */
 	private $_multi_enabled = false;
 	private $_multi_responses = array();
@@ -137,6 +139,95 @@ class UW_Restful extends UW_Model {
 		$this->output('207', $this->_multi_responses);
 	}
 
+	private function _log_request($response) {
+		/* Create a log entry for the request / response and send it to the configured facility */
+
+		/* Set log source properties */
+		$log['rest']['source'] = array(
+			'name'			=> UWEB_LOG_SOURCE_NAME,
+			'version'		=> UWEB_LOG_SOURCE_VERSION,
+			'hostname'		=> gethostname(),
+			'environment'	=> UWEB_LOG_SOURCE_ENVIRONMENT,
+			'company'		=> UWEB_LOG_SOURCE_COMPANY
+		);
+
+		/* Set request info */
+		$log['rest']['request']['info'] = array(
+			'id'			=> $this->id(),
+			'url'			=> current_url(),
+			'fqhn'			=> $_SERVER['SERVER_NAME'],
+			'port'			=> $_SERVER['SERVER_PORT'],
+			'protocol'		=> strtoupper('http' . (isset($_SERVER['HTTPS']) ? 's' : '')),
+			'http_method'	=> $this->method(),
+			'http_version'	=> $_SERVER['SERVER_PROTOCOL'],
+			'http_user_agent' => $this->header('User-Agent'),
+			'content_type'	=> $this->header('Content-Type'),
+			'accept'		=> $this->header('Accept'),
+			'users_id'		=> $this->header(UWEB_LOG_HEADER_USER_ID) ? intval($this->header(UWEB_LOG_HEADER_USER_ID)) : NULL,
+			'from'			=> $response['info']['call']['from'],
+			'tracker'		=> $this->header(UWEB_LOG_HEADER_TRACKER),
+			'geolocation'	=> NULL
+		);
+
+		/* Attempt to extract geolocation */
+		if ($this->header(UWEB_LOG_HEADER_GEOLOCATION)) {
+			do {
+				/* Fetch raw geolocation data from the header and try to parse it */
+				$geolocation = explode(' ', $this->header(UWEB_LOG_HEADER_GEOLOCATION));
+
+				/* Format for geolocation must be "latitude longitude" */
+				if (count($geolocation) != 2)
+					break;
+				
+				/* Latitude and Longitude values must be of double type */
+				if ((gettype($geolocation[0]) != 'double') || (gettype($geolocation[1]) != 'double'))
+					break;
+
+				/* Set geolocation information */
+				$log['rest']['request']['info']['geolocation'] = array(
+					'latitude'  => doubleval($geolocation[0]),
+					'longitude' => doubleval($geolocation[1])
+				);
+			} while (0);
+		}
+
+		/* Set response contents */
+		$log['rest']['response'] = $response;
+
+		/* If debugging is enabled, include request and response data/errors */
+		if (!$this->_debug) {
+			/* Do not send the full data if debug is not enabled */
+			unset($log['rest']['response']['data']);
+		} else {
+			/* Set request data based on JSON decoded input */
+			$log['rest']['request']['data'] = $this->input();
+		}
+
+		/* Use selected log interface */
+		switch (UWEB_LOG_INTERFACE) {
+			case 'http_json': {
+				/* POSTs the log to an HTTP server expecting a JSON encoded payload */
+				$this->request(
+					'POST',
+					UWEB_LOG_DESTINATION,
+					$log,
+					array(
+						'Content-Type: application/json'
+					)
+				);
+			}; break;
+
+			case 'error_log': {
+				/* Send the log to error_log */
+				error_log(json_encode($log));
+			}
+
+			default: {
+				error_log('Invalid logging interface: ' . UWEB_LOG_INTERFACE);
+			}
+		}
+	}
+
 
 	/** Public **/
 
@@ -150,6 +241,15 @@ class UW_Restful extends UW_Model {
 		return $this->_info['id'];
 	}
 
+	public function cache_hit($status = NULL) {
+		if ($status !== NULL) {
+			$this->_cache_hit = $status;
+			return $status;
+		}
+
+		return $this->_cache_hit;
+	}
+
 	public function call_start($object = NULL, $function = NULL, $argv = NULL) {
 		$this->_call = array();
 		$this->_call['from'] = $_SERVER['REMOTE_ADDR'];
@@ -159,11 +259,13 @@ class UW_Restful extends UW_Model {
 		$this->_call['argv'] = $argv;
 		$this->_call['start'] = microtime(true);
 		$this->_call['end'] = NULL;
+		$this->_call['user_agent'] = $this->header('User-Agent');
 
 		return $this->_call;
 	}
 
 	public function call_end() {
+		$this->_call['cache_hit'] = $this->cache_hit();
 		$this->_call['end'] = microtime(true);
 
 		return $this->_call;
@@ -345,10 +447,15 @@ class UW_Restful extends UW_Model {
 		/* Set Content-Length to avoid chunked transfer encodings */
 		$this->header('Content-Length', strlen($output));
 
-		/* Check if debug is enabled. */
-		if ($this->_debug) {
+		/* Check if debug is enabled, but only use error_log if no logging facility was enabled */
+		if ($this->_debug && !$this->_logging) {
 			/* If so, dump output contents to error log */
 			error_log($output);
+		}
+
+		/* Check if logging is enabled */
+		if ($this->_logging) {
+			$this->_log_request($body);
 		}
 
 		/* Send the body contents and terminate execution */

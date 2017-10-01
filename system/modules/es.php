@@ -2,7 +2,7 @@
 
 /* Author:   Pedro A. Hortas
  * Email:    pah@ucodev.org
- * Modified: 20/08/2017
+ * Modified: 01/10/2017
  * License:  GPLv3
  */
 
@@ -620,7 +620,8 @@ class UW_ES extends UW_Module {
         /** ES Query **/
 
         /* ES Query - Initialize boosted query */
-        $es_input['query']['function_score']['query']['bool']['should'] = array();
+        $es_input['query']['function_score']['query']['bool']['must'] = array();
+        $es_input['query']['function_score']['query']['bool']['must']['bool']['should'] = array();
 
         /* ES Query - If this is a fulltext-filter type, check and translate filter properties */
         if ($search['type'] == 'fulltext-filter') {
@@ -637,7 +638,7 @@ class UW_ES extends UW_Module {
 
         /* ES Query - Set boosted fields and respective boosting factor */
         foreach ($config['fields']['match']['boost'] as $k => $v) {
-            array_push($es_input['query']['function_score']['query']['bool']['should'],
+            array_push($es_input['query']['function_score']['query']['bool']['must']['bool']['should'],
                 array(
                     'match' => array(
                         $k => array(
@@ -651,7 +652,7 @@ class UW_ES extends UW_Module {
         }
 
         /* ES Query - Set normal fields as multi match */
-        array_push($es_input['query']['function_score']['query']['bool']['should'],
+        array_push($es_input['query']['function_score']['query']['bool']['must']['bool']['should'],
             array(
                 'multi_match' => array(
                     'fields' => $config['fields']['match']['normal'],
