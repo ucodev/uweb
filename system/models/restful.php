@@ -163,6 +163,7 @@ class UW_Restful extends UW_Model {
 			'http_user_agent' => $this->header('User-Agent'),
 			'content_type'	=> $this->header('Content-Type'),
 			'accept'		=> $this->header('Accept'),
+			'cache_control' => $this->header('Cache-Control'),
 			'from'			=> $response['info']['call']['from'],
 			'tracker'		=> $this->header(UWEB_LOG_HEADER_TRACKER)
 		);
