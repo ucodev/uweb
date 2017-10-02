@@ -12,3 +12,5 @@ define('UWEB_LOG_HEADER_USER_ID',	'ND-User-Id');
 define('UWEB_LOG_HEADER_TRACKER',	'ND-Tracker');
 define('UWEB_LOG_HEADER_GEOLOCATION',   'Geolocation');
 
+define('UWEB_LOG_DEFAULT_USER_ID',      2);
+

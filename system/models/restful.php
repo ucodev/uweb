@@ -163,30 +163,44 @@ class UW_Restful extends UW_Model {
 			'http_user_agent' => $this->header('User-Agent'),
 			'content_type'	=> $this->header('Content-Type'),
 			'accept'		=> $this->header('Accept'),
-			'users_id'		=> $this->header(UWEB_LOG_HEADER_USER_ID) ? intval($this->header(UWEB_LOG_HEADER_USER_ID)) : NULL,
 			'from'			=> $response['info']['call']['from'],
-			'tracker'		=> $this->header(UWEB_LOG_HEADER_TRACKER),
-			'geolocation'	=> NULL
+			'tracker'		=> $this->header(UWEB_LOG_HEADER_TRACKER)
 		);
+
+		/* Attempt to extract user id */
+		if ($this->header(UWEB_LOG_HEADER_USER_ID)) {
+			$log['rest']['request']['info']['users_id'] = intval($this->header(UWEB_LOG_HEADER_USER_ID));
+		} else {
+			$log['rest']['request']['info']['users_id'] = UWEB_LOG_DEFAULT_USER_ID;
+		}
 
 		/* Attempt to extract geolocation */
 		if ($this->header(UWEB_LOG_HEADER_GEOLOCATION)) {
 			do {
 				/* Fetch raw geolocation data from the header and try to parse it */
-				$geolocation = explode(' ', $this->header(UWEB_LOG_HEADER_GEOLOCATION));
+				$geolocation = explode(',', $this->header(UWEB_LOG_HEADER_GEOLOCATION));
 
-				/* Format for geolocation must be "latitude longitude" */
-				if (count($geolocation) != 2)
+				/* Format for geolocation must be "latitude, longitude" */
+				if (count($geolocation) != 2) {
+					error_log('Invalid geolocation value: ' . $this->header(UWEB_LOG_HEADER_GEOLOCATION));
 					break;
-				
+				}
+
+				/* Remove any extra whitespaces */
+				$geo_lat  = trim($geolocation[0], ' ');
+				$geo_long = trim($geolocation[1], ' ');
+
 				/* Latitude and Longitude values must be of double type */
-				if ((gettype($geolocation[0]) != 'double') || (gettype($geolocation[1]) != 'double'))
+				if (!preg_match('/\d+\.\d+/', $geo_lat) || !preg_match('/\d+\.\d+/', $geo_long)) {
+					error_log('Invalid geolocation value: ' . $this->header(UWEB_LOG_HEADER_GEOLOCATION));
 					break;
+				}
 
 				/* Set geolocation information */
 				$log['rest']['request']['info']['geolocation'] = array(
-					'latitude'  => doubleval($geolocation[0]),
-					'longitude' => doubleval($geolocation[1])
+					'location'  => array($geo_lat, $geo_long),
+					'latitude'  => doubleval($geo_lat),
+					'longitude' => doubleval($geo_long)
 				);
 			} while (0);
 		}
