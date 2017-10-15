@@ -2,7 +2,7 @@
 
 /* Author:   Pedro A. Hortas
  * Email:    pah@ucodev.org
- * Modified: 01/10/2017
+ * Modified: 07/10/2017
  * License:  GPLv3
  */
 
@@ -31,7 +31,7 @@ class UW_Restful extends UW_Model {
 	/** Protected **/
 
 	protected $_debug = false;
-	protected $_logging = true;
+	protected $_logging = false;
 
 
 	/** Private **/
@@ -139,16 +139,24 @@ class UW_Restful extends UW_Model {
 		$this->output('207', $this->_multi_responses);
 	}
 
+	public function _log_array_value_process(&$v, $k) {
+		if (current_config()['restful']['log']['secure_fields'] && in_array($k, current_config()['restful']['log']['secure_fields'], true)) {
+			$v = '[ ... ommited ... ]';
+		} else if (current_config()['restful']['log']['truncate_values'] && ((gettype($v) == 'string') && (strlen($v) > current_config()['restful']['log']['truncate_values']))) {
+			$v = substr($v, 0, current_config()['restful']['log']['truncate_values'] - 8) . ' [ ... ]';
+		}
+	}
+
 	private function _log_request($response) {
 		/* Create a log entry for the request / response and send it to the configured facility */
 
 		/* Set log source properties */
 		$log['rest']['source'] = array(
-			'name'			=> UWEB_LOG_SOURCE_NAME,
-			'version'		=> UWEB_LOG_SOURCE_VERSION,
+			'name'			=> current_config()['restful']['log']['source']['name'],
+			'version'		=> current_config()['restful']['log']['source']['version'],
 			'hostname'		=> gethostname(),
-			'environment'	=> UWEB_LOG_SOURCE_ENVIRONMENT,
-			'company'		=> UWEB_LOG_SOURCE_COMPANY
+			'environment'	=> current_config()['restful']['log']['source']['environment'],
+			'company'		=> current_config()['restful']['log']['source']['company']
 		);
 
 		/* Set request info */
@@ -165,25 +173,43 @@ class UW_Restful extends UW_Model {
 			'accept'		=> $this->header('Accept'),
 			'cache_control' => $this->header('Cache-Control'),
 			'from'			=> $response['info']['call']['from'],
-			'tracker'		=> $this->header(UWEB_LOG_HEADER_TRACKER)
+			'tracker'		=> $this->header(current_config()['restful']['log']['header']['tracker'])
 		);
 
-		/* Attempt to extract user id */
-		if ($this->header(UWEB_LOG_HEADER_USER_ID)) {
-			$log['rest']['request']['info']['users_id'] = intval($this->header(UWEB_LOG_HEADER_USER_ID));
+		/* Attempt to extract user id and session id */
+		if ($this->header(current_config()['restful']['log']['header']['user_id'])) {
+			/* If user id is set in the header, fetch it from there */
+			$log['rest']['request']['info']['users_id'] = intval($this->header(current_config()['restful']['log']['header']['user_id']));
+			$log['rest']['request']['info']['sessions_id'] = sha1($this->header(current_config()['restful']['log']['header']['auth_token']) . $log['rest']['request']['info']['users_id']);
+		} else if ($response['info']['call']['object'] == 'auth' && $response['info']['call']['function'] == 'insert') {
+			/* If the user header is not set, and this is an authentication request, fetch the user id from response */
+			if ($response['info']['code'] == 201) {
+				$log['rest']['request']['info']['users_id'] = $response['data']['userid'];
+				$log['rest']['request']['info']['sessions_id'] = sha1($response['data']['token'] . $response['data']['userid']);
+			} else {
+				/* If the authentication failed, set user id to zero */
+				$log['rest']['request']['info']['users_id'] = 0;
+			}
+		} else if ($response['info']['call']['object'] == 'register') {
+			/* If the user header is not set, and this is a user registration request, set user id to zero */
+			$log['rest']['request']['info']['users_id'] = 0;
 		} else {
-			$log['rest']['request']['info']['users_id'] = UWEB_LOG_DEFAULT_USER_ID;
+			/* If all the above failed, this is an unauthenticated request and will fallback to the public user id */
+			$log['rest']['request']['info']['users_id'] = current_config()['restful']['log']['default']['user_id'];
 		}
 
+		/* Calculate request execution time (internal) */
+		$log['rest']['request']['info']['exec_time'] = round($response['info']['call']['end'] - $response['info']['call']['start'], 6);
+
 		/* Attempt to extract geolocation */
-		if ($this->header(UWEB_LOG_HEADER_GEOLOCATION)) {
+		if ($this->header(current_config()['restful']['log']['header']['geolocation'])) {
 			do {
 				/* Fetch raw geolocation data from the header and try to parse it */
-				$geolocation = explode(',', $this->header(UWEB_LOG_HEADER_GEOLOCATION));
+				$geolocation = explode(',', $this->header(current_config()['restful']['log']['header']['geolocation']));
 
 				/* Format for geolocation must be "latitude, longitude" */
 				if (count($geolocation) != 2) {
-					error_log('Invalid geolocation value: ' . $this->header(UWEB_LOG_HEADER_GEOLOCATION));
+					error_log('Invalid geolocation value: ' . $this->header(current_config()['restful']['log']['header']['geolocation']));
 					break;
 				}
 
@@ -193,7 +219,7 @@ class UW_Restful extends UW_Model {
 
 				/* Latitude and Longitude values must be of double type */
 				if (!preg_match('/\d+\.\d+/', $geo_lat) || !preg_match('/\d+\.\d+/', $geo_long)) {
-					error_log('Invalid geolocation value: ' . $this->header(UWEB_LOG_HEADER_GEOLOCATION));
+					error_log('Invalid geolocation value: ' . $this->header(current_config()['restful']['log']['header']['geolocation']));
 					break;
 				}
 
@@ -209,26 +235,66 @@ class UW_Restful extends UW_Model {
 		/* Set response contents */
 		$log['rest']['response'] = $response;
 
-		/* If debugging is enabled, include request and response data/errors */
-		if (!$this->_debug) {
+		/* Check if response body logging is enabled */
+		if (!current_config()['restful']['log']['response_body']) {
 			/* Do not send the full data if debug is not enabled */
 			unset($log['rest']['response']['data']);
-		} else {
+		} else if (isset($log['rest']['response']['data']) && $log['rest']['response']['data']) {
+			/* Check if values should be truncated */
+			if (current_config()['restful']['log']['truncate_values'] || current_config()['restful']['log']['secure_fields']) {
+				/* Truncate values from response data */
+				array_walk_recursive($log['rest']['response']['data'], array($this, '_log_array_value_process'));
+			}
+
+			/* Check if body should be encoded */
+			if (current_config()['restful']['log']['encode_body'] === true) {
+				$log['rest']['response']['data'] = json_encode($log['rest']['response']['data'], JSON_PRETTY_PRINT);
+
+				/* Check if body data is too big and should be discarded */
+				if (strlen($log['rest']['response']['data']) > current_config()['restful']['log']['discard_huge_body'])
+					$log['rest']['response']['data'] = substr($log['rest']['response']['data'], 0, current_config()['restful']['log']['discard_huge_body'] - 22) . ' [ ... discarded ... ]';
+			}
+		}
+
+		/* Check if request body logging is enabled */
+		if (current_config()['restful']['log']['request_body']) {
 			/* Set request data based on JSON decoded input */
-			$log['rest']['request']['data'] = $this->input();
+			if ($this->input()) {
+				/* Set request data as the current request input */
+				$log['rest']['request']['data'] = $this->input();
+
+				/* Check if values should be truncated */
+				if (current_config()['restful']['log']['truncate_values'] || current_config()['restful']['log']['secure_fields']) {
+					/* Truncate values from request data */
+					array_walk_recursive($log['rest']['request']['data'], array($this, '_log_array_value_process'));
+				}
+
+				/* Check if body should be encoded */
+				if (current_config()['restful']['log']['encode_body'] === true) {
+					$log['rest']['request']['data'] = json_encode($log['rest']['request']['data'], JSON_PRETTY_PRINT);
+
+					/* Check if body data is too big and should be discarded */
+					if (strlen($log['rest']['request']['data']) > current_config()['restful']['log']['discard_huge_body'])
+					$log['rest']['request']['data'] = substr($log['rest']['request']['data'], 0, current_config()['restful']['log']['discard_huge_body'] - 22) . ' [ ... discarded ... ]';
+				}
+			}
 		}
 
 		/* Use selected log interface */
-		switch (UWEB_LOG_INTERFACE) {
+		switch (current_config()['restful']['log']['interface']) {
 			case 'http_json': {
 				/* POSTs the log to an HTTP server expecting a JSON encoded payload */
 				$this->request(
 					'POST',
-					UWEB_LOG_DESTINATION,
+					current_config()['restful']['log']['destination']['url'],
 					$log,
 					array(
 						'Content-Type: application/json'
-					)
+					),
+					$status_code,
+					$raw_output,
+					current_config()['restful']['log']['destination']['timeout']['connect'],
+					current_config()['restful']['log']['destination']['timeout']['execute']
 				);
 			}; break;
 
@@ -238,9 +304,30 @@ class UW_Restful extends UW_Model {
 			}
 
 			default: {
-				error_log('Invalid logging interface: ' . UWEB_LOG_INTERFACE);
+				error_log('Invalid logging interface: ' . current_config()['restful']['log']['interface']);
 			}
 		}
+	}
+
+
+	/** Construct **/
+
+	public function __construct() {
+		parent::__construct();
+
+		/* Check if RESTful interface is enabled */
+		if (!current_config()['restful']['enabled']) {
+			$this->error('uWeb RESTful interface is disabled');
+			$this->output('403');
+		}
+
+		/* Setup debug and logging parameters */
+		$this->_debug = current_config()['restful']['debug']['enabled'];
+		$this->_debug_level = current_config()['restful']['debug']['level'];
+		$this->_logging = current_config()['restful']['log']['enabled'];
+
+		/* Set default status code */
+		$this->_info['code'] = current_config()['restful']['response']['default']['status_code'];
 	}
 
 
@@ -333,6 +420,15 @@ class UW_Restful extends UW_Model {
 		if ($this->_input !== NULL)
 			return $this->_input;
 
+		/* Fetch raw data */
+		$raw_data = file_get_contents('php://input');
+
+		/* Check if there's any input */
+		if (!$raw_data) {
+			$this->_input = NULL;
+			return NULL;
+		}
+
 		/* If the content type isn't set as application/json, we'll not accept this request */
 		if (strstr($this->header('Content-Type'), 'application/json') === false) {
 			/* Content type is not acceptable here */
@@ -341,9 +437,6 @@ class UW_Restful extends UW_Model {
 			/* Not acceptable */
 			$this->output('406');
 		}
-
-		/* Fetch raw data */
-		$raw_data = file_get_contents('php://input');
 
 		/* Check if debug is enabled. */
 		if ($this->_debug) {
@@ -441,8 +534,11 @@ class UW_Restful extends UW_Model {
 
 				if ($json_data !== NULL) {
 					$body['data'] = $json_data; /* JSON data */
+					unset($data);
+					unset($json_data);
 				} else {
 					$body['data'] = $data; /* Raw data */
+					unset($data);
 				}
 			}
 		}
@@ -462,35 +558,40 @@ class UW_Restful extends UW_Model {
 		/* Set Content-Length to avoid chunked transfer encodings */
 		$this->header('Content-Length', strlen($output));
 
-		/* Check if debug is enabled, but only use error_log if no logging facility was enabled */
-		if ($this->_debug && !$this->_logging) {
+		/* Check if debug is enabled */
+		if ($this->_debug) {
 			/* If so, dump output contents to error log */
 			error_log($output);
 		}
 
-		/* Check if logging is enabled */
-		if ($this->_logging) {
-			$this->_log_request($body);
-		}
-
-		/* Send the body contents and terminate execution */
+		/* Check if we should inform the client to close the connection */
 		if ($force_close === true) {
 			/* Close user connection */
 			$this->header('Connection', 'close');
-
-			/* Send the response to user */
-			echo($output);
-
-			/* Flush data */
-			ob_end_flush();
-			ob_flush();
-			flush();
-
-			/* Finish request for FastCGI */
-			fastcgi_finish_request();
-		} else {
-			exit($output);
 		}
+
+		/* Send the response */
+		echo($output);
+
+		/* Flush output buffer */
+		ob_end_flush();
+		ob_flush();
+		flush();
+
+		/* Finish request for FastCGI */
+		fastcgi_finish_request();
+
+		/* Check if logging is enabled, and if so, log the request */
+		if ($this->_logging)
+			$this->_log_request($body);
+
+		/* If force_close is not set to true, do not allow further processing */
+		if ($force_close !== true)
+			exit();
+
+		/* From this point on, we know that force_close was set to true and we will allow further processing.
+		 * This will allow functions to finish time consuming tasks that will render no output to the user, creating a background processing task.
+		 */
 	}
 
 	public function init($ctrl, $obj_function, $argv = NULL) {
@@ -574,7 +675,7 @@ class UW_Restful extends UW_Model {
 					if (count(array_filter(array_keys($this->input()), 'is_string')) > 0) {
 						/* Single entry */
 						$ctrl->insert($argv);
-					} else {
+					} else if (gettype($this->input()) != 'string') {
 						/* Multiple entries */
 						$this->_multi_init();
 
@@ -585,6 +686,9 @@ class UW_Restful extends UW_Model {
 
 						/* Commit responses */
 						$this->_multi_commit();
+					} else {
+						$this->error('Invalid data type detected in entity body.');
+						$this->output('400');
 					}
 				} else {
 					/* Object method is not implemented (no handler declared) */
@@ -607,7 +711,7 @@ class UW_Restful extends UW_Model {
 					if (count(array_filter(array_keys($this->input()), 'is_string')) > 0) {
 						/* Single entry */
 						$ctrl->modify($argv);
-					} else {
+					} else if (gettype($this->input()) != 'string') {
 						/* Multiple entries */
 						$this->_multi_init();
 
@@ -618,6 +722,9 @@ class UW_Restful extends UW_Model {
 
 						/* Commit responses */
 						$this->_multi_commit();
+					} else {
+						$this->error('Invalid data type detected in entity body.');
+						$this->output('400');
 					}
 				} else {
 					/* Object method is not implemented (no handler declared) */
@@ -640,7 +747,7 @@ class UW_Restful extends UW_Model {
 					if (count(array_filter(array_keys($this->input()), 'is_string')) > 0) {
 						/* Single entry */
 						$ctrl->update($argv);
-					} else {
+					} else if (gettype($this->input()) != 'string') {
 						/* Multiple entries */
 						$this->_multi_init();
 
@@ -651,6 +758,9 @@ class UW_Restful extends UW_Model {
 
 						/* Commit responses */
 						$this->_multi_commit();
+					} else {
+						$this->error('Invalid data type detected in entity body.');
+						$this->output('400');
 					}
 				} else {
 					/* Object method is not implemented (no handler declared) */
@@ -728,7 +838,7 @@ class UW_Restful extends UW_Model {
 		}
 	}
 
-	public function request($method, $url, $data = NULL, $headers = NULL, &$status_code = false, &$raw_output = false) {
+	public function request($method, $url, $data = NULL, $headers = NULL, &$status_code = false, &$raw_output = false, $timeout_conn = NULL /* in ms */, $timeout_exec = NULL /* in ms */) {
             /* Set required request headers */
 			if ($headers === NULL) {
 				$req_headers = array(
@@ -747,6 +857,14 @@ class UW_Restful extends UW_Model {
 
             /* Set cURL request headers */
             curl_setopt($ch, CURLOPT_HTTPHEADER, $req_headers);
+
+			/* Set connection timeout value, if set (from milliseconds) */
+			if ($timeout_conn !== NULL)
+				curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, intval($timeout_conn / 1000));
+
+			/* Set max lifetime for the connection, if set (from milliseconds) */
+			if ($timeout_exec !== NULL)
+				curl_setopt($ch, CURLOPT_TIMEOUT_MS, $timeout_exec);
 
 			/* Process method */
 			switch (strtoupper($method)) {
@@ -795,6 +913,17 @@ class UW_Restful extends UW_Model {
 
             /* Execute the request */
             $output = curl_exec($ch);
+
+			/* Check for cURL errors */
+			if (curl_errno($ch)) {
+				error_log(__FILE__ . ': ' . __FUNCTION__ . ': cURL error: ' . curl_error($ch));
+				curl_close($ch);
+
+				$status_code = NULL;
+				$raw_output = NULL;
+
+				return NULL;
+			}
 
 			/* Set status code, if requested */
 			if ($status_code !== false)

@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 11/06/2017
+ * Modified: 07/10/2017
  * License: GPLv3
  */
 
@@ -133,5 +133,19 @@ class UW_Cache extends UW_Base {
 			return false;
 
 		return $this->_c[$this->_context]->getResultCode();
+	}
+
+	public function increment($k, $offset = 1, $initial_value = 0, $expiry = 0) {
+		if ($this->is_active() !== true)
+			return false;
+		
+		return $this->_c[$this->_context]->increment($this->_kp[$this->_context] . $k, $offset, $initial_value, $expiry);
+	}
+
+	public function decrement($k, $offset = 1, $initial_value = 0, $expiry = 0) {
+		if ($this->is_active() !== true)
+			return false;
+		
+		return $this->_c[$this->_context]->decrement($this->_kp[$this->_context] . $k, $offset, $initial_value, $expiry);
 	}
 }

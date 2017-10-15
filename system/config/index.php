@@ -51,6 +51,18 @@ $config['database'] = $database;
 include('system/config/encrypt.php');
 $config['encrypt'] = $encrypt;
 
+/* ES settings */
+include('system/config/es.php');
+$config['es'] = $es;
+
+/* ND settings */
+include('system/config/nd.php');
+$config['nd'] = $nd;
+
+/* RESTful settings */
+include('system/config/restful.php');
+$config['restful'] = $restful;
+
 /* Session settings */
 include('system/config/session.php');
 $config['session'] = $session;

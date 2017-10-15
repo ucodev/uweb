@@ -2,7 +2,7 @@
 
 /* Author:   Pedro A. Hortas
  * Email:    pah@ucodev.org
- * Modified: 01/10/2017
+ * Modified: 07/10/2017
  * License:  GPLv3
  */
 
@@ -30,6 +30,20 @@
 class UW_ND extends UW_Module {
 	private $_session = NULL;
 
+
+	/** Construct **/
+
+	public function __construct() {
+		parent::__construct();
+
+		/* Check if RESTful interface is enabled */
+		if (!current_config()['nd']['enabled']) {
+			$this->error('uWeb ND interface is disabled');
+			$this->output('403');
+		}
+	}
+
+
 	public function log($code, $file, $line, $function, $message, $session = NULL) {
 		error_log(
 			'[' . $code . ']: ' .
@@ -52,7 +66,7 @@ class UW_ND extends UW_Module {
 			array_push($req_headers, 'Content-Type: application/json');
 
 		/* Check if we can trust the requester headers */
-		if (in_array($_SERVER['REMOTE_ADDR'], ND_REQ_TRUSTED_SRC_IPADDR)) {
+		if (in_array($_SERVER['REMOTE_ADDR'], current_config()['nd']['trusted_sources'])) {
 			/* Get X-Forwarded-For value, if any */
 			$xfrd = $this->restful->header('X-Forwarded-For');
 
@@ -80,7 +94,7 @@ class UW_ND extends UW_Module {
 		$ch = curl_init();
 
 		/* Set the request URL */
-		curl_setopt($ch, CURLOPT_URL, ND_REQ_BACKEND_BASE_URL . $uri);
+		curl_setopt($ch, CURLOPT_URL, current_config()['nd']['backend']['base_url'] . $uri);
 
 		/* Set cURL request headers */
 		curl_setopt($ch, CURLOPT_HTTPHEADER, $req_headers);
@@ -99,8 +113,8 @@ class UW_ND extends UW_Module {
 		}
 
 		/* Replace User-Agent, if required */
-		if (ND_REQ_USER_AGENT_REPLACE === true) {
-			curl_setopt($ch, CURLOPT_USERAGENT, ND_REQ_USER_AGENT_NAME . ' ' . ND_REQ_USER_AGENT_VER);
+		if (current_config()['nd']['user_agent']['replace'] === true) {
+			curl_setopt($ch, CURLOPT_USERAGENT, current_config()['nd']['user_agent']['name'] . ' ' . current_config()['nd']['user_agent']['version']);
 		} else if (isset($_SERVER['HTTP_USER_AGENT'])) {
 			/* Otherwise, if User-Agent header is set, use it */
 			curl_setopt($ch, CURLOPT_USERAGENT, $_SERVER['HTTP_USER_AGENT']);
@@ -175,8 +189,8 @@ class UW_ND extends UW_Module {
 			return true;
 
 		/* Get user id and authentication token from request headers */
-		$user_id    = $this->restful->header(ND_REQ_HEADER_USER_ID);
-		$auth_token = $this->restful->header(ND_REQ_HEADER_AUTH_TOKEN);
+		$user_id    = $this->restful->header(current_config()['nd']['header']['user_id']);
+		$auth_token = $this->restful->header(current_config()['nd']['header']['auth_token']);
 
 		/* Grant that user id header is set */
 		if (!$user_id || !is_numeric($user_id))
@@ -196,26 +210,26 @@ class UW_ND extends UW_Module {
 			return $this->_session;
 
 		/* Get user id and authentication token from request headers */
-		$user_id    = $this->restful->header(ND_REQ_HEADER_USER_ID);
-		$auth_token = $this->restful->header(ND_REQ_HEADER_AUTH_TOKEN);
+		$user_id    = $this->restful->header(current_config()['nd']['header']['user_id']);
+		$auth_token = $this->restful->header(current_config()['nd']['header']['auth_token']);
 
 		/* Grant that user id header is set */
 		if (!$user_id || !is_numeric($user_id)) {
-			$this->log('401', __FILE__, __LINE__, __FUNCTION__, ND_REQ_HEADER_USER_ID . ' header is not set, is invalid, or contains no data.');
-			$this->restful->error(ND_REQ_HEADER_USER_ID . ' header is not set, is invalid, or contains no data.');
+			$this->log('401', __FILE__, __LINE__, __FUNCTION__, current_config()['nd']['header']['user_id'] . ' header is not set, is invalid, or contains no data.');
+			$this->restful->error(current_config()['nd']['header']['user_id'] . ' header is not set, is invalid, or contains no data.');
 			$this->restful->output('401'); /* Unauthorized */
 		}
 
 		/* Grant that authentication token header is set */
 		if (!$auth_token || strlen($auth_token) != 40 || hex2bin($auth_token) === false) {
-			$this->log('401', __FILE__, __LINE__, __FUNCTION__, ND_REQ_HEADER_AUTH_TOKEN . ' header is not set, is invalid, or contains no data.', array('user_id' => $user_id, 'token' => NULL));
-			$this->restful->error(ND_REQ_HEADER_AUTH_TOKEN . ' header is not set, is invalid, or contains no data.');
+			$this->log('401', __FILE__, __LINE__, __FUNCTION__, current_config()['nd']['header']['auth_token'] . ' header is not set, is invalid, or contains no data.', array('user_id' => $user_id, 'token' => NULL));
+			$this->restful->error(current_config()['nd']['header']['auth_token'] . ' header is not set, is invalid, or contains no data.');
 			$this->restful->output('401'); /* Unauthorized */
 		}
 
 		/* Load auth cache context */
 		$cache_context_orig = $this->cache->context();
-		$this->cache->load(ND_REQ_CACHE_CONTEXT_AUTH);
+		$this->cache->load(current_config()['nd']['cache']['context']['auth']);
 
 		/* Get session cookie */
 		$enc_session_cookie = $this->cache->get('nd_user_session_' . sha1($user_id . $auth_token));
@@ -254,7 +268,7 @@ class UW_ND extends UW_Module {
 	public function session_destroy($session) {
 		/* Load auth cache context */
 		$cache_context_orig = $this->cache->context();
-		$this->cache->load(ND_REQ_CACHE_CONTEXT_AUTH);
+		$this->cache->load(current_config()['nd']['cache']['context']['auth']);
 
 		/* Delete cached session data */
 		$this->cache->delete('nd_user_session_' . sha1($session['user_id'] . $session['token']));
@@ -334,7 +348,7 @@ class UW_ND extends UW_Module {
 
 		/* Initialize cURL */
 		$ch = curl_init();
-		curl_setopt($ch, CURLOPT_URL, ND_REQ_BACKEND_BASE_URL . '/login/authenticate');
+		curl_setopt($ch, CURLOPT_URL, current_config()['nd']['backend']['base_url'] . '/login/authenticate');
 		curl_setopt($ch, CURLOPT_HTTPHEADER, $req_headers);
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 		curl_setopt($ch, CURLOPT_POST, true);
@@ -342,8 +356,8 @@ class UW_ND extends UW_Module {
 		curl_setopt($ch, CURLOPT_HEADER, true);
 
 		/* Check if we should replace user agent */
-		if (ND_REQ_USER_AGENT_REPLACE === true) {
-			curl_setopt($ch, CURLOPT_USERAGENT, ND_REQ_USER_AGENT_NAME . ' ' . ND_REQ_USER_AGENT_VER);
+		if (current_config()['nd']['user_agent']['replace'] === true) {
+			curl_setopt($ch, CURLOPT_USERAGENT, current_config()['nd']['user_agent']['name'] . ' ' . current_config()['nd']['user_agent']['version']);
 		} else if (isset($_SERVER['HTTP_USER_AGENT'])) {
 			/* Otherwise, if User-Agent header is set, use it */
 			curl_setopt($ch, CURLOPT_USERAGENT, $_SERVER['HTTP_USER_AGENT']);
@@ -416,10 +430,10 @@ class UW_ND extends UW_Module {
 
 		/* Extract session lifetime from Max-Age */
 		if (preg_match('/Max-Age=(\d+);/i', $session_cookie, $matches) !== 1) {
-			$this->log('N/A', __FILE__, __LINE__, __FUNCTION__, 'Unable to retrieve session lifetime for user \'' . $auth['username'] . '\'. Using default (' . ND_REQ_SESSION_LIFETIME . ').');
+			$this->log('N/A', __FILE__, __LINE__, __FUNCTION__, 'Unable to retrieve session lifetime for user \'' . $auth['username'] . '\'. Using default (' . current_config()['nd']['backend']['session_lifetime'] . ').');
 
 			/* Since we couldn't extract the session lifetime value from the cookie, we'll use the default */
-			$session_lifetime = ND_REQ_SESSION_LIFETIME;
+			$session_lifetime = current_config()['nd']['backend']['session_lifetime'];
 		} else {
 			/* Set the session lifetime value from what was extracted from the cookie */
 			$session_lifetime = $matches[1];
@@ -441,7 +455,7 @@ class UW_ND extends UW_Module {
 
 		/* Load auth cache context */
 		$cache_context_orig = $this->cache->context();
-		$this->cache->load(ND_REQ_CACHE_CONTEXT_AUTH);
+		$this->cache->load(current_config()['nd']['cache']['context']['auth']);
 
 		/* Cache session information */
 		$this->cache->set('nd_user_session_' . sha1($data['userid'] . $data['token']), $enc_session_cookie, $session_lifetime);
@@ -459,11 +473,11 @@ class UW_ND extends UW_Module {
 	public function user_data($user_id = NULL, $auth_token = NULL) {
 		/* If no user ID was set, determine it from the headers */
 		if ($user_id === NULL)
-			$user_id = $this->restful->header(ND_REQ_HEADER_USER_ID);
+			$user_id = $this->restful->header(current_config()['nd']['header']['user_id']);
 
 		/* If no authentication token was set, determine it from the headers */
 		if ($auth_token === NULL)
-			$auth_token = $this->restful->header(ND_REQ_HEADER_AUTH_TOKEN);
+			$auth_token = $this->restful->header(current_config()['nd']['header']['auth_token']);
 
 		/* Weak validation for user ID and authentication token */
 		if (!$user_id || !$auth_token) {
@@ -474,7 +488,7 @@ class UW_ND extends UW_Module {
 
 		/* Load auth cache context */
 		$cache_context_orig = $this->cache->context();
-		$this->cache->load(ND_REQ_CACHE_CONTEXT_AUTH);
+		$this->cache->load(current_config()['nd']['cache']['context']['auth']);
 
 		/* Get user data from auth cache */
 		$user_data = $this->cache->get('nd_user_data_' . sha1($user_id . $auth_token));
@@ -760,8 +774,8 @@ class UW_ND extends UW_Module {
 		} else {
 			/* No authenticated session will be used. Public user creditials will be used for this request. */
 			$session = NULL;
-			$reqbody['_userid'] = ND_REQ_PUBLIC_USER_ID;
-			$reqbody['_apikey'] = ND_REQ_PUBLIC_AUTH_TOKEN;
+			$reqbody['_userid'] = current_config()['nd']['auth']['public']['user_id'];
+			$reqbody['_apikey'] = current_config()['nd']['auth']['public']['api_key'];
 		}
 
 		/* Grant that entry ID is set */
@@ -851,8 +865,8 @@ class UW_ND extends UW_Module {
 		} else {
 			/* No authenticated session will be used. Public user creditials will be used for this request. */
 			$session = NULL;
-			$reqbody['_userid'] = ND_REQ_PUBLIC_USER_ID;
-			$reqbody['_apikey'] = ND_REQ_PUBLIC_AUTH_TOKEN;
+			$reqbody['_userid'] = current_config()['nd']['auth']['public']['user_id'];
+			$reqbody['_apikey'] = current_config()['nd']['auth']['public']['api_key'];
 		}
 
 		/* Initialize data */
@@ -966,8 +980,8 @@ class UW_ND extends UW_Module {
 		} else {
 			/* No authenticated session will be used. Public user creditials will be used for this request. */
 			$session = NULL;
-			$reqbody['_userid'] = ND_REQ_PUBLIC_USER_ID;
-			$reqbody['_apikey'] = ND_REQ_PUBLIC_AUTH_TOKEN;
+			$reqbody['_userid'] = current_config()['nd']['auth']['public']['user_id'];
+			$reqbody['_apikey'] = current_config()['nd']['auth']['public']['api_key'];
 		}
 
 		/* Validate arguments, if any */
@@ -1045,8 +1059,8 @@ class UW_ND extends UW_Module {
 		} else {
 			/* No authenticated session will be used. Public user creditials will be used for this request. */
 			$session = NULL;
-			$reqbody['_userid'] = ND_REQ_PUBLIC_USER_ID;
-			$reqbody['_apikey'] = ND_REQ_PUBLIC_AUTH_TOKEN;
+			$reqbody['_userid'] = current_config()['nd']['auth']['public']['user_id'];
+			$reqbody['_apikey'] = current_config()['nd']['auth']['public']['api_key'];
 		}
 
 		/* Validate arguments, if any */
@@ -1109,8 +1123,8 @@ class UW_ND extends UW_Module {
 		} else {
 			/* No authenticated session will be used. Public user creditials will be used for this request. */
 			$session = NULL;
-			$reqbody['_userid'] = ND_REQ_PUBLIC_USER_ID;
-			$reqbody['_apikey'] = ND_REQ_PUBLIC_AUTH_TOKEN;
+			$reqbody['_userid'] = current_config()['nd']['auth']['public']['user_id'];
+			$reqbody['_apikey'] = current_config()['nd']['auth']['public']['api_key'];
 		}
 
 		/* Validate arguments, if any */
@@ -1149,8 +1163,8 @@ class UW_ND extends UW_Module {
 		} else {
 			/* No authenticated session will be used. Public user creditials will be used for this request. */
 			$session = NULL;
-			$reqbody['_userid'] = ND_REQ_PUBLIC_USER_ID;
-			$reqbody['_apikey'] = ND_REQ_PUBLIC_AUTH_TOKEN;
+			$reqbody['_userid'] = current_config()['nd']['auth']['public']['user_id'];
+			$reqbody['_apikey'] = current_config()['nd']['auth']['public']['api_key'];
 		}
 
 		/* Only POST method is accepted for this call */
@@ -1198,6 +1212,26 @@ class UW_ND extends UW_Module {
                     $this->restful->error('Parameter \'ordering\' is set as \'in\', but \'query\' does not contain a \'in\' criteria for the field set for \'orderby\' parameter.');
                     $this->restful->output('400'); /* Bad Request */
                 }
+
+				/* Store original limit and set the query limit to the amount of elements present in the "in" criteria for the "orderby" field */
+				$inorder_limit = $input['limit'];
+				$input['limit'] = count($input['query'][$input['orderby']]['in']);
+
+				/* Validate requested limit for the inorder query */
+				if ($inorder_limit > $input['limit']) {
+					$this->restful->error('The requested \'limit\' value is greater than the amount of elements present in the \'in\' criteria.');
+					$this->restful->output('400'); /* Bad Request */
+				}
+
+				/* Store original offset value and reset query offset */
+				$inorder_offset = $input['offset'];
+				$input['offset'] = 0;
+
+				/* Validate requested offset for the inorder query */
+				if ($inorder_offset >= $input['limit']) {
+					$this->restful->error('The requested \'offset\' value cannot be greater than or equal to the amount of elements present in the \'in\' criteria.');
+					$this->restful->output('400'); /* Bad Request */
+				}
 
                 /* Mark this search for reordering based on 'in' criteria */
                 $inorder = true;
@@ -1327,9 +1361,21 @@ class UW_ND extends UW_Module {
 				$data_inorder[intval(array_search($row[$input['orderby']], $in_values))] = $nd_data['result'][$i];
 		}
 
-		/* If inorder reordering was requested, filter out empty results (from non-existing entries that were included under the 'in' criteria) */
-		if ($inorder === true)
+		/* If inorder reordering was requested, post-process the result... */
+		if ($inorder === true) {
+			/* Filter out empty results (from non-existing entries that were included under the 'in' criteria) */
 			$nd_data['result'] = array_values(array_filter($data_inorder));
+
+			/* Update totals, if required */
+			if (isset($input['total']) && ($input['total'] === true))
+				$nd_data['total'] = count($nd_data['result']);
+
+			/* Also apply the original requested limit and offset to the result */
+			$nd_data['result'] = array_slice($nd_data['result'], $inorder_offset, $inorder_limit);
+
+			/* Update count */
+			$nd_data['count'] = count($nd_data['result']);
+		}
 
 		/* Check for aggregation requests */
 		if (isset($aggregations) && is_array($aggregations) && (count($aggregations) > 0)) {
@@ -1442,8 +1488,8 @@ class UW_ND extends UW_Module {
 							)
 						),
 						array(
-							ND_REQ_HEADER_USER_ID . ': ' . $this->restful->header(ND_REQ_HEADER_USER_ID),
-							ND_REQ_HEADER_AUTH_TOKEN . ': ' . $this->restful->header(ND_REQ_HEADER_AUTH_TOKEN),
+							current_config()['nd']['header']['user_id'] . ': ' . $this->restful->header(current_config()['nd']['header']['user_id']),
+							current_config()['nd']['header']['auth_token'] . ': ' . $this->restful->header(current_config()['nd']['header']['auth_token']),
 							'Content-Type: application/json',
 							'Accept: application/json'
 						),
@@ -1581,7 +1627,7 @@ class UW_ND extends UW_Module {
 
 	public function properties($object, $method = NULL, $property = NULL) {
 		/* Craft object properties file path */
-		$obj_file = SYSTEM_BASE_DIR . ND_REQ_OBJ_PROPERTIES_DIR . '/' . $object . '.json';
+		$obj_file = SYSTEM_BASE_DIR . current_config()['nd']['models']['base_path'] . '/' . $object . '.json';
 
 		/* TODO: Before requesting from cache service, add a local cache object on this class to store/load object properties
 		 * that were already requested during this request.
@@ -1773,7 +1819,7 @@ class UW_ND extends UW_Module {
 
 	public function validate_data_types($object, $method, $data, $ftypes = NULL) {
 		/* Check if data type validation is disabled */
-		if (ND_REQ_VALIDATE_TYPES === false)
+		if (current_config()['nd']['models']['validate']['types'] === false)
 			return;
 
 		/* Get object field types */
@@ -1783,7 +1829,7 @@ class UW_ND extends UW_Module {
 		/* Validate data types according to selected method */
 		if (in_array($method, array('insert', 'modify'))) { /* Input */
 			/* Check if input type validation is disabled */
-			if (ND_REQ_VALIDATE_INPUT_TYPES === false)
+			if (current_config()['nd']['models']['validate']['input_types'] === false)
 				return;
 
 			/* If method is modify, check if the entry id has a valid format */
@@ -1819,7 +1865,7 @@ class UW_ND extends UW_Module {
 			/* Check if data input is set */
 			if (isset($data['input'])) {
 				/* Check if input type validation is disabled */
-				if (ND_REQ_VALIDATE_INPUT_TYPES === false)
+				if (current_config()['nd']['models']['validate']['input_types'] === false)
 					return;
 
 				/* Validate fields under 'show' array, if present */
@@ -1936,7 +1982,7 @@ class UW_ND extends UW_Module {
 			/* Check if data output is set */
 			if (isset($data['output'])) {
 				/* Check if output type validation is disabled */
-				if (ND_REQ_VALIDATE_OUTPUT_TYPES === false)
+				if (current_config()['nd']['models']['validate']['output_types'] === false)
 					return;
 
 				/* Validate output types */
@@ -1964,7 +2010,7 @@ class UW_ND extends UW_Module {
 			}
 		} else if ($method == 'view') { /* Output */
 			/* Check if output type validation is disabled */
-			if (ND_REQ_VALIDATE_OUTPUT_TYPES === false)
+			if (current_config()['nd']['models']['validate']['output_types'] === false)
 				return;
 
 			/* Check if the entry id has a valid format */
@@ -1996,7 +2042,7 @@ class UW_ND extends UW_Module {
 			}
 		} else if ($method == 'listing') { /* Output */
 			/* Check if output type validation is disabled */
-			if (ND_REQ_VALIDATE_OUTPUT_TYPES === false)
+			if (current_config()['nd']['models']['validate']['output_types'] === false)
 				return;
 
 			/* Check if data output is set */
@@ -2053,7 +2099,7 @@ class UW_ND extends UW_Module {
 
 		/* Load the context where object data resides */
 		$cache_context_orig = $this->cache->context();
-		$this->cache->load(ND_REQ_CACHE_CONTEXT_GENERIC);
+		$this->cache->load(current_config()['nd']['cache']['context']['generic']);
 
 		/* Get object creation and invalidation time */
 		$tcreated = $this->cache->get('nd_created_' . $ksuffix);
@@ -2097,14 +2143,14 @@ class UW_ND extends UW_Module {
 
 		/* If no lifetime is set, use the default value */
 		if ($lifetime === NULL)
-			$lifetime = ND_REQ_CACHE_LIFETIME_GENERIC;
+			$lifetime = current_config()['nd']['cache']['lifetime']['generic'];
 
 		/* Get current timestamp */
 		$ctime = time();
 
 		/* Load the context where object data resides */
 		$cache_context_orig = $this->cache->context();
-		$this->cache->load(ND_REQ_CACHE_CONTEXT_GENERIC);
+		$this->cache->load(current_config()['nd']['cache']['context']['generic']);
 
 		/* Set cache data, creation and life time */
 		$this->cache->set('nd_data_' . $ksuffix, $data, $lifetime);
@@ -2123,7 +2169,7 @@ class UW_ND extends UW_Module {
 	public function cache_data_invalidate($object, $lifetime = NULL) {
 		/* If no lifetime is set, use the default value */
 		if ($lifetime === NULL)
-			$lifetime = ND_REQ_CACHE_LIFETIME_GENERIC;
+			$lifetime = current_config()['nd']['cache']['lifetime']['generic'];
 		
 		$this->cache->set('nd_invalidated_' . $object, time(), $lifetime);
 	}
@@ -2367,8 +2413,8 @@ class UW_ND extends UW_Module {
 								array('Accept: application/json'),
 								($properties['view']['auth'] === true)
 									? array(
-										ND_REQ_HEADER_USER_ID . ': <userid>',
-										ND_REQ_HEADER_AUTH_TOKEN . ': <token>'
+										current_config()['nd']['header']['user_id'] . ': <userid>',
+										current_config()['nd']['header']['auth_token'] . ': <token>'
 									  )
 									: array()
 							  )
@@ -2379,8 +2425,8 @@ class UW_ND extends UW_Module {
 								array('Accept: application/json'),
 								($properties['listing']['auth'] === true)
 									? array(
-										ND_REQ_HEADER_USER_ID . ': <userid>',
-										ND_REQ_HEADER_AUTH_TOKEN . ': <token>'
+										current_config()['nd']['header']['user_id'] . ': <userid>',
+										current_config()['nd']['header']['auth_token'] . ': <token>'
 									  )
 									: array()
 							  )
@@ -2455,8 +2501,8 @@ class UW_ND extends UW_Module {
 							),
 							($properties['insert']['auth'] === true)
 								? array(
-									ND_REQ_HEADER_USER_ID . ': <userid>',
-									ND_REQ_HEADER_AUTH_TOKEN . ': <token>'
+									current_config()['nd']['header']['user_id'] . ': <userid>',
+									current_config()['nd']['header']['auth_token'] . ': <token>'
 								  )
 								: array()
 						),
@@ -2516,8 +2562,8 @@ class UW_ND extends UW_Module {
 							),
 							($properties['modify']['auth'] === true)
 								? array(
-									ND_REQ_HEADER_USER_ID . ': <userid>',
-									ND_REQ_HEADER_AUTH_TOKEN . ': <token>'
+									current_config()['nd']['header']['user_id'] . ': <userid>',
+									current_config()['nd']['header']['auth_token'] . ': <token>'
 								  )
 								: array()
 						),
@@ -2574,8 +2620,8 @@ class UW_ND extends UW_Module {
 							),
 							($properties['delete']['auth'] === true)
 								? array(
-									ND_REQ_HEADER_USER_ID . ': <userid>',
-									ND_REQ_HEADER_AUTH_TOKEN . ': <token>'
+									current_config()['nd']['header']['user_id'] . ': <userid>',
+									current_config()['nd']['header']['auth_token'] . ': <token>'
 								  )
 								: array()
 						),
@@ -2649,8 +2695,8 @@ class UW_ND extends UW_Module {
 							),
 							($properties['search']['auth'] === true)
 								? array(
-									ND_REQ_HEADER_USER_ID . ': <userid>',
-									ND_REQ_HEADER_AUTH_TOKEN . ': <token>'
+									current_config()['nd']['header']['user_id'] . ': <userid>',
+									current_config()['nd']['header']['auth_token'] . ': <token>'
 								  )
 								: array()
 						),

@@ -2,7 +2,7 @@
 
 /* Author:   Pedro A. Hortas
  * Email:    pah@ucodev.org
- * Modified: 01/10/2017
+ * Modified: 07/10/2017
  * License:  GPLv3
  */
 
@@ -408,6 +408,26 @@ class UW_ES extends UW_Module {
                     $this->restful->output('400');
                 }
 
+				/* Store original limit and set the query limit to the amount of elements present in the "in" criteria for the "orderby" field */
+				$inorder_limit = $input['limit'];
+				$search['limit'] = count($input['query'][$input['orderby']]['in']);
+
+				/* Validate requested limit for the inorder query */
+				if ($inorder_limit > $search['limit']) {
+					$this->restful->error('The requested \'limit\' value is greater than the amount of elements present in the \'in\' criteria.');
+					$this->restful->output('400'); /* Bad Request */
+				}
+
+				/* Store original offset value and reset query offset */
+				$inorder_offset = $input['offset'];
+				$search['offset'] = 0;
+
+				/* Validate requested offset for the inorder query */
+				if ($inorder_offset >= $search['limit']) {
+					$this->restful->error('The requested \'offset\' value cannot be greater than or equal to the amount of elements present in the \'in\' criteria.');
+					$this->restful->output('400'); /* Bad Request */
+                }
+
                 /* Mark this search for reordering based on 'in' criteria */
                 $search['inorder'] = true;
 
@@ -495,6 +515,12 @@ class UW_ES extends UW_Module {
 
             /* Filter empty values (values that are set to false, which were not filled by the above iteration) */
             $data[$index]['result'] = array_values(array_filter($data[$index]['result']));
+
+            /* Also apply the original requested limit and offset to the result */
+            $data[$index]['result'] = array_slice($data[$index]['result'], $inorder_offset, $inorder_limit);
+
+            /* Update count */
+            $data[$index]['count'] = count($data[$index]['result']);
         } else {
             $data[$index]['result'] = array();
 
@@ -829,12 +855,12 @@ class UW_ES extends UW_Module {
         $this->restful->output('400');
     }
 
-    public function delete($config, $index, $type, $id) {
+    public function delete($config = NULL, $index, $type, $id) {
 		/* Prepare and forward request to the search engine (ES) */
 		$ch = curl_init();
 
 		/* Set the request URL */
-        curl_setopt($ch, CURLOPT_URL, rtrim($config['query']['base_url'], '/') . '/' . $index . '/' . $type . '/' . $id);
+        curl_setopt($ch, CURLOPT_URL, rtrim($config !== NULL ? $config['query']['base_url'] : current_config()['es']['base_url'], '/') . '/' . $index . '/' . $type . '/' . $id);
 
         /* Set DELETE method */
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
@@ -849,12 +875,12 @@ class UW_ES extends UW_Module {
         return ($status_code == 200) ? true : false;
     }
 
-    public function get($config, $index, $type, $id) {
+    public function get($config = NULL, $index, $type, $id) {
 		/* Forward request to the search engine (ES) */
 		$ch = curl_init();
 
 		/* Set the request URL */
-        curl_setopt($ch, CURLOPT_URL, rtrim($config['query']['base_url'], '/') . '/' . $index . '/' . $type . '/' . $id);
+        curl_setopt($ch, CURLOPT_URL, rtrim($config !== NULL ? $config['query']['base_url'] : current_config()['es']['base_url'], '/') . '/' . $index . '/' . $type . '/' . $id);
 
 		/* Grant that cURL will return the response output */
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -884,7 +910,7 @@ class UW_ES extends UW_Module {
         return $data['_source'];
     }
 
-    public function post($config, $index, $type, $data, $id = NULL) {
+    public function post($config = NULL, $index, $type, $data, $id = NULL) {
         /* If $id wasn't set, try to retrieve it from $data object */
         if ($id === NULL) {
             if (isset($data['id']))
@@ -901,7 +927,7 @@ class UW_ES extends UW_Module {
 		$ch = curl_init();
 
 		/* Set the request URL */
-        curl_setopt($ch, CURLOPT_URL, rtrim($config['query']['base_url'], '/') . '/' . $index . '/' . $type . (($id !== NULL) ? ('/' . $id) : ''));
+        curl_setopt($ch, CURLOPT_URL, rtrim($config !== NULL ? $config['query']['base_url'] : current_config()['es']['base_url'], '/') . '/' . $index . '/' . $type . (($id !== NULL) ? ('/' . $id) : ''));
 
 		/* Grant that cURL will return the response output */
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -945,7 +971,7 @@ class UW_ES extends UW_Module {
         );
     }
 
-    public function put($config, $index, $type, $data, $id = NULL) {
+    public function put($config = NULL, $index, $type, $data, $id = NULL) {
         /* If $id wasn't set, try to retrieve it from $data object */
         if ($id === NULL) {
             if (isset($data['id']))
@@ -972,7 +998,7 @@ class UW_ES extends UW_Module {
 		$ch = curl_init();
 
 		/* Set the request URL */
-        curl_setopt($ch, CURLOPT_URL, rtrim($config['query']['base_url'], '/') . '/' . $index . '/' . $type . (($id !== NULL) ? ('/' . $id) : ''));
+        curl_setopt($ch, CURLOPT_URL, rtrim($config !== NULL ? $config['query']['base_url'] : current_config()['es']['base_url'], '/') . '/' . $index . '/' . $type . (($id !== NULL) ? ('/' . $id) : ''));
 
 		/* Grant that cURL will return the response output */
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
