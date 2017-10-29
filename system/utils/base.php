@@ -1,4 +1,4 @@
-<?php if (!defined('FROM_BASE')) { header('HTTP/1.1 403 Forbidden'); die('Invalid requested path.'); }
+<?php if (!defined('FROM_BASE')) { header($_SERVER['SERVER_PROTOCOL'] . ' 403'); die('Invalid requested path.'); }
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
@@ -85,9 +85,9 @@ function current_config() {
 
 function redirect($directory, $with_index = true, $full_url = false) {
 	if ($full_url) {
-		header('Location: ' . $directory);
+		header('location: ' . $directory);
 	} else {
-		header('Location: ' . base_url() . uri_remove_extra_slashes(($with_index ? 'index.php/' : '') . $directory));
+		header('location: ' . base_url() . uri_remove_extra_slashes(($with_index ? 'index.php/' : '') . $directory));
 	}
 }
 

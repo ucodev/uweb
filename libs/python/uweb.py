@@ -42,8 +42,8 @@ class rest:
 
 	# Required headers
 	req_headers = {
-		"Accept": "application/json",
-		"Content-Type": "application/json"
+		"accept": "application/json",
+		"content-type": "application/json"
 	}
 
 	# Dump file in base64 format

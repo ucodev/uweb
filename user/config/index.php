@@ -1,4 +1,4 @@
-<?php if (!defined('FROM_BASE')) { header('HTTP/1.1 403 Forbidden'); die('Invalid requested path.'); }
+<?php if (!defined('FROM_BASE')) { header($_SERVER['SERVER_PROTOCOL'] . ' 403'); die('Invalid requested path.'); }
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
@@ -54,6 +54,10 @@ $config['encrypt'] = $encrypt;
 /* ES settings */
 include('user/config/es.php');
 $config['es'] = $es;
+
+/* Event settings */
+include('user/config/event.php');
+$config['event'] = $event;
 
 /* ND settings */
 include('user/config/nd.php');

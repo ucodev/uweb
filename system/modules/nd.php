@@ -1,8 +1,8 @@
-<?php if (!defined('FROM_BASE')) { header('HTTP/1.1 403 Forbidden'); die('Invalid requested path.'); }
+<?php if (!defined('FROM_BASE')) { header($_SERVER['SERVER_PROTOCOL'] . ' 403'); die('Invalid requested path.'); }
 
 /* Author:   Pedro A. Hortas
  * Email:    pah@ucodev.org
- * Modified: 07/10/2017
+ * Modified: 29/10/2017
  * License:  GPLv3
  */
 
@@ -58,36 +58,36 @@ class UW_ND extends UW_Module {
 	public function request($uri, $data = NULL, $session = NULL) {
 		/* Set required request headers */
 		$req_headers = array(
-			'Accept: application/json'
+			'accept: application/json'
 		);
 
-		/* If there's body data to be set, set the Content-Type header */
+		/* If there's body data to be set, set the content-type header */
 		if (is_array($data))
-			array_push($req_headers, 'Content-Type: application/json');
+			array_push($req_headers, 'content-type: application/json');
 
 		/* Check if we can trust the requester headers */
 		if (in_array($_SERVER['REMOTE_ADDR'], current_config()['nd']['trusted_sources'])) {
-			/* Get X-Forwarded-For value, if any */
-			$xfrd = $this->restful->header('X-Forwarded-For');
+			/* Get x-forwarded-for value, if any */
+			$xfrd = $this->restful->header('x-forwarded-for');
 
 			if ($xfrd !== NULL) {
-				/* If X-Forwarded-For is already set, append the remote ip address to it... */
-				array_push($req_headers, 'X-Forwarded-For: ' . $xfrd . ', ' . $_SERVER['REMOTE_ADDR']);
-				array_push($req_headers, 'X-Real-IP: ' . trim(explode(',', $xfrd)[0]));
+				/* If x-forwarded-for is already set, append the remote ip address to it... */
+				array_push($req_headers, 'x-forwarded-for: ' . $xfrd . ', ' . $_SERVER['REMOTE_ADDR']);
+				array_push($req_headers, 'x-real-ip: ' . trim(explode(',', $xfrd)[0]));
 			} else {
 				/* Get X-Real-IP value, if any */
-				$xrip = $this->restful->header('X-Real-IP');
+				$xrip = $this->restful->header('x-real-ip');
 
 				if ($xrip !== NULL) {
-					/* If X-Real-IP is set, use its value to set the new X-Forwarded-For and X-Real-IP headers values... */
-					array_push($req_headers, 'X-Forwarded-For: ' . $xrip);
-					array_push($req_headers, 'X-Real-IP: ' . $xrip);
+					/* If x-real-ip is set, use its value to set the new x-forwarded-for and x-real-ip headers values... */
+					array_push($req_headers, 'x-forwarded-for: ' . $xrip);
+					array_push($req_headers, 'x-real-ip: ' . $xrip);
 				}
 			}
 		} else {	
-			/* Otherwise, set a brand new X-Forwarded-For header */
-			array_push($req_headers, 'X-Forwarded-For: ' . $_SERVER['REMOTE_ADDR']);
-			array_push($req_headers, 'X-Real-IP: ' . $_SERVER['REMOTE_ADDR']);
+			/* Otherwise, set a brand new x-forwarded-for header */
+			array_push($req_headers, 'x-forwarded-for: ' . $_SERVER['REMOTE_ADDR']);
+			array_push($req_headers, 'x-real-ip: ' . $_SERVER['REMOTE_ADDR']);
 		}
 
 		/* Forward request to the underlying engine (nd-php) */
@@ -329,21 +329,21 @@ class UW_ND extends UW_Module {
 
 		/* Set required headers */
 		$req_headers = array(
-			'Accept: application/json',
-			'Content-Type: application/json'			
+			'accept: application/json',
+			'content-type: application/json'			
 		);
 
-		/* Get X-Forwarded-For value, if any */
-		$xfrd = $this->restful->header('X-Forwarded-For');
+		/* Get x-forwarded-for value, if any */
+		$xfrd = $this->restful->header('x-forwarded-for');
 
 		if ($xfrd !== NULL) {
-			/* If X-Forwarded-For is already set, append the remote ip address to it... */
-			array_push($req_headers, 'X-Forwarded-For: ' . $xfrd . ', ' . $_SERVER['REMOTE_ADDR']);
-			array_push($req_headers, 'X-Real-IP: ' . trim(explode(',', $xfrd)[0]));
+			/* If x-forwarded-for is already set, append the remote ip address to it... */
+			array_push($req_headers, 'x-forwarded-for: ' . $xfrd . ', ' . $_SERVER['REMOTE_ADDR']);
+			array_push($req_headers, 'x-real-ip: ' . trim(explode(',', $xfrd)[0]));
 		} else {
-			/* Otherwise, set a brand new X-Forwarded-For header */
-			array_push($req_headers, 'X-Forwarded-For: ' . $_SERVER['REMOTE_ADDR']);
-			array_push($req_headers, 'X-Real-IP: ' . $_SERVER['REMOTE_ADDR']);
+			/* Otherwise, set a brand new x-forwarded-for header */
+			array_push($req_headers, 'x-forwarded-for: ' . $_SERVER['REMOTE_ADDR']);
+			array_push($req_headers, 'x-real-ip: ' . $_SERVER['REMOTE_ADDR']);
 		}
 
 		/* Initialize cURL */
@@ -378,7 +378,7 @@ class UW_ND extends UW_Module {
 		$session_cookie = NULL;
 
 		foreach ($headers as $header) {
-			if (substr($header, 0, 12) == 'Set-Cookie: ')
+			if (strtolower(substr($header, 0, 12)) == 'set-cookie: ')
 				$session_cookie = substr($header, 12);
 		}
 
@@ -1490,8 +1490,8 @@ class UW_ND extends UW_Module {
 						array(
 							current_config()['nd']['header']['user_id'] . ': ' . $this->restful->header(current_config()['nd']['header']['user_id']),
 							current_config()['nd']['header']['auth_token'] . ': ' . $this->restful->header(current_config()['nd']['header']['auth_token']),
-							'Content-Type: application/json',
-							'Accept: application/json'
+							'content-type: application/json',
+							'accept: application/json'
 						),
 						$status_code
 					);
@@ -2081,7 +2081,7 @@ class UW_ND extends UW_Module {
 		/* NOTE: Cache may be a security risk since it doesn't account for the current session privileges. Take care when enabling it. */
 
 		/* Check if cache control demands no caching */
-		if (($hdr_cache_control = $this->restful->header('Cache-Control'))) {
+		if (($hdr_cache_control = $this->restful->header('cache-control'))) {
 			$ctrls = explode(',', $hdr_cache_control);
 
 			/* Search for no-cache control */
@@ -2115,14 +2115,14 @@ class UW_ND extends UW_Module {
 
 			/* Set expiration time header if lifetime is available */
 			if ($tlifetime)
-				$this->restful->header('Expires', date('l, d-M-Y H:i:s T', $tcreated + $tlifetime));
+				$this->restful->header('expires', date('l, d-M-Y H:i:s T', $tcreated + $tlifetime));
 			
 			/* Get document ETag */
 			$etag = $this->cache->get('nd_etag_' . $ksuffix);
 
 			/* Set ETag header if a document hash is available */
 			if ($etag)
-				$this->restful->header('ETag', 'W/"' . $etag . '"'); /* NOTE: Currently, we assume a weak ETag validation */
+				$this->restful->header('etag', 'W/"' . $etag . '"'); /* NOTE: Currently, we assume a weak ETag validation */
 		} else {
 			/* If the cache was created before it was invalidated, do not return any cached data */
 			$data = NULL;
@@ -2174,6 +2174,24 @@ class UW_ND extends UW_Module {
 		$this->cache->set('nd_invalidated_' . $object, time(), $lifetime);
 	}
 
+	public function event_triggers($triggers = NULL) {
+		/* Validate type of the event triggers */
+		if (!is_array($triggers)) {
+			$this->restful->error('Invalid type for trigger configuration: Expecting array.');
+			$this->restful->output('500');
+		}
+
+		/* Mark this request to generate an event */
+		$this->restful->event(
+			isset($triggers['request']['info']) ? $triggers['request']['info'] : false,
+			isset($triggers['request']['data']) ? $triggers['request']['data'] : false,
+			isset($triggers['response']['info']) ? $triggers['response']['info'] : false,
+			isset($triggers['response']['data']) ? $triggers['response']['data'] : false,
+			isset($triggers['response']['errors']) ? $triggers['response']['errors'] : false,
+			isset($triggers['context']) ? $triggers['context'] : NULL
+		);
+	}
+
 	public function forward($object, $method, $argv, $input = NULL) {
 		/* Forward request */
 		switch ($method) {
@@ -2183,6 +2201,10 @@ class UW_ND extends UW_Module {
 
 				/* Fetch object properties */
 				$properties = $this->properties($object, $method);
+
+				/* Check if an event must be generated */
+				if (isset($properties['event']))
+					$this->event_triggers($properties['event']);
 
 				/* Check if caching is enabled */
 				if (isset($properties['cache']) && ($properties['cache'] === true)) {
@@ -2225,6 +2247,10 @@ class UW_ND extends UW_Module {
 				/* Fetch object properties */
 				$properties = $this->properties($object, $method);
 
+				/* Check if an event must be generated */
+				if (isset($properties['event']))
+					$this->event_triggers($properties['event']);
+
 				/* Check if caching is enabled */
 				if (isset($properties['cache']) && ($properties['cache'] === true)) {
 					/* Before retrieving cached data, if this object requires authentication, first evaluate if there's a valid session */
@@ -2263,6 +2289,10 @@ class UW_ND extends UW_Module {
 				/* Fetch object properties */
 				$properties = $this->properties($object, $method);
 
+				/* Check if an event must be generated */
+				if (isset($properties['event']))
+					$this->event_triggers($properties['event']);
+
 				/* Get request input, if none was set */
 				if ($input === NULL)
 					$input = $this->restful->input();
@@ -2290,6 +2320,10 @@ class UW_ND extends UW_Module {
 			case 'modify': {
 				/* Fetch object properties */
 				$properties = $this->properties($object, $method);
+
+				/* Check if an event must be generated */
+				if (isset($properties['event']))
+					$this->event_triggers($properties['event']);
 
 				/* Get request input, if none was set */
 				if ($input === NULL)
@@ -2319,6 +2353,10 @@ class UW_ND extends UW_Module {
 				/* Fetch object properties */
 				$properties = $this->properties($object, $method);
 
+				/* Check if an event must be generated */
+				if (isset($properties['event']))
+					$this->event_triggers($properties['event']);
+
 				/* Validate data types */
 				$this->validate_data_types($object, $method, array('id' => $argv[0]));
 
@@ -2345,6 +2383,10 @@ class UW_ND extends UW_Module {
 
 				/* Fetch object properties */
 				$properties = $this->properties($object, $method);
+
+				/* Check if an event must be generated */
+				if (isset($properties['event']))
+					$this->event_triggers($properties['event']);
 
 				/* Get request input, if none was set */
 				if ($input === NULL)
@@ -2391,6 +2433,10 @@ class UW_ND extends UW_Module {
 				/* Fetch object properties */
 				$properties = $this->properties($object);
 
+				/* Check if an event must be generated */
+				if (isset($properties['event']))
+					$this->event_triggers($properties['event']);
+
 				/* Document available fields */
 				$this->restful->doc_fields(
 					/* Types */
@@ -2410,7 +2456,7 @@ class UW_ND extends UW_Module {
 						/* Headers - Single */
 						isset($properties['view'])
 							? array_merge(
-								array('Accept: application/json'),
+								array('accept: application/json'),
 								($properties['view']['auth'] === true)
 									? array(
 										current_config()['nd']['header']['user_id'] . ': <userid>',
@@ -2422,7 +2468,7 @@ class UW_ND extends UW_Module {
 						/* Headers - Collection */
 						isset($properties['listing'])
 							? array_merge(
-								array('Accept: application/json'),
+								array('accept: application/json'),
 								($properties['listing']['auth'] === true)
 									? array(
 										current_config()['nd']['header']['user_id'] . ': <userid>',
@@ -2444,11 +2490,11 @@ class UW_ND extends UW_Module {
 					$this->restful->doc_method_get_response(
 						/* Headers - Single */
 						isset($properties['view'])
-							? array('Content-Type: application/json')
+							? array('content-type: application/json')
 							: false,
 						/* Headers - Collection */
 						isset($properties['listing'])
-							? array('Content-Type: application/json')
+							? array('content-type: application/json')
 							: false,
 						/* Codes Success - Single */
 						isset($properties['view'])
@@ -2479,7 +2525,9 @@ class UW_ND extends UW_Module {
 						/* Types - Collection */
 						NULL,
 						/* Additional Notes - Single */
-						false,
+						array(
+							'NDFS Reference: https://github.com/ucodev/uweb/blob/master/documentation/ndfs.txt',
+						),
 						/* Additional Notes - Collection */
 						isset($properties['view'])
 							? array('Maximum number of entries per result: ' . $properties['listing']['limit'])
@@ -2496,8 +2544,8 @@ class UW_ND extends UW_Module {
 						/* Headers - Collection */
 						array_merge(
 							array(
-							'Accept: application/json',
-							'Content-Type: application/json'
+							'accept: application/json',
+							'content-type: application/json'
 							),
 							($properties['insert']['auth'] === true)
 								? array(
@@ -2519,7 +2567,9 @@ class UW_ND extends UW_Module {
 						/* Body Required - Collection */
 						$properties['insert']['fields']['required'],
 						/* Additional Notes - Single */
-						false,
+						array(
+							'NDFS Reference: https://github.com/ucodev/uweb/blob/master/documentation/ndfs.txt'
+						),
 						/* Additional Notes - Collection */
 						false
 					);
@@ -2529,7 +2579,7 @@ class UW_ND extends UW_Module {
 						false,
 						/* Headers - Collection */
 						array(
-							'Content-Type: application/json'
+							'content-type: application/json'
 						),
 						/* Codes Success - Single */
 						false,
@@ -2557,8 +2607,8 @@ class UW_ND extends UW_Module {
 						/* Headers - Single */
 						array_merge(
 							array(
-							'Accept: application/json',
-							'Content-Type: application/json'
+							'accept: application/json',
+							'content-type: application/json'
 							),
 							($properties['modify']['auth'] === true)
 								? array(
@@ -2578,7 +2628,9 @@ class UW_ND extends UW_Module {
 						/* Body Accepted - Collection */
 						false,
 						/* Additional Notes - Single */
-						false,
+						array(
+							'NDFS Reference: https://github.com/ucodev/uweb/blob/master/documentation/ndfs.txt'
+						),
 						/* Additional Notes - Collection */
 						false
 					);
@@ -2586,7 +2638,7 @@ class UW_ND extends UW_Module {
 					$this->restful->doc_method_patch_response(
 						/* Headers - Single */
 						array(
-							'Content-Type: application/json'
+							'content-type: application/json'
 						),
 						/* Headers - Collection */
 						false,
@@ -2616,7 +2668,7 @@ class UW_ND extends UW_Module {
 						/* Headers - Single */
 						array_merge(
 							array(
-							'Accept: application/json'
+							'accept: application/json'
 							),
 							($properties['delete']['auth'] === true)
 								? array(
@@ -2640,7 +2692,7 @@ class UW_ND extends UW_Module {
 					$this->restful->doc_method_delete_response(
 						/* Headers - Single */
 						array(
-							'Content-Type: application/json'
+							'content-type: application/json'
 						),
 						/* Headers - Collection */
 						false,
@@ -2690,8 +2742,8 @@ class UW_ND extends UW_Module {
 						/* Request Headers */
 						array_merge(
 							array(
-							'Accept: application/json',
-							'Content-Type: application/json'
+							'accept: application/json',
+							'content-type: application/json'
 							),
 							($properties['search']['auth'] === true)
 								? array(
@@ -2702,7 +2754,7 @@ class UW_ND extends UW_Module {
 						),
 						/* Response Headers */
 						array(
-							'Content-Type: application/json'
+							'content-type: application/json'
 						),
 						/* Additional Notes - Request */
 						array(
@@ -2710,7 +2762,8 @@ class UW_ND extends UW_Module {
 						),
 						/* Additional Notes - Response */
 						array(
-							'Maximum number of entries per result: ' . $properties['search']['limit']
+							'Maximum number of entries per result: ' . $properties['search']['limit'],
+							'NDFS Reference: https://github.com/ucodev/uweb/blob/master/documentation/ndfs.txt',
 						)
 					);
 				}

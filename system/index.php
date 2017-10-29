@@ -1,4 +1,4 @@
-<?php if (!defined('FROM_BASE')) { header('HTTP/1.1 403 Forbidden'); die('Invalid requested path.'); }
+<?php if (!defined('FROM_BASE')) { header($_SERVER['SERVER_PROTOCOL'] . ' 403'); die('Invalid requested path.'); }
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
@@ -47,7 +47,7 @@ $__path_dir = '';
 
 /* Grant URI match the acceptable regex */
 if (!preg_match($config['base']['acceptable_uri_regex'], $_SERVER['REQUEST_URI'])) {
-	header('HTTP/1.1 400 Bad Request');
+	header($_SERVER['SERVER_PROTOCOL'] . ' 400');
 	die('URI contains invalid characters.');
 }
 
@@ -63,7 +63,7 @@ if (isset($config['base']['fallback_resource']) && ($config['base']['fallback_re
 			$fb_prefix = rtrim($config['base']['path'], '/') . '/' . $config['base']['fallback_resource'];
 
 			if (substr($_SERVER['REQUEST_URI'], 0, strlen($fb_prefix)) == $fb_prefix) {
-				header('HTTP/1.1 400 Bad Request');
+				header($_SERVER['SERVER_PROTOCOL'] . ' 400');
 				die('Fallback resource detected in the request URI');
 			}
 		} /* TODO: When fallback enforce is disabled, we should look for index.php on the URI */
@@ -77,7 +77,7 @@ if (isset($config['base']['fallback_resource']) && ($config['base']['fallback_re
 			$__a_koffset = array_search(end($__base_path), $__uri);
 		}
 	} else {
-		header('HTTP/1.1 500 Internal Server Error');
+		header($_SERVER['SERVER_PROTOCOL'] . ' 500');
 		die('Improper configuration detected: Fallback resrouce set, but no base path was configured.');
 	}
 } else {
@@ -85,7 +85,7 @@ if (isset($config['base']['fallback_resource']) && ($config['base']['fallback_re
 	$__a_koffset = array_search('index.php', $__uri);
 
 	if ($__a_koffset === false) {
-		header('HTTP/1.1 500 Internal Server Error');
+		header($_SERVER['SERVER_PROTOCOL'] . ' 500');
 		die('Improper configuration detected: No fallback resource set and no index file present in the request URI');
 	}
 }
@@ -98,7 +98,7 @@ if (($__a_count >= 1) && $__uri[$__a_koffset + 1]) {
 	$__controller = strtolower($__uri[$__a_koffset + 1]);
 
 	if (!preg_match('/^[a-z0-9_]+$/', $__controller)) {
-		header('HTTP/1.1 400 Bad Request');
+		header($_SERVER['SERVER_PROTOCOL'] . ' 400');
 		die('Controller name contains invalid characters.');
 	}
 }
@@ -108,7 +108,7 @@ if (($__a_count >= 2) && $__uri[$__a_koffset + 2]) {
 	$__function = strtolower($__uri[$__a_koffset + 2]);
 
 	if (!preg_match('/^[a-z0-9_]+$/', $__function)) {
-		header('HTTP/1.1 400 Bad Request');
+		header($_SERVER['SERVER_PROTOCOL'] . ' 400');
 		die('Function name contains invalid characters.');
 	}
 }
@@ -143,7 +143,7 @@ if ($__controller) {
 			foreach ($__args as $__arg) {
 				/* Check for .. on all arguments to avoid ../ paths */
 				if (strstr($__arg, '..')) {
-					header('HTTP/1.1 400 Bad Request');
+					header($_SERVER['SERVER_PROTOCOL'] . ' 400');
 					die('Static path contains ../ references, which are invalid.');
 				}
 
@@ -164,7 +164,7 @@ if ($__controller) {
 	} else {
 		/* This is a real controller */
 		if (!file_exists('application/controllers/' . $__controller . '.php')) {
-			header('HTTP/1.1 404 Not Found');
+			header($_SERVER['SERVER_PROTOCOL'] . ' 404');
 			die('No such controller: ' . $__controller);
 		} else {
 			include('application/controllers/' . $__controller . '.php');
@@ -176,7 +176,7 @@ if ($__controller) {
 		if (!$__function) {
 			$__function = 'index';
 		} else if ($__function == '__construct') {
-			header('HTTP/1.1 403 Forbidden');
+			header($_SERVER['SERVER_PROTOCOL'] . ' 403');
 			die('Calling __construct() methods directly from HTTP requests is not allowed.');
 		} else if (ctype_digit($__function[0])) {
 			/* If the first character of function name string is a digit, assume index as the function and prepend the argument
@@ -199,21 +199,21 @@ if ($__controller) {
 		/* Try to process the request */
 		if ($__argv === NULL) {
 			/* Invoke the function with the multiple arguments */
-			eval('if (method_exists($__r_, \'' . $__function . '\')) { $__r_->' . $__function . '(' . $__args_list . '); } else { error_log(\'Undefined method: ' . ucfirst($__controller) . '::' . $__function . '()\'); header(\'HTTP/1.1 404 Not Found\'); die(\'No such function.\'); }');
+			eval('if (method_exists($__r_, \'' . $__function . '\')) { $__r_->' . $__function . '(' . $__args_list . '); } else { error_log(\'Undefined method: ' . ucfirst($__controller) . '::' . $__function . '()\'); header(\'' . $_SERVER['SERVER_PROTOCOL'] . ' 404\'); die(\'No such function.\'); }');
 		} else {
 			/* Invoke the function wht the argument vector */
-			eval('if (method_exists($__r_, \'' . $__function . '\')) { $__r_->' . $__function . '($__argv); } else { error_log(\'Undefined method: ' . ucfirst($__controller) . '::' . $__function . '()\'); header(\'HTTP/1.1 404 Not Found\'); die(\'No such function.\'); }');
+			eval('if (method_exists($__r_, \'' . $__function . '\')) { $__r_->' . $__function . '($__argv); } else { error_log(\'Undefined method: ' . ucfirst($__controller) . '::' . $__function . '()\'); header(\'' . $_SERVER['SERVER_PROTOCOL'] . ' 404\'); die(\'No such function.\'); }');
 		}
 
 		/* Check if there were any errors and log them */
 		if (($error = error_get_last())) {
 			error_log('Type: ' . $error['type'] . ', Message: ' . $error['message'] . ', File: ' . $error['file'] . ', Line: ' . $error['line']);
-			header('HTTP/1.1 500 Internal Server Error');
+			header($_SERVER['SERVER_PROTOCOL'] . ' 500');
 			die('An unhandled error occurred.');
 		}
 	}
 } else {
-	header('HTTP/1.1 400 Bad Request');
+	header($_SERVER['SERVER_PROTOCOL'] . ' 400');
 	die('No controller defined in the request. Nothing to process.<br />');
 }
 

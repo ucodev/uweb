@@ -1,4 +1,4 @@
-<?php if (!defined('FROM_BASE')) { header('HTTP/1.1 403 Forbidden'); die('Invalid requested path.'); }
+<?php if (!defined('FROM_BASE')) { header($_SERVER['SERVER_PROTOCOL'] . ' 403'); die('Invalid requested path.'); }
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
@@ -277,7 +277,7 @@ class UW_Session extends UW_Base {
 
 		/* Check if we can use sessions */
 		if (session_status() == PHP_SESSION_DISABLED) {
-			header("HTTP/1.1 403 Forbbiden");
+			header($_SERVER['SERVER_PROTOCOL'] . ' 403');
 			die("PHP Sessions are disabled.");
 		}
 
@@ -286,7 +286,7 @@ class UW_Session extends UW_Base {
 			$sssh = new UW_SessionHandlerDb($db, $cache);
 
 			if (session_set_save_handler($sssh, true) === false) {
-				header('HTTP/1.1 500 Internal Server Error');
+				header($_SERVER['SERVER_PROTOCOL'] . ' 500');
 				die('Unable to set session handler interface.');
 			}
 		}
@@ -325,7 +325,7 @@ class UW_Session extends UW_Base {
 
 			$this->_session_data_serialize(false, true); /* Close the session, without starting it */
 		} else {
-			header("HTTP/1.1 500 Internal Server Error");
+			header($_SERVER['SERVER_PROTOCOL'] . ' 500');
 			die("set_userdata(): First argument should be an array when no value is specified on second argument.");
 		}
 	}

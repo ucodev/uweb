@@ -1,4 +1,4 @@
-<?php if (!defined('FROM_BASE')) { header('HTTP/1.1 403 Forbidden'); die('Invalid requested path.'); }
+<?php if (!defined('FROM_BASE')) { header($_SERVER['SERVER_PROTOCOL'] . ' 403'); die('Invalid requested path.'); }
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
@@ -34,7 +34,7 @@ class UW_View extends UW_Base {
 			foreach ($data as $k => $v) {
 				/* NOTE: This is only effective for string type values. Any other object won't be checked */
 				if (gettype($v) == "string" && strpos(str_replace(' ', '', strtolower($v)), '<script') !== false) {
-					header('HTTP/1.1 500 Internal Server Error');
+					header($_SERVER['SERVER_PROTOCOL'] . ' 500');
 					die('load(): Unable to load views with <script> tags on their $data strings when $enforce is set to true (default).');
 				}
 			}
@@ -50,7 +50,7 @@ class UW_View extends UW_Base {
 		/* Validate filename */
 		if ($enforce) {
 			if (strpos($file, '../') !== false) {
-				header('HTTP/1.1 500 Internal Server Error');
+				header($_SERVER['SERVER_PROTOCOL'] . ' 500');
 				die('load(): Unable to load view files with \'../\' string on their names.');
 			}
 		}

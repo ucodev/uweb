@@ -1,4 +1,4 @@
-<?php if (!defined('FROM_BASE')) { header('HTTP/1.1 403 Forbidden'); die('Invalid requested path.'); }
+<?php if (!defined('FROM_BASE')) { header($_SERVER['SERVER_PROTOCOL'] . ' 403'); die('Invalid requested path.'); }
 
 /* Author:   Pedro A. Hortas
  * Email:    pah@ucodev.org
@@ -32,6 +32,7 @@ class UW_Restful extends UW_Model {
 
 	protected $_debug = false;
 	protected $_logging = false;
+	protected $_event = false;
 
 
 	/** Private **/
@@ -100,6 +101,13 @@ class UW_Restful extends UW_Model {
 
 	private $_id = NULL; /* Request ID */
 
+	/* Event processing triggers set by $this->event() (all triggers disabled by default) */
+	private $_event_triggers = array(
+		'request' => array('info' => false, 'data' => false),
+		'response' => array('info' => false, 'data' => false, 'errors' => false),
+		'context' => NULL
+	);
+
 	private $_cache_hit = false; /* Set to true if this request was cache sourced */
 
 	/* Multi entry requests parameters */
@@ -118,7 +126,7 @@ class UW_Restful extends UW_Model {
 			if (substr($header, 0, 5) != 'HTTP_')
 				continue;
 
-			$this->_headers[ucwords(strtolower(str_replace('_', '-', substr($header, 5))), '-')] = $value;
+			$this->_headers[strtolower(str_replace('_', '-', substr($header, 5)))] = $value;
 		}
 
 		return $this->_headers;
@@ -137,6 +145,24 @@ class UW_Restful extends UW_Model {
 		$this->_multi_enabled = false; /* Setting this property to false will cause output() to actually answer to the client */
 
 		$this->output('207', $this->_multi_responses);
+	}
+
+	private function _request_info() {
+		return array(
+			'id'			=> $this->id(),
+			'url'			=> current_url(),
+			'fqhn'			=> $_SERVER['SERVER_NAME'],
+			'port'			=> $_SERVER['SERVER_PORT'],
+			'protocol'		=> strtoupper('http' . (isset($_SERVER['HTTPS']) ? 's' : '')),
+			'http_method'	=> $this->method(),
+			'http_version'	=> $_SERVER['SERVER_PROTOCOL'],
+			'http_user_agent' => $this->header('user-agent'),
+			'content_type'	=> $this->header('content-type'),
+			'accept'		=> $this->header('accept'),
+			'cache_control' => $this->header('cache-control'),
+			'from'			=> $_SERVER['REMOTE_ADDR'],
+			'tracker'		=> $this->header(current_config()['restful']['log']['header']['tracker'])
+		);
 	}
 
 	public function _log_array_value_process(&$v, $k) {
@@ -160,21 +186,7 @@ class UW_Restful extends UW_Model {
 		);
 
 		/* Set request info */
-		$log['rest']['request']['info'] = array(
-			'id'			=> $this->id(),
-			'url'			=> current_url(),
-			'fqhn'			=> $_SERVER['SERVER_NAME'],
-			'port'			=> $_SERVER['SERVER_PORT'],
-			'protocol'		=> strtoupper('http' . (isset($_SERVER['HTTPS']) ? 's' : '')),
-			'http_method'	=> $this->method(),
-			'http_version'	=> $_SERVER['SERVER_PROTOCOL'],
-			'http_user_agent' => $this->header('User-Agent'),
-			'content_type'	=> $this->header('Content-Type'),
-			'accept'		=> $this->header('Accept'),
-			'cache_control' => $this->header('Cache-Control'),
-			'from'			=> $response['info']['call']['from'],
-			'tracker'		=> $this->header(current_config()['restful']['log']['header']['tracker'])
-		);
+		$log['rest']['request']['info'] = $this->_request_info();
 
 		/* Attempt to extract user id and session id */
 		if ($this->header(current_config()['restful']['log']['header']['user_id'])) {
@@ -289,7 +301,7 @@ class UW_Restful extends UW_Model {
 					current_config()['restful']['log']['destination']['url'],
 					$log,
 					array(
-						'Content-Type: application/json'
+						'content-type: application/json'
 					),
 					$status_code,
 					$raw_output,
@@ -325,6 +337,7 @@ class UW_Restful extends UW_Model {
 		$this->_debug = current_config()['restful']['debug']['enabled'];
 		$this->_debug_level = current_config()['restful']['debug']['level'];
 		$this->_logging = current_config()['restful']['log']['enabled'];
+		$this->_event = current_config()['restful']['event']['enabled'];
 
 		/* Set default status code */
 		$this->_info['code'] = current_config()['restful']['response']['default']['status_code'];
@@ -343,6 +356,15 @@ class UW_Restful extends UW_Model {
 		return $this->_info['id'];
 	}
 
+	public function event($request_info = true, $request_data = true, $response_info = true, $response_data = true, $response_errors = false, $context = NULL) {
+		$this->_event_triggers['request']['info'] = $request_info;
+		$this->_event_triggers['request']['data'] = $request_data;
+		$this->_event_triggers['response']['info'] = $response_info;
+		$this->_event_triggers['response']['data'] = $response_data;
+		$this->_event_triggers['response']['errors'] = $response_errors;
+		$this->_event_triggers['context'] = $context;
+	}
+
 	public function cache_hit($status = NULL) {
 		if ($status !== NULL) {
 			$this->_cache_hit = $status;
@@ -354,6 +376,7 @@ class UW_Restful extends UW_Model {
 
 	public function call_start($object = NULL, $function = NULL, $argv = NULL) {
 		$this->_call = array();
+		
 		$this->_call['from'] = $_SERVER['REMOTE_ADDR'];
 		$this->_call['to'] = $_SERVER['SERVER_NAME'];
 		$this->_call['object'] = $object;
@@ -361,7 +384,7 @@ class UW_Restful extends UW_Model {
 		$this->_call['argv'] = $argv;
 		$this->_call['start'] = microtime(true);
 		$this->_call['end'] = NULL;
-		$this->_call['user_agent'] = $this->header('User-Agent');
+		$this->_call['user_agent'] = $this->header('user-agent');
 
 		return $this->_call;
 	}
@@ -377,10 +400,14 @@ class UW_Restful extends UW_Model {
 		return $this->_call;
 	}
 
-	public function code($code, $protocol = 'HTTP/1.1') {
+	public function code($code, $protocol = NULL) {
+		if ($protocol === NULL)
+			$protocol = $_SERVER['SERVER_PROTOCOL'];
+
 		$this->_info['code'] = intval($code);
 
-		header($protocol . ' ' . $code . ' ' . $this->_codes[$code]);
+		// header($protocol . ' ' . $code . ' ' . $this->_codes[$code]);
+		header($protocol . ' ' . $code);
 	}
 
 	public function error($message) {
@@ -389,6 +416,9 @@ class UW_Restful extends UW_Model {
 	}
 
 	public function header($key = NULL, $value = NULL, $replace = true) {
+		/* Always convert key to lowercase */
+		$key = strtolower($key);
+
 		/* If a value is set... add this to the response headers */
 		if ($value !== NULL) {
 			header($key . ': ' . $value, $replace);
@@ -430,9 +460,9 @@ class UW_Restful extends UW_Model {
 		}
 
 		/* If the content type isn't set as application/json, we'll not accept this request */
-		if (strstr($this->header('Content-Type'), 'application/json') === false) {
+		if (strstr($this->header('content-type'), 'application/json') === false) {
 			/* Content type is not acceptable here */
-			$this->error('Only application/json is acceptable as the Content-Type.');
+			$this->error('Only application/json is acceptable as the content-type.');
 
 			/* Not acceptable */
 			$this->output('406');
@@ -523,7 +553,7 @@ class UW_Restful extends UW_Model {
 		/* Check if there's data to be sent as the response body */
 		if ($data !== NULL) {
 			/* Set the response content type to JSON */
-			$this->header('Content-Type', 'application/json');
+			$this->header('content-type', 'application/json');
 
 			/* Add the data section */
 			if (is_array($data)) {
@@ -556,7 +586,7 @@ class UW_Restful extends UW_Model {
 		}
 
 		/* Set Content-Length to avoid chunked transfer encodings */
-		$this->header('Content-Length', strlen($output));
+		$this->header('content-length', strlen($output));
 
 		/* Check if debug is enabled */
 		if ($this->_debug) {
@@ -567,7 +597,7 @@ class UW_Restful extends UW_Model {
 		/* Check if we should inform the client to close the connection */
 		if ($force_close === true) {
 			/* Close user connection */
-			$this->header('Connection', 'close');
+			$this->header('connection', 'close');
 		}
 
 		/* Send the response */
@@ -580,6 +610,32 @@ class UW_Restful extends UW_Model {
 
 		/* Finish request for FastCGI */
 		fastcgi_finish_request();
+
+		/* Handle events */
+		if ($this->_event) {
+			/* Initialize event object */
+			$event = array();
+
+			/* Check triggers and add data according to the each trigger setting */
+
+			if ($this->_event_triggers['request']['info'])
+				$event['request']['info'] = $this->_request_info();
+
+			if ($this->_event_triggers['request']['data'] && $this->input())
+				$event['request']['data'] = $this->input();
+			
+			if ($this->_event_triggers['response']['info'] && isset($body['info']))
+				$event['response']['info'] = $body['info'];
+			
+			if ($this->_event_triggers['response']['data'] && isset($body['data']))
+				$event['response']['data'] = $body['data'];
+
+			if ($this->_event_triggers['response']['errors'] && isset($body['errors']))
+				$event['response']['errors'] = $body['errors'];
+
+			/* Push event to the event queue */
+			$this->event->push($event, $this->_event_triggers['context'] ? $this->_event_triggers['context'] : current_config()['restful']['event']['context']);
+		}
 
 		/* Check if logging is enabled, and if so, log the request */
 		if ($this->_logging)
@@ -604,9 +660,9 @@ class UW_Restful extends UW_Model {
 
 	public function validate($method = NULL) {
 		/* If the client does not accept application/json content, we'll not accept this request */
-		if (strstr($this->header('Accept'), 'application/json') === false) {
+		if (strstr($this->header('accept'), 'application/json') === false) {
 			/* Content type is not acceptable here */
-			$this->error('Accept header must contain the application/json content type.');
+			$this->error('The accept header must contain the application/json content type.');
 
 			/* Not acceptable */
 			$this->output('406');
@@ -817,7 +873,7 @@ class UW_Restful extends UW_Model {
 					array_push($allow, 'DELETE');
 
 				/* Set the Allow header with the allowed methods */
-				$this->header('Allow', implode(', ', $allow));
+				$this->header('allow', implode(', ', $allow));
 
 				/* If there is a options() method defined on this controller, call it */
 				if (method_exists($ctrl, 'options')) {
@@ -842,8 +898,8 @@ class UW_Restful extends UW_Model {
             /* Set required request headers */
 			if ($headers === NULL) {
 				$req_headers = array(
-					'Accept: application/json',
-					'Content-Type: application/json'
+					'accept: application/json',
+					'content-type: application/json'
 				);
 			} else {
 				$req_headers = $headers;

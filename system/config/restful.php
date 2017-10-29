@@ -1,4 +1,4 @@
-<?php if (!defined('FROM_BASE')) { header('HTTP/1.1 403 Forbidden'); die('Invalid requested path.'); }
+<?php if (!defined('FROM_BASE')) { header($_SERVER['SERVER_PROTOCOL'] . ' 403'); die('Invalid requested path.'); }
 
 /* RESTful interface settings */
 $restful['enabled'] = false;
@@ -28,3 +28,6 @@ $restful['log']['header']['auth_token'] = 'uweb-auth-token';
 $restful['log']['header']['tracker'] = 'uweb-tracker-id';
 $restful['log']['header']['geolocation'] = 'Geolocation';
 $restful['log']['default']['user_id'] = 0;
+
+$restful['event']['enabled'] = false;
+$restful['event']['context'] = 'default';
