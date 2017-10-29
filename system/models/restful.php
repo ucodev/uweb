@@ -894,7 +894,7 @@ class UW_Restful extends UW_Model {
 		}
 	}
 
-	public function request($method, $url, $data = NULL, $headers = NULL, &$status_code = false, &$raw_output = false, $timeout_conn = NULL /* in ms */, $timeout_exec = NULL /* in ms */) {
+	public function request($method, $url, $data = NULL, $headers = NULL, &$status_code = false, &$raw_output = false, $timeout_conn = NULL /* in ms */, $timeout_exec = NULL /* in ms */, $basic_auth = NULL) {
             /* Set required request headers */
 			if ($headers === NULL) {
 				$req_headers = array(
@@ -910,6 +910,10 @@ class UW_Restful extends UW_Model {
 
             /* Set the request URL */
             curl_setopt($ch, CURLOPT_URL, $url);
+
+			/* Check if basic authentication is defined */
+			if ($basic_auth !== NULL)
+				curl_setopt($ch, CURLOPT_USERPWD, $basic_auth);
 
             /* Set cURL request headers */
             curl_setopt($ch, CURLOPT_HTTPHEADER, $req_headers);
