@@ -2182,7 +2182,7 @@ class UW_ND extends UW_Module {
 		}
 
 		/* Mark this request to generate an event */
-		$this->restful->event(
+		$this->restful->event_triggers(
 			isset($triggers['request']['info']) ? $triggers['request']['info'] : false,
 			isset($triggers['request']['data']) ? $triggers['request']['data'] : false,
 			isset($triggers['response']['info']) ? $triggers['response']['info'] : false,

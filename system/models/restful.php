@@ -356,7 +356,7 @@ class UW_Restful extends UW_Model {
 		return $this->_info['id'];
 	}
 
-	public function event($request_info = true, $request_data = true, $response_info = true, $response_data = true, $response_errors = false, $context = NULL) {
+	public function event_triggers($request_info = true, $request_data = true, $response_info = true, $response_data = true, $response_errors = false, $context = NULL) {
 		$this->_event_triggers['request']['info'] = $request_info;
 		$this->_event_triggers['request']['data'] = $request_data;
 		$this->_event_triggers['response']['info'] = $response_info;
