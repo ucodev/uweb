@@ -160,6 +160,8 @@ class UW_Restful extends UW_Model {
 			'content_type'	=> $this->header('content-type'),
 			'accept'		=> $this->header('accept'),
 			'cache_control' => $this->header('cache-control'),
+			'accept_encoding' => $this->header('accept-encoding'),
+			'content_encoding' => $this->header('content-encoding'),
 			'from'			=> $_SERVER['REMOTE_ADDR'],
 			'tracker'		=> $this->header(current_config()['restful']['log']['header']['tracker'])
 		);
@@ -308,6 +310,17 @@ class UW_Restful extends UW_Model {
 					current_config()['restful']['log']['destination']['timeout']['connect'],
 					current_config()['restful']['log']['destination']['timeout']['execute']
 				);
+			}; break;
+
+			case 'udp_json': {
+				/* Sends a json encoded string to a remote raw UDP server */
+				$log_raw = json_encode($log);
+
+				$sk = socket_create(AF_INET, SOCK_DGRAM, SOL_UDP);
+
+				socket_sendto($sk, $log_raw, strlen($log_raw), 0, current_config()['restful']['log']['destination']['host'], current_config()['restful']['log']['destination']['port']);
+
+				socket_close($sk);
 			}; break;
 
 			case 'error_log': {
@@ -466,6 +479,44 @@ class UW_Restful extends UW_Model {
 
 			/* Not acceptable */
 			$this->output('406');
+		}
+
+		/* Check if content is compressed and if we should deal with it */
+		if ($this->header('content-encoding') && current_config()['restful']['request']['encoding']['process']) {
+			switch ($this->header('content-encoding')) {
+				case 'gzip': {
+					/* Uncompress the entity */
+					$raw_data_uncompressed = gzuncompress($raw_data);
+
+					/* Check if it was successful */
+					if ($raw_data_uncompressed === false) {
+						$this->error('The content encoding was set to \'gzip\' but the data uncompress process failed.');
+						$this->output('400');
+					}
+
+					/* Re-assign the inflated data */
+					$raw_data = $raw_data_uncompressed;
+				}; break;
+
+				case 'deflate': {
+					/* Uncompress the entity */
+					$raw_data_inflated = gzinflate($raw_data);
+					
+					/* Check if it was successful */
+					if ($raw_data_inflated === false) {
+						$this->error('The content encoding was set to \'deflate\' but the data inflate process failed.');
+						$this->output('400');
+					}
+
+					/* Re-assign the inflated data */
+					$raw_data = $raw_data_inflated;
+				}; break;
+
+				default: {
+					$this->error('Unsupported content enconding: ' . $this->header('content-encoding'));
+					$this->output('400');
+				}
+			}
 		}
 
 		/* Check if debug is enabled. */
@@ -634,7 +685,8 @@ class UW_Restful extends UW_Model {
 				$event['response']['errors'] = $body['errors'];
 
 			/* Push event to the event queue */
-			$this->event->push($event, $this->_event_triggers['context'] ? $this->_event_triggers['context'] : current_config()['restful']['event']['context']);
+			if ($event)
+				$this->event->push($event, $this->_event_triggers['context'] ? $this->_event_triggers['context'] : current_config()['restful']['event']['context']);
 		}
 
 		/* Check if logging is enabled, and if so, log the request */
@@ -967,6 +1019,9 @@ class UW_Restful extends UW_Model {
 				/* Set request body data */
 				curl_setopt($ch, CURLOPT_POSTFIELDS, is_array($data) ? json_encode($data) : $data);
 			}
+
+			/* Set HTTP/2 protocol, if available */
+			curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2_0);
 
             /* Grant that cURL will return the response output */
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);

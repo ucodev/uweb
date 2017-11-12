@@ -38,8 +38,8 @@ class UW_ND extends UW_Module {
 
 		/* Check if RESTful interface is enabled */
 		if (!current_config()['nd']['enabled']) {
-			$this->error('uWeb ND interface is disabled');
-			$this->output('403');
+			$this->restful->error('uWeb ND interface is disabled');
+			$this->restful->output('403');
 		}
 	}
 
@@ -93,8 +93,29 @@ class UW_ND extends UW_Module {
 		/* Forward request to the underlying engine (nd-php) */
 		$ch = curl_init();
 
+		/* Check if we should accept certain encodings */
+		if (current_config()['nd']['encoding']['accept'] !== NULL) {
+			/* Grant that we support the selected encoding */
+			foreach (current_config()['nd']['encoding']['accept'] as $accept_encoding) {
+				switch ($accept_encoding) {
+					case 'deflate':
+					case 'gzip': break;
+					default: {
+						$this->restful->error('Unsupported accept-encoding set: ' . current_config()['nd']['encoding']['accept']);
+						$this->restful->output('500');
+					}
+				}
+			}
+
+			/* Set accept-encoding header */
+			curl_setopt($ch, CURLOPT_ENCODING, implode(', ', current_config()['nd']['encoding']['accept']));
+		}
+
 		/* Set the request URL */
 		curl_setopt($ch, CURLOPT_URL, current_config()['nd']['backend']['base_url'] . $uri);
+
+		/* Set HTTP/2 protocol, if available */
+		curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2_0);
 
 		/* Set cURL request headers */
 		curl_setopt($ch, CURLOPT_HTTPHEADER, $req_headers);
@@ -102,9 +123,55 @@ class UW_ND extends UW_Module {
 		/* Set request method to POST */
 		curl_setopt($ch, CURLOPT_POST, true);
 
+		/* JSON encode data, if required */
+		$data = is_array($data) ? json_encode($data) : $data;
+
 		/* Set request body data, if any */
-		if ($data !== NULL)
+		if ($data !== NULL) {
+			/* Check if request entity should be compressed */
+			if (current_config()['nd']['encoding']['content'] !== NULL) {
+				/* Use the selected compression method */
+				switch (current_config()['nd']['encoding']['content']) {
+					case 'deflate': {
+						/* Try to deflate data */
+						$data_deflate = gzdeflate($data);
+
+						/* Replace data only if deflate succeeded */
+						if ($data_deflate !== NULL) {
+							$data = $data_deflate;
+
+							/* Set content encoding header */
+							array_push($req_headers, 'content-encoding: ' . current_config()['nd']['encoding']['content']);
+						} else {
+							error_log('Unable to compress (deflate) data.');
+						}
+					} break;
+
+					case 'gzip': {
+						/* Try to deflate data */
+						$data_gzip = gzcompress($data);
+						
+						/* Replace data only if deflate succeeded */
+						if ($data_gzip !== NULL) {
+							$data = $data_gzip;
+
+							/* Set content encoding header */
+							array_push($req_headers, 'content-encoding: ' . current_config()['nd']['encoding']['content']);
+						} else {
+							error_log('Unable to compress (gzip) data.');
+						}
+					} break;
+
+					default: {
+						$this->restful->error('Unsupported content-encoding set: ' . current_config()['nd']['encoding']['content']);
+						$this->restful->output('500');
+					}
+				}
+			}
+
+			/* Set request entity */
 			curl_setopt($ch, CURLOPT_POSTFIELDS, is_array($data) ? json_encode($data) : $data);
+		}
 
 		/* Set session cookie data, if any */
 		if ($session !== NULL) {
@@ -348,7 +415,8 @@ class UW_ND extends UW_Module {
 
 		/* Initialize cURL */
 		$ch = curl_init();
-		curl_setopt($ch, CURLOPT_URL, current_config()['nd']['backend']['base_url'] . '/login/authenticate');
+		curl_setopt($ch, CURLOPT_URL, current_config()['nd']['backend']['base_url'] . '/login/authenticate');	
+		curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2_0);
 		curl_setopt($ch, CURLOPT_HTTPHEADER, $req_headers);
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 		curl_setopt($ch, CURLOPT_POST, true);
@@ -1109,8 +1177,35 @@ class UW_ND extends UW_Module {
 			$this->restful->output('403'); /* Forbidden */
 		}
 
+		/* Initialize response data */
+		$data = array();
+
+		/* Process changed fields */
+		$data['changed'] = array();
+		$data['count'] = 0;
+
+		/* Reverse mapped fields to process the unmapped fields received from the underlying layer */
+		$fields_mapped_rev = array_flip($fields_mapped);
+
+		foreach ($nd_data['changed'] as $row) {
+			/* Reverse map the updated field names */
+			if (isset($fields_mapped_rev[$row['field']]))
+				$row['field'] = $fields_mapped_rev[$row['field']];
+
+			/* Hide changes on fields that are not part of the accepted field list */
+			if (!in_array($row['field'], $fields_accepted))
+				continue;
+
+			/* Include changed field values (old and new) */
+			$data['changed'][$row['field']]['old'] = $row['value_old'];
+			$data['changed'][$row['field']]['new'] = $row['value_new'];
+
+			/* Update counter (number of updated fields) */
+			$data['count'] += 1;
+		}
+
 		/* All good */
-		return;
+		return $data;
 	}
 
 
@@ -2332,7 +2427,7 @@ class UW_ND extends UW_Module {
 				/* Validate data types */
 				$this->validate_data_types($object, $method, array('id' => $argv[0], 'input' => $input));
 
-				/* Insert the entry */
+				/* Update the entry */
 				$data = $this->update($properties['route'], $argv, $input, $properties['fields'], isset($properties['public']) ? $properties['public'] : false);
 
 				/* Perform cache invalidation for referenced objects */

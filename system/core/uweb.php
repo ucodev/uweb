@@ -87,6 +87,9 @@ class UW_Model {
 
 		/* Initialize system encryption controller */
 		$this->encrypt = new UW_Encrypt;
+
+		/* Initialize system event controller */
+		$this->event = new UW_Event;
 	}
 	
 	public function load($model, $is_library = false, $tolower = false, $class_path = NULL) {

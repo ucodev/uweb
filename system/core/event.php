@@ -57,7 +57,7 @@ class UW_Event extends UW_Base {
 			}
 
 			/* Connect to Redis */
-			if ($data['persitent']) {
+			if ($data['persistent']) {
 				if ($this->_connections[$context]->pconnect($data['host'], $data['port']) !== true) {
 					$this->error('Unable to connect to event server: ' . $context);
 					$this->output('502');
@@ -74,7 +74,7 @@ class UW_Event extends UW_Base {
 	public function push($event, $context = 'default') {
 		global $config;
 
-		if ($this->_connections[$context]->rPush($config['event']['name'] . '_' . $context, is_array($event) ? json_encode($event) : $event) === false) {
+		if ($this->_connections[$context]->rPush($config['event'][$context]['name'] . '_' . $context, is_array($event) ? json_encode($event) : $event) === false) {
 			error_log('Failed to push event to event server: ' . $context);
 			return false;
 		}
