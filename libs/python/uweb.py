@@ -4,7 +4,7 @@
 # This file is part of uweb (http://github.com/ucodev/uweb)
 # 
 # uWeb RESTful Library - Python
-# Copyright (C) 2014-2017  Pedro A. Hortas (pah@ucodev.org)
+# Copyright (C) 2014-2018  Pedro A. Hortas (pah@ucodev.org)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -108,6 +108,9 @@ class rest:
 
 		if type(req_data) is dict:
 			req_data = json.dumps(req_data)
+
+		# Update origin-timestamp header value
+		self.req_headers['origin-timestamp'] = str(time.time())
 
 		# Peform the request
 		if method == 'POST':

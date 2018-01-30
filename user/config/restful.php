@@ -30,6 +30,7 @@ $restful['log']['header']['user_id'] = 'uweb-user-id';
 $restful['log']['header']['auth_token'] = 'uweb-auth-token';
 $restful['log']['header']['tracker'] = 'uweb-tracker-id';
 $restful['log']['header']['geolocation'] = 'geolocation';
+$restful['log']['header']['timestamp'] = 'origin-timestamp';
 $restful['log']['default']['user_id'] = 0;
 
 $restful['event']['enabled'] = false;

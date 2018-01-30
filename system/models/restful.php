@@ -2,7 +2,7 @@
 
 /* Author:   Pedro A. Hortas
  * Email:    pah@ucodev.org
- * Modified: 07/10/2017
+ * Modified: 28/01/2018
  * License:  GPLv3
  */
 
@@ -10,7 +10,7 @@
  * This file is part of uweb.
  *
  * uWeb - uCodev Low Footprint Web Framework (https://github.com/ucodev/uweb)
- * Copyright (C) 2014-2017  Pedro A. Hortas
+ * Copyright (C) 2014-2018  Pedro A. Hortas
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -246,6 +246,37 @@ class UW_Restful extends UW_Model {
 			} while (0);
 		}
 
+		/* Attempt to extract origin timestamp */
+		if ($this->header(current_config()['restful']['log']['header']['timestamp'])) {
+			do {
+				$origin_timestamp = $this->header(current_config()['restful']['log']['header']['timestamp']);
+
+				/* Check if the float convertion delivers a non-zero value */
+				if (!$origin_timestamp) {
+					error_log('Invalid format for origin timestamp value: ' . $this->header(current_config()['restful']['log']['header']['timestamp']));
+					break;
+				}
+
+				if ($origin_timestamp > $response['info']['call']['start']) {
+					error_log('Invalid origin timestamp value: Origin timestamp is greater than start processing timestamp.');
+					break;
+				}
+
+				/* If the request latency is greater than 5 minutes, consider this a timestamp value error (TODO: Configurable threshold) */
+				if (($response['info']['call']['start'] - $origin_timestamp) > 300) {
+					error_log('Invalid origin timestamp value: Computed client latency is greater than 300 seconds.');
+					break;
+				}
+
+				/* Set client request latency */
+				$log['rest']['request']['info']['origin_timestamp'] = $origin_timestamp;
+				$log['rest']['request']['info']['origin_latency'] = round($response['info']['call']['start'] - $origin_timestamp);
+
+				/* Set total time of the request (approx.) */
+				$log['rest']['request']['info']['total_time'] = $log['rest']['request']['info']['exec_time'] + ($log['rest']['request']['info']['origin_latency'] * 2);
+			} while (0);
+		}
+
 		/* Set response contents */
 		$log['rest']['response'] = $response;
 
@@ -400,6 +431,10 @@ class UW_Restful extends UW_Model {
 		$this->_call['user_agent'] = $this->header('user-agent');
 
 		return $this->_call;
+	}
+
+	public function call_update($key, $value) {
+		$this->_call[$key] = $value;
 	}
 
 	public function call_end() {
