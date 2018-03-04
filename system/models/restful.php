@@ -2,7 +2,7 @@
 
 /* Author:   Pedro A. Hortas
  * Email:    pah@ucodev.org
- * Modified: 28/01/2018
+ * Modified: 03/03/2018
  * License:  GPLv3
  */
 
@@ -113,6 +113,7 @@ class UW_Restful extends UW_Model {
 	/* Multi entry requests parameters */
 	private $_multi_enabled = false;
 	private $_multi_responses = array();
+	private $_multi_input_index = 0;
 	private $_multi_errors = false;
 
 	/* Private methods */
@@ -137,6 +138,11 @@ class UW_Restful extends UW_Model {
 
 		$this->_multi_enabled = true; /* Setting this property to true will cause output() to queue responses until _multi_commit() is called */
 		$this->_multi_responses = array();
+		$this->_multi_input_index = 0;
+	}
+
+	private function _multi_set_input_index($i) {
+		$this->_multi_input_index = $i;
 	}
 
 	private function _multi_commit() {
@@ -270,7 +276,7 @@ class UW_Restful extends UW_Model {
 
 				/* Set client request latency */
 				$log['rest']['request']['info']['origin_timestamp'] = $origin_timestamp;
-				$log['rest']['request']['info']['origin_latency'] = round($response['info']['call']['start'] - $origin_timestamp);
+				$log['rest']['request']['info']['origin_latency'] = round($response['info']['call']['start'] - $origin_timestamp, 6);
 
 				/* Set total time of the request (approx.) */
 				$log['rest']['request']['info']['total_time'] = $log['rest']['request']['info']['exec_time'] + ($log['rest']['request']['info']['origin_latency'] * 2);
@@ -495,8 +501,15 @@ class UW_Restful extends UW_Model {
 
 	public function input() {
 		/* Check if there's a cached version of the input (meaning input() was already called before) */
-		if ($this->_input !== NULL)
-			return $this->_input;
+		if ($this->_input !== NULL) {
+			/* Multi entry inputs should be handled taking into account the ::_multi_input_index value */
+			if ($this->_multi_enabled) {
+				return $this->_input[$this->_multi_input_index];
+			} else {
+				/* Regular calls (with single entry) are handled normally */
+				return $this->_input;
+			}
+		}
 
 		/* Fetch raw data */
 		$raw_data = file_get_contents('php://input');
@@ -814,17 +827,26 @@ class UW_Restful extends UW_Model {
 				$this->validate();
 
 				if (method_exists($ctrl, 'insert')) {
+					/* Get request input */
+					$input = $this->input();
+
 					/* Check if this is a request with a single entity entry... */
-					if (count(array_filter(array_keys($this->input()), 'is_string')) > 0) {
+					if (count(array_filter(array_keys($input), 'is_string')) > 0) {
 						/* Single entry */
 						$ctrl->insert($argv);
-					} else if (gettype($this->input()) != 'string') {
-						/* Multiple entries */
+					} else if (gettype($input) == 'array') {
+						/* Initialize multiple entries interface */
 						$this->_multi_init();
 
+						/* NOTE: From this point on, calls to ::input() method will take into account the current ::_multi_input_index value */
+
 						/* Iterate over each entry */
-						for ($i = 0; $i < count($this->input()); $i ++) {
+						for ($i = 0; $i < count($input); $i ++) {
+							/* NOTE: When the following method calls ::input(), the data will be read from the current multi input index */
 							$ctrl->insert($argv);
+
+							/* Advance to the next input entry */
+							$this->_multi_set_input_index($i);
 						}
 
 						/* Commit responses */
@@ -850,17 +872,26 @@ class UW_Restful extends UW_Model {
 				$this->validate();
 
 				if (method_exists($ctrl, 'modify')) {
+					/* Get request input */
+					$input = $this->input();
+
 					/* Check if this is a request with a single entity entry... */
-					if (count(array_filter(array_keys($this->input()), 'is_string')) > 0) {
+					if (count(array_filter(array_keys($input), 'is_string')) > 0) {
 						/* Single entry */
 						$ctrl->modify($argv);
-					} else if (gettype($this->input()) != 'string') {
+					} else if (gettype($input) == 'array') {
 						/* Multiple entries */
 						$this->_multi_init();
 
+						/* NOTE: From this point on, calls to ::input() method will take into account the current ::_multi_input_index value */
+
 						/* Iterate over each entry */
-						for ($i = 0; $i < count($this->input()); $i ++) {
+						for ($i = 0; $i < count($input); $i ++) {
+							/* NOTE: When the following method calls ::input(), the data will be read from the current multi input index */
 							$ctrl->modify($argv);
+
+							/* Advance to the next input entry */
+							$this->_multi_set_input_index($i);
 						}
 
 						/* Commit responses */
@@ -886,17 +917,26 @@ class UW_Restful extends UW_Model {
 				$this->validate();
 
 				if (method_exists($ctrl, 'update')) {
+					/* Get request input */
+					$input = $this->input();
+
 					/* Check if this is a request with a single entity entry... */
-					if (count(array_filter(array_keys($this->input()), 'is_string')) > 0) {
+					if (count(array_filter(array_keys($input), 'is_string')) > 0) {
 						/* Single entry */
 						$ctrl->update($argv);
-					} else if (gettype($this->input()) != 'string') {
+					} else if (gettype($input) == 'array') {
 						/* Multiple entries */
 						$this->_multi_init();
 
+						/* NOTE: From this point on, calls to ::input() method will take into account the current ::_multi_input_index value */
+
 						/* Iterate over each entry */
-						for ($i = 0; $i < count($this->input()); $i ++) {
+						for ($i = 0; $i < count($input); $i ++) {
+							/* NOTE: When the following method calls ::input(), the data will be read from the current multi input index */
 							$ctrl->update($argv);
+
+							/* Advance to the next input entry */
+							$this->_multi_set_input_index($i);
 						}
 
 						/* Commit responses */

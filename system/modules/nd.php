@@ -2,7 +2,7 @@
 
 /* Author:   Pedro A. Hortas
  * Email:    pah@ucodev.org
- * Modified: 29/10/2017
+ * Modified: 03/03/2018
  * License:  GPLv3
  */
 
@@ -1196,9 +1196,23 @@ class UW_ND extends UW_Module {
 			if (!in_array($row['field'], $fields_accepted))
 				continue;
 
-			/* Include changed field values (old and new) */
-			$data['changed'][$row['field']]['old'] = $row['value_old'];
-			$data['changed'][$row['field']]['new'] = $row['value_new'];
+			/** Include changed field values (old and new) **/
+
+			/* Multiple relationships need to be converted from comma separated string values into integer array value */
+			if (substr($row['field'], 0, 4) == 'rel_') {
+				$data['changed'][$row['field']]['old'] = array_map(
+					function($x) { return intval($x); },
+					explode(',', $row['value_old'])
+				);
+				$data['changed'][$row['field']]['new'] = array_map(
+					function($x) { return intval($x); },
+					explode(',', $row['value_new'])
+				);
+			} else {
+				/* No special processing for other types of fields */
+				$data['changed'][$row['field']]['old'] = $row['value_old'];
+				$data['changed'][$row['field']]['new'] = $row['value_new'];
+			}
 
 			/* Update counter (number of updated fields) */
 			$data['count'] += 1;

@@ -2,7 +2,7 @@
 
 /* Author:   Pedro A. Hortas
  * Email:    pah@ucodev.org
- * Modified: 07/10/2017
+ * Modified: 03/03/2018
  * License:  GPLv3
  */
 
@@ -86,8 +86,8 @@ class UW_ES extends UW_Module {
                             array_push($es_query['filter']['bool'][$filter_type], array(
                                 'bool' => array(
                                     'must_not' => array(
-                                        ((isset($usl_query[$field]['exact']) && $usl_query[$field]['exact']) ? 'term' : 'match') => array(
-                                            $field => $value
+                                        ((isset($usl_query[$field]['exact']) && $usl_query[$field]['exact']) ? 'term' : 'regexp') => array(
+                                            $field . '.keyword' => (isset($usl_query[$field]['exact']) && $usl_query[$field]['exact']) ? $value : ('.*' . $value . '.*')
                                         )
                                     )
                                 )
@@ -98,8 +98,8 @@ class UW_ES extends UW_Module {
                                 $es_query['filter']['bool'][$filter_type] = array();
 
                             array_push($es_query['filter']['bool'][$filter_type], array(
-                                ((isset($usl_query[$field]['exact']) && $usl_query[$field]['exact']) ? 'term' : 'match') => array(
-                                    $field => $value
+                                ((isset($usl_query[$field]['exact']) && $usl_query[$field]['exact']) ? 'term' : 'regexp') => array(
+                                    $field . '.keyword' => (isset($usl_query[$field]['exact']) && $usl_query[$field]['exact']) ? $value : ('.*' . $value . '.*')
                                 )
                             ));
                         }
