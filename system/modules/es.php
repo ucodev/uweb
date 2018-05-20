@@ -642,8 +642,79 @@ class UW_ES extends UW_Module {
             $search['offset'] = 0;
         }
 
+        /* Order by */
+        if (isset($input['orderby'])) {
+            /* Check if orderby value is a string */
+            if (gettype($input['orderby']) != 'string') {
+                $this->restful->error('Parameter \'orderby\' is set, but it\'s not of string type.');
+                $this->restful->output('400');
+            }
+
+            /* Set the orderby of the result */
+            $search['orderby'] = $input['orderby'];
+        }
+
+        /* Ordering */
+        if (isset($input['ordering'])) {
+            /* Check if ordering value is a string */
+            if ((strtolower($input['ordering']) != 'asc') && (strtolower($input['ordering']) != 'desc') && (strtolower($input['ordering'] != 'in'))) {
+                $this->restful->error('Parameter \'ordering\' is set, but it\'s not one of \'asc\', \'desc\' nor \'in\'.');
+                $this->restful->output('400');
+            }
+
+            /* Check if this is an in-order ordering */
+            if (strtolower($input['ordering']) == 'in') {
+                /* Ordering by 'in' requires 'orderby' parameter to be explicitly set */
+                if (!isset($input['orderby'])) {
+                    $this->restful->error('Parameter \'ordering\' is set as \'in\', but no \'orderby\' parameter was found.');
+                    $this->restful->output('400');
+                }
+
+                /* Ordering by 'in' requires 'query' parameter to contain a 'in' criteria for the 'orderby' field. */
+                if (!isset($input['query'][$input['orderby']]['in'])) {
+                    $this->restful->error('Parameter \'ordering\' is set as \'in\', but \'query\' does not contain a \'in\' criteria for the field set for \'orderby\' parameter.');
+                    $this->restful->output('400');
+                }
+
+				/* Store original limit and set the query limit to the amount of elements present in the "in" criteria for the "orderby" field */
+				$inorder_limit = $input['limit'];
+				$search['limit'] = count($input['query'][$input['orderby']]['in']);
+
+				/* Validate requested limit for the inorder query */
+				if ($inorder_limit > $search['limit']) {
+					$this->restful->error('The requested \'limit\' value is greater than the amount of elements present in the \'in\' criteria.');
+					$this->restful->output('400'); /* Bad Request */
+				}
+
+				/* Store original offset value and reset query offset */
+				$inorder_offset = $input['offset'];
+				$search['offset'] = 0;
+
+				/* Validate requested offset for the inorder query */
+				if ($inorder_offset >= $search['limit']) {
+					$this->restful->error('The requested \'offset\' value cannot be greater than or equal to the amount of elements present in the \'in\' criteria.');
+					$this->restful->output('400'); /* Bad Request */
+                }
+
+                /* Mark this search for reordering based on 'in' criteria */
+                $search['inorder'] = true;
+
+                /* Set order to ascending (could also be descending, as the result will be reordered) */
+                $search['ordering'] = 'asc';
+            } else {
+                /* Set the ordering of the result */
+                $search['ordering'] = strtolower($input['ordering']);
+            }
+        } else if (isset($input['orderby'])) {
+            /* If orderby was set, use a default 'asc' ordering */
+            $search['ordering'] = 'asc';
+        }
 
         /** ES Query **/
+
+        /* ES Query - Set sorting */
+        if (isset($search['orderby']))
+            $es_input['sort'][$search['orderby']]['order'] = $search['ordering'];
 
         /* ES Query - Initialize boosted query */
         $es_input['query']['function_score']['query']['bool']['must'] = array();

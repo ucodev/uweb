@@ -116,6 +116,9 @@ class UW_Restful extends UW_Model {
 	private $_multi_input_index = 0;
 	private $_multi_errors = false;
 
+	/* Related events */
+	private $_related = array();
+
 	/* Private methods */
 	private function _headers_http_collect() {
 		/* Collect HTTP Headers */
@@ -131,6 +134,20 @@ class UW_Restful extends UW_Model {
 		}
 
 		return $this->_headers;
+	}
+
+	private function _related_add_connection($log_connection) {
+		if (!isset($this->_related['connections']))
+			$this->_related['connections'] = array();
+
+		array_push($this->_related['connections'], $log_connection);
+	}
+
+	private function _related_add_id($request_id) {
+		if (!isset($this->_related['ids']))
+			$this->_related['ids'] = array();
+
+		array_push($this->_related['ids'], $request_id);
 	}
 
 	private function _multi_init() {
@@ -154,7 +171,8 @@ class UW_Restful extends UW_Model {
 	}
 
 	private function _request_info() {
-		return array(
+		/* Craft the request information data */
+		$req_info = array(
 			'id'			=> $this->id(),
 			'url'			=> current_url(),
 			'fqhn'			=> $_SERVER['SERVER_NAME'],
@@ -171,6 +189,25 @@ class UW_Restful extends UW_Model {
 			'from'			=> $_SERVER['REMOTE_ADDR'],
 			'tracker'		=> $this->header(current_config()['restful']['log']['header']['tracker'])
 		);
+
+		/* Handle tracker encoding */
+		switch (current_config()['restful']['log']['header']['tracker_encoding']) {
+			case 'json': {
+				if ($req_info['tracker']) {
+					/* Decode the JSON contents from the tracker */
+					$tracker = json_decode($req_info['tracker']);
+
+					/* If the decode was successful, update the tracker data with the decoded version; otherwise it will be kept as string */
+					if ($tracker)
+						$req_info['tracker'] = $tracker;
+				}
+			} break;
+
+			default: /* Default action is to keep the current encoding */
+		}
+
+		/* All good */
+		return $req_info;
 	}
 
 	public function _log_array_value_process(&$v, $k) {
@@ -326,10 +363,14 @@ class UW_Restful extends UW_Model {
 
 					/* Check if body data is too big and should be discarded */
 					if (strlen($log['rest']['request']['data']) > current_config()['restful']['log']['discard_huge_body'])
-					$log['rest']['request']['data'] = substr($log['rest']['request']['data'], 0, current_config()['restful']['log']['discard_huge_body'] - 22) . ' [ ... discarded ... ]';
+						$log['rest']['request']['data'] = substr($log['rest']['request']['data'], 0, current_config()['restful']['log']['discard_huge_body'] - 22) . ' [ ... discarded ... ]';
 				}
 			}
 		}
+
+		/* Include related events */
+		if (current_config()['restful']['log']['related'] && $this->_related)
+			$log['rest']['related'] = $this->_related;
 
 		/* Use selected log interface */
 		switch (current_config()['restful']['log']['interface']) {
@@ -439,6 +480,14 @@ class UW_Restful extends UW_Model {
 		return $this->_call;
 	}
 
+	public function call_set_object($object) {
+		$this->_call['object'] = $object;
+	}
+
+	public function call_set_function($function) {
+		$this->_call['function'] = $function;
+	}
+
 	public function call_update($key, $value) {
 		$this->_call[$key] = $value;
 	}
@@ -470,6 +519,12 @@ class UW_Restful extends UW_Model {
 	}
 
 	public function header($key = NULL, $value = NULL, $replace = true) {
+		if ($key === NULL) {
+			$this->_headers_http_collect();
+
+			return $this->_headers;			
+		}
+
 		/* Always convert key to lowercase */
 		$key = strtolower($key);
 
@@ -486,15 +541,18 @@ class UW_Restful extends UW_Model {
 			}
 
 			return NULL;
-		} else { /* If not $key nor $value is set, return all the headers */
-			$this->_headers_http_collect();
-
-			return $this->_headers;
 		}
+
+		/* Something is wrong */
+		return false;
 	}
 
-	public function method() {
-		$this->_info['method'] = request_method();
+	public function method($method = NULL) {
+		if ($method) {
+			$this->_info['method'] = $method;
+		} else if (!$this->_info['method']) {
+			$this->_info['method'] = request_method();
+		}
 
 		return $this->_info['method'];
 	}
@@ -646,8 +704,11 @@ class UW_Restful extends UW_Model {
 		$body['info'] = $this->_info;
 
 		/* Add errors section if any error was set */
-		if ($this->_info['errors'])
+		if ($this->_info['errors']) {
 			$body['errors'] = $this->_errors;
+
+			error_log('uWeb RESTful ERROR [' . $code . ']: Request ID: ' . $this->id() . ' - Request path: ' . $this->_info['method'] . ' ' . $_SERVER['REQUEST_URI'] . ' - Message: ' . $this->_errors['message']);
+		}
 
 		/* Check if there's data to be sent as the response body */
 		if ($data !== NULL) {
@@ -680,7 +741,7 @@ class UW_Restful extends UW_Model {
 
 		/* Encode response to JSON */
 		if (($output = json_encode($body)) === false) {
-			$this->error('Unable to encode content.');
+			$this->error('Unable to encode output content.');
 			$this->output('500'); /* Recursive */
 		}
 
@@ -756,6 +817,14 @@ class UW_Restful extends UW_Model {
 
 		/* Set object name and called function */
 		$this->call_start(strtolower(get_class($ctrl)), $obj_function, $argv);
+
+		/* Check if there are related IDs in the headers */
+		$related_id = $this->header(current_config()['restful']['request']['header']['related_id']);
+
+		if ($related_id) {
+			/* Add related IDs */
+			$this->_related_add_id($related_id);
+		}
 	}
 
 	public function validate($method = NULL) {
@@ -872,33 +941,141 @@ class UW_Restful extends UW_Model {
 				$this->validate();
 
 				if (method_exists($ctrl, 'modify')) {
-					/* Get request input */
-					$input = $this->input();
-
-					/* Check if this is a request with a single entity entry... */
-					if (count(array_filter(array_keys($input), 'is_string')) > 0) {
+					if ($argv) {
 						/* Single entry */
 						$ctrl->modify($argv);
-					} else if (gettype($input) == 'array') {
-						/* Multiple entries */
-						$this->_multi_init();
+					} else {
+						/* Get request input */
+						$input = $this->input();
 
-						/* NOTE: From this point on, calls to ::input() method will take into account the current ::_multi_input_index value */
+						/* For a collection operation, a 'filter' property must be supplied */
+						if (!isset($input['filter'])) {
+							$this->error('Expecting \'filter\' property to be set when targetting the base collection.');
+							$this->output('400');
+						} else {
+							/* Make sure 'filter' contains a 'show' property, with only one element: id */
+							$input['filter']['show'] = array('id');
 
-						/* Iterate over each entry */
-						for ($i = 0; $i < count($input); $i ++) {
-							/* NOTE: When the following method calls ::input(), the data will be read from the current multi input index */
-							$ctrl->modify($argv);
-
-							/* Advance to the next input entry */
-							$this->_multi_set_input_index($i);
+							/* Check if a limit was specified. If not, add a default limit of 500 (the default maximum for search methods) */
+							if (!isset($input['filter']['limit'])) {
+								$input['filter']['limit'] = 500;
+							}
 						}
 
-						/* Commit responses */
-						$this->_multi_commit();
-					} else {
-						$this->error('Invalid data type detected in entity body.');
-						$this->output('400');
+						/* Check if a search method exists on this endpoint */
+						if (!method_exists($ctrl, 'search')) {
+							$this->error('The targetted object doesn\'t have a search method.');
+							$this->output('501');
+						}
+
+						/* For a collection update, a 'data' property must be supplied */
+						if (!isset($input['data'])) {
+							$this->error('Expecting \'data\' property to be set when targetting the base collection.');
+							$this->output('400');
+						}
+
+						/* Setup relay headers */
+						$relay_headers_kv = $this->header();
+						$relay_headers_array = array();
+
+						foreach ($relay_headers_kv as $k => $v) {
+							/* Filter out unnecessary headers that may conflict with newer ones */
+							switch (strtolower($k)) {
+								case 'user-agent':
+								case 'host':
+								case 'connection':
+								case 'accept':
+								case 'content-type':
+								case 'accept-encoding':
+								case 'related-id': continue;
+								
+								default: array_push($relay_headers_array, $k . ': ' . $v);
+							}
+						}
+
+						/* Add related id to this relay request */
+						array_push($relay_headers_array, current_config()['restful']['request']['header']['related_id'] . ': ' . $this->id());
+
+						/* Grant that accept header and content-type are set */
+						array_push($relay_headers_array, 'accept: application/json');
+						array_push($relay_headers_array, 'content-type: application/json');
+
+						/* Gather collection subset, defined by search terms included in the 'filter' property */
+						$q_status_code = NULL;
+						$q_raw_output = NULL;
+
+						$q = $this->request(
+							'POST',
+							base_url(true) . strtolower(get_class($ctrl)) . '/search',
+							$input['filter'],
+							$relay_headers_array,
+							$q_status_code,
+							$q_raw_output,
+							10000,
+							30000,
+							NULL,
+							false /* Do not include related connection data, as we are already including the related connection id after this call */
+						);
+
+						/* Include related request id */
+						if (isset($q['info']['id']))
+							$this->_related_add_id($q['info']['id']);
+
+						/* Check if the filter was successful */
+						if ($q_status_code != 201) {
+							$this->error('Unable to apply the collection filter defined by \'filter\'. Status: ' . $q_status_code);
+							$this->output($q_status_code);
+						}
+
+						/* Check if there are any results */
+						if (!isset($q['data']) || !$q['data']['count']) {
+							$this->error('The applied filter didn\'t returned any results.');
+							$this->output('404'); /* Not Found */
+						}
+
+						/* Initialize response */
+						$m_response = array();
+
+						/* Iterate over results and modify each entry */
+						$r_status_code = NULL;
+						$r_raw_output = NULL;
+
+						foreach ($q['data']['result'] as $entry) {
+							$r = $this->request(
+								'PATCH',
+								base_url(true) . strtolower(get_class($ctrl)) . '/' . $entry['id'],
+								$input['data'],
+								$relay_headers_array,
+								$r_status_code,
+								$r_raw_output,
+								10000,
+								30000,
+								NULL,
+								false /* Do not include related connection data, as we are already including the related connection id after this call */
+							);
+
+							/* Include related request id */
+							if (isset($r['info']['id']))
+								$this->_related_add_id($r['info']['id']);
+
+							/* Craft response */
+							$response = array();
+							$response['id'] = intval($entry['id']);
+							$response['code'] = $r_status_code;
+
+							if (isset($r['info']['data']) && $r['info']['data'])
+								$response['data'] = $r['data'];
+							if (isset($r['info']['errors']) && $r['info']['errors'])
+								$response['errors'] = $r['errors'];
+
+							/* Add response to multi-status output array */
+							array_push($m_response, $response);
+						}
+
+						/* The request was performed and contains multiple status (207).
+						 * The is client responsible for the validation of each entry status and take further actions if required.
+						 */
+						$this->output('207', $m_response); /* Multi-Status */
 					}
 				} else {
 					/* Object method is not implemented (no handler declared) */
@@ -962,7 +1139,139 @@ class UW_Restful extends UW_Model {
 				$this->validate();
 
 				if (method_exists($ctrl, 'delete')) {
-					$ctrl->delete($argv);
+					/* NOTE: If there's no $argv and no search method, forward the request without trying to apply the filter, leaving the
+					 * specialization of this method to handle this odd request (that eventually may make sense).
+					 */
+					if ($argv || !method_exists($ctrl, 'search')) {
+						/* Single entry */
+						$ctrl->delete($argv);
+					} else {
+						/* Get request input */
+						$input = $this->input();
+
+						/* For a collection operation, a 'filter' property must be supplied */
+						if (!isset($input['filter'])) {
+							$this->error('Expecting \'filter\' property to be set when targetting the base collection.');
+							$this->output('400');
+						} else {
+							/* Make sure 'filter' contains a 'show' property, with only one element: id */
+							$input['filter']['show'] = array('id');
+
+							/* Check if a limit was specified. If not, add a default limit of 500 (the default maximum for search methods) */
+							if (!isset($input['filter']['limit'])) {
+								$input['filter']['limit'] = 500;
+							}
+						}
+
+						/* Check if a search method exists on this endpoint */
+						if (!method_exists($ctrl, 'search')) {
+							$this->error('The targetted object doesn\'t have a search method.');
+							$this->output('501');
+						}
+
+						/* Setup relay headers */
+						$relay_headers_kv = $this->header();
+						$relay_headers_array = array();
+
+						foreach ($relay_headers_kv as $k => $v) {
+							/* Filter out unnecessary headers that may conflict with newer ones */
+							switch (strtolower($k)) {
+								case 'user-agent':
+								case 'host':
+								case 'connection':
+								case 'accept':
+								case 'content-type':
+								case 'accept-encoding':
+								case 'related-id': continue;
+								
+								default: array_push($relay_headers_array, $k . ': ' . $v);
+							}
+						}
+
+						/* Add related id to this relay request */
+						array_push($relay_headers_array, current_config()['restful']['request']['header']['related_id'] . ': ' . $this->id());
+
+						/* Grant that accept header and content-type are set */
+						array_push($relay_headers_array, 'accept: application/json');
+						array_push($relay_headers_array, 'content-type: application/json');
+
+						/* Gather collection subset, defined by search terms included in the 'filter' property */
+						$q_status_code = NULL;
+						$q_raw_output = NULL;
+
+						$q = $this->request(
+							'POST',
+							base_url(true) . strtolower(get_class($ctrl)) . '/search',
+							$input['filter'],
+							$relay_headers_array,
+							$q_status_code,
+							$q_raw_output,
+							10000,
+							30000,
+							NULL,
+							false /* Do not include related connection data, as we are already including the related connection id after this call */
+						);
+
+						/* Include related request id */
+						if (isset($q['info']['id']))
+							$this->_related_add_id($q['info']['id']);
+
+						/* Check if the filter was successful */
+						if ($q_status_code != 201) {
+							$this->error('Unable to apply the collection filter defined by \'filter\'. Status: ' . $q_status_code);
+							$this->output($q_status_code);
+						}
+
+						/* Check if there are any results */
+						if (!isset($q['data']) || !$q['data']['count']) {
+							$this->error('The applied filter didn\'t returned any results.');
+							$this->output('404'); /* Not Found */
+						}
+
+						/* Initialize response */
+						$m_response = array();
+
+						/* Iterate over results and modify each entry */
+						$r_status_code = NULL;
+						$r_raw_output = NULL;
+
+						foreach ($q['data']['result'] as $entry) {
+							$r = $this->request(
+								'DELETE',
+								base_url(true) . strtolower(get_class($ctrl)) . '/' . $entry['id'],
+								NULL,
+								$relay_headers_array,
+								$r_status_code,
+								$r_raw_output,
+								10000,
+								30000,
+								NULL,
+								false /* Do not include related connection data, as we are already including the related connection id after this call */
+							);
+
+							/* Include related request id */
+							if (isset($r['info']['id']))
+								$this->_related_add_id($r['info']['id']);
+
+							/* Craft response */
+							$response = array();
+							$response['id'] = intval($entry['id']);
+							$response['code'] = $r_status_code;
+
+							if (isset($r['info']['data']) && $r['info']['data'])
+								$response['data'] = $r['data'];
+							if (isset($r['info']['errors']) && $r['info']['errors'])
+								$response['errors'] = $r['errors'];
+
+							/* Add response to multi-status output array */
+							array_push($m_response, $response);
+						}
+
+						/* The request was performed and contains multiple status (207).
+						 * The is client responsible for the validation of each entry status and take further actions if required.
+						 */
+						$this->output('207', $m_response); /* Multi-Status */
+					}
 				} else {
 					/* Object method is not implemented (no handler declared) */
 					$this->error('No handler declared for DELETE (delete).');
@@ -1021,7 +1330,10 @@ class UW_Restful extends UW_Model {
 		}
 	}
 
-	public function request($method, $url, $data = NULL, $headers = NULL, &$status_code = false, &$raw_output = false, $timeout_conn = NULL /* in ms */, $timeout_exec = NULL /* in ms */, $basic_auth = NULL) {
+	public function request($method, $url, $data = NULL, $headers = NULL, &$status_code = false, &$raw_output = false, $timeout_conn = NULL /* in ms */, $timeout_exec = NULL /* in ms */, $basic_auth = NULL, $include_related = true) {
+			/* Initialize 'connection' log */
+			$log_connection = array();
+
             /* Set required request headers */
 			if ($headers === NULL) {
 				$req_headers = array(
@@ -1032,11 +1344,55 @@ class UW_Restful extends UW_Model {
 				$req_headers = $headers;
 			}
 
+			/* Add the current request id to the headers, so the remote service can keep track of the origin request */
+			array_push($req_headers, current_config()['restful']['request']['header']['id'] . ': ' . $this->id());
+
+			/* Add origin timestamp */
+			array_push($req_headers, current_config()['restful']['log']['header']['timestamp'] . ': ' . microtime(true));
+
+			/* Add origin address */
+			array_push($req_headers, 'x-forwarded-for: ' . $_SERVER['REMOTE_ADDR']);
+
+			/* Add origin user-agent */
+			array_push($req_headers, 'x-forwarded-user-agent: ' . $this->header('user-agent'));
+
             /* Forward request to the underlying layer (notify) */
             $ch = curl_init();
 
+			/* Set the User-Agent */
+			$user_agent = current_config()['restful']['request']['header']['user_agent'];
+			curl_setopt($ch, CURLOPT_USERAGENT, $user_agent);
+
             /* Set the request URL */
             curl_setopt($ch, CURLOPT_URL, $url);
+
+			/* Update connection request log */
+			$log_connection['request']['headers'] = $req_headers;
+			$log_connection['request']['user_agent'] = current_config()['restful']['request']['header']['user_agent'];
+			$log_connection['request']['start_time'] = microtime(true);
+			$log_connection['request']['method'] = $method;
+			$log_connection['request']['url'] = $url;
+			if ($data)
+				$log_connection['request']['data'] = $data;
+			$log_connection['request']['basic_auth'] = $basic_auth ? true : false;
+			$log_connection['request']['timeout']['connection'] = $timeout_conn ? $timeout_conn : 0;
+			$log_connection['request']['timeout']['execution'] = $timeout_exec ? $timeout_exec : 0;
+
+			/* Check if connection log body values should be truncated */
+			if (current_config()['restful']['log']['truncate_values'] || current_config()['restful']['log']['secure_fields']) {
+				/* Truncate values from response data */
+				array_walk_recursive($log_connection['request']['data'], array($this, '_log_array_value_process'));
+			}
+
+			/* Check if connection log body should be encoded */
+			if ($log_connection['request']['data'] && current_config()['restful']['log']['encode_body'] === true) {
+				if (is_array($log_connection['request']['data']))
+					$log_connection['request']['data'] = json_encode($log_connection['request']['data'], JSON_PRETTY_PRINT);
+
+				/* Check if body data is too big and should be discarded */
+				if (strlen($log_connection['request']['data']) > current_config()['restful']['log']['discard_huge_body'])
+					$log_connection['request']['data'] = substr($log_connection['request']['data'], 0, current_config()['restful']['log']['discard_huge_body'] - 22) . ' [ ... discarded ... ]';
+			}
 
 			/* Check if basic authentication is defined */
 			if ($basic_auth !== NULL)
@@ -1115,9 +1471,12 @@ class UW_Restful extends UW_Model {
 				return NULL;
 			}
 
+			/* Get status code */
+			$_status_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
 			/* Set status code, if requested */
 			if ($status_code !== false)
-				$status_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+				$status_code = $_status_code;
 
 			/* Set raw output, if requested */
 			if ($raw_output !== false)
@@ -1125,6 +1484,23 @@ class UW_Restful extends UW_Model {
 
             /* Close the cURL handler */
             curl_close($ch);
+
+			/* Update connection request log (end time) */
+			$log_connection['request']['end_time'] = microtime(true);
+
+			/* Update connection response log */
+			$log_connection['response']['code'] = $_status_code;
+
+			if ($output && current_config()['restful']['log']['response_body']) {
+				$log_connection['response']['data'] = $output;
+
+				if (strlen($log_connection['response']['data']) > current_config()['restful']['log']['discard_huge_body'])
+					$log_connection['response']['data'] = substr($log_connection['response']['data'], 0, current_config()['restful']['log']['discard_huge_body'] - 22) . ' [ ... discarded ... ]';
+			}
+
+			/* Add related connection log */
+			if ($include_related)
+				$this->_related_add_connection($log_connection);
 
             /* All good */
             return json_decode($output, true);

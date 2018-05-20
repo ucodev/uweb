@@ -10,12 +10,16 @@ $nd['auth']['public']['api_key'] = '';
 
 $nd['header']['user_id'] = 'nd-user-id';
 $nd['header']['auth_token'] = 'nd-auth-token';
+$nd['header']['request_id'] = 'nd-request-id';
 
 $nd['user_agent']['replace'] = false;
 $nd['user_agent']['name'] = 'uWeb RESTful API Interface';
 $nd['user_agent']['version'] = 'v1';
 
 $nd['trusted_sources'] = [ '127.0.0.1' ];
+
+$nd['encoding']['accept'] = array('gzip', 'deflate'); /* Set to NULL to disable encoding */
+$nd['encoding']['content'] = NULL; /* Set to 'deflate' to enable content compression */
 
 $nd['models']['base_path'] = '/application/models/nd';
 $nd['models']['validate']['types'] = true;

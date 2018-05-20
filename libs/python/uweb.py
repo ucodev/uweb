@@ -32,6 +32,7 @@ class rest:
 	config = None
 	debug = False
 	ssl_verify = True
+	retry = None
 
 	file_config = "config.json"
 	file_authcache = ".authcache"
@@ -58,6 +59,9 @@ class rest:
 
 		if self.config.has_key('debug'):
 			self.debug = self.config['debug']
+
+		if self.config.has_key('retry'):
+			self.retry = int(self.config['retry'])
 
 		if self.config.has_key('ssl_verify'):
 			self.ssl_verify = self.config['ssl_verify']
@@ -92,6 +96,37 @@ class rest:
 			self.req_headers[self.config['header_auth_token']] = str(self.auth['token'])
 
 	def request(self, method, obj, req_data = None, args = None):
+		if self.retry:
+			# Retry on failure
+			return self.request_retry(method, obj, req_data, args)
+		else:
+			# No retry
+			return self.request_single(method, obj, req_data, args)
+
+	def request_retry(self, method, obj, req_data = None, args = None):
+		# Retry 3 times on specific failures
+		retry = self.retry
+
+		while retry >= 0:
+			try:
+				r = self.request_single(method, obj, req_data, args)
+
+				# Retry if a 502 or 503 code was returned
+				if r['code'] in [ 502, 503 ]:
+					retry -= 1
+					continue
+
+				# Do not retry if a 502 or 503 code wasn't returned
+				break
+			except:
+				# Retry on exceptions
+				retry -= 1
+				continue
+
+		# Return the last request response (failed or success)
+		return r
+
+	def request_single(self, method, obj, req_data = None, args = None):
 		# Craft URI
 		if args != None:
 			if type(args) == str:
@@ -109,7 +144,7 @@ class rest:
 		if type(req_data) is dict:
 			req_data = json.dumps(req_data)
 
-		# Update origin-timestamp header value
+		# Update origin-timestamp header
 		self.req_headers['origin-timestamp'] = str(time.time())
 
 		# Peform the request

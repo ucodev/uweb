@@ -61,6 +61,9 @@ class UW_ND extends UW_Module {
 			'accept: application/json'
 		);
 
+		/* Add the current request id to the headers, so the remote service can keep track of the origin request */
+		array_push($req_headers, current_config()['nd']['header']['request_id'] . ': ' . $this->restful->id());
+
 		/* If there's body data to be set, set the content-type header */
 		if (is_array($data))
 			array_push($req_headers, 'content-type: application/json');
@@ -412,6 +415,9 @@ class UW_ND extends UW_Module {
 			array_push($req_headers, 'x-forwarded-for: ' . $_SERVER['REMOTE_ADDR']);
 			array_push($req_headers, 'x-real-ip: ' . $_SERVER['REMOTE_ADDR']);
 		}
+
+		/* Add the current request id to the headers, so the remote service can keep track of the origin request */
+		array_push($req_headers, current_config()['nd']['header']['request_id'] . ': ' . $this->restful->id());
 
 		/* Initialize cURL */
 		$ch = curl_init();
