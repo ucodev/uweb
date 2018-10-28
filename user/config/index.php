@@ -43,6 +43,10 @@ $config['base'] = $base;
 include('user/config/cache.php');
 $config['cache'] = $cache;
 
+/* Composite settings */
+include('user/config/composite.php');
+$config['composite'] = $composite;
+
 /* Database settings */
 include('user/config/database.php');
 $config['database'] = $database;

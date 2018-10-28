@@ -178,6 +178,9 @@ if ($__controller) {
 		} else if ($__function == '__construct') {
 			header($_SERVER['SERVER_PROTOCOL'] . ' 403');
 			die('Calling __construct() methods directly from HTTP requests is not allowed.');
+		} else if (substr($__function, 0, 2) == '__') {
+			header($_SERVER['SERVER_PROTOCOL'] . ' 403');
+			die('Calling reserved methods directly from HTTP requests is not allowed.');
 		} else if (ctype_digit($__function[0])) {
 			/* If the first character of function name string is a digit, assume index as the function and prepend the argument
 			 * to the argv. This is useful for RESTful interfaces, when omitting 'index' function name is preferable in order

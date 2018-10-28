@@ -1,0 +1,138 @@
+===================
+  uWeb Composites
+===================
+
+
+ 1. Overview
+
+   - Composites allow multiple RESTful requests to be aggregated into a single call.
+
+   - Responses from already processed composite calls (child calls) can be reused inside the same composite under the
+     payload of other child calls with the usage of variables.
+
+   - Variables can aggregate results through iterables, or simply represent a plain value.
+
+
+ 2. Scope
+
+   - The purpose of composites is NOT to solve or abstract complex logic, but to help reduce network time and usage.
+
+   - If the usage of individual calls cannot solve a logic-defined issue, composites won't be able to solve it either.
+
+
+
+ 3. Warnings and Best Practices
+
+   - Headers from the main composite call are forwarded to child request calls.
+
+   - Composites should always have a meaningful name defined, so their scope and purpose is easily understood.
+
+   - Unless a malformed composite is detected, content execution won't be interrupted by default if a child call fails.
+
+   - Make sure the individual status code of each child request response is validated, as a successful execution of the
+     composite doesn't mean that every single child request has succeeded.
+
+   - Composite requests and responses may become very big, so use compression in your HTTP requests whenever possible.
+
+   - When using variables, using a named index instead of a plain index number will help keep track of the index
+     selections and avoid incorrect index selections if child requests order is changed.
+
+   - Composite content entries that are marked as unsafe will allow the usage of variables. Never allow unsanitized
+     user input to be part of an unsafe content entry.
+
+
+ 4. Definitions
+
+   - "element" or "composite element":
+     + An array entry defined in the "content" section of a composite.
+
+   - "variable":
+     + A string value that represents the path to an object property.
+     + Variables are string defined values, prefixed and suffixed by "$$".
+
+   - "path":
+     + Represents the object path for a property. It can contain one or more path segments, separated by ".".
+
+   - "path segment":
+     + A string value that represents a property in the response object.
+
+   - "iterable":
+     + An object or variable path segment that can be iterated linearly through the usage of a loop.
+     + An array is an example of iterable.
+     + When an iterable is specified in a variable path segment, result aggregation is locked to that segment.
+     + As a consequence of the above, only one iterable variable path segment can be specified.
+     + Variable path segments can be specified as an iterable by using the suffix "[]" in the path segment name.
+
+   - "primary index":
+     + The first segment of a composite variable.
+     + It can be represented by an integer - "numeric index".
+     + It can be represented by a string - "named index".
+     + A special and reserved keyword "last" can be used to reference the previous child request response.
+
+   - "array index" or "index":
+     + An integer value that indicates a position in an array.
+     + They can be used in variable path segments that represent a linear array.
+
+
+ 5. Syntax
+
+   {
+     /* Required: Composite name. Should be a meaningful name that represents the procedure */
+     "name"    : "<string>",
+
+     /* Required: The composite content. Each entry of the array represents a RESTful call */
+     "content" : [
+       {
+         /* Optional: A named index to be used on variables primary index segment */
+         "name"       : "<string>",
+
+         /* Optional: Set to true to enable composite variables under this content entry. Defaults to false. */
+         "unsafe"     : <boolean>,
+
+         /* Optional: Set to true to abort composite execution if this child request fails. Defaults to false. */
+         "required"   : <boolean>,
+
+         /* Optional: Set to true to hide the results from this child request in the response. Defaults to false. */
+         "hidden"     : <boolean>,
+
+         /* Optional: A map of request headers to be included in this child request. */
+         "headers": {
+           "<string>" : "<string>",
+           ...
+         },
+
+         /* Required: The HTTP method. */
+         "method"     : "<string>",
+
+         /* Required: The endpoint name. Should be prefixed by '/', and the base URL path of the API must be omited. */
+         "endpoint"   : "<string>",
+
+         /* Optional: The HTTP request payload.
+          *           Composite variables can be included as string values and will be replaced by
+          *           the type of the object they refer to
+          */
+         "payload"    : null | <integer> | "<string>" | <double> | <boolean> | [ ... ] | { ... }
+       },
+
+       /* Next entries ... */
+       { ... },
+       { ... }
+       ...
+     ]
+   }
+
+
+ 6. Variables
+
+   - Synopsis                  : "$$<primary index>.<path>$$"
+
+   - Example without iterables : "$$last.data.id$$"
+                                 Resulting type will be the same of the segment "id"
+
+   - Example with iterables    : "$$last.data.result[].id$$"
+                                 Resulting type will be an array of "id" elements.
+
+   - Example with array index  : "$$last.data.result[0].id$$"
+                                 Resulting type will be the same of the segment "id"
+
+

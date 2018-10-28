@@ -43,6 +43,10 @@ $config['base'] = $base;
 include('system/config/cache.php');
 $config['cache'] = $cache;
 
+/* Composite settings */
+include('system/config/composite.php');
+$config['composite'] = $composite;
+
 /* Database settings */
 include('system/config/database.php');
 $config['database'] = $database;
@@ -54,6 +58,10 @@ $config['encrypt'] = $encrypt;
 /* ES settings */
 include('system/config/es.php');
 $config['es'] = $es;
+
+/* Event settings */
+include('user/config/event.php');
+$config['event'] = $event;
 
 /* ND settings */
 include('system/config/nd.php');

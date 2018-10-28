@@ -2,7 +2,7 @@
 
 /* Author:   Pedro A. Hortas
  * Email:    pah@ucodev.org
- * Modified: 03/03/2018
+ * Modified: 28/10/2018
  * License:  GPLv3
  */
 
@@ -28,7 +28,7 @@
  */
 
 class UW_ES extends UW_Module {
-    private function _usl_to_es($usl_query) {
+    private function _usl_to_es($usl_query, $ordering = 'asc') {
         /* TODO: Add support for nested USL criteria. This will allow USL 'query' to be of type 'array' */
 
         /* Auxiliar clauses */
@@ -119,13 +119,23 @@ class UW_ES extends UW_Module {
                         /* Craft query terms */
                         $terms = array();
 
-                        foreach ($value as $v) {
-                            array_push($terms, array(
-                                'term' => array(
-                                    $field => $v
-                                )
-                            ));
+                        /* If the order of the "not_in" clause isn't mandatory, remove any duplicates from the requested array as they are not necessary to be present */
+                        if ($ordering != 'in') {
+                            $value_set = array();
+
+                            foreach ($value as $v) {
+                                if (!in_array($v, $value_set))
+                                    array_push($value_set, $v);
+                            }
+
+                            $value = $value_set;
                         }
+
+                        array_push($terms, array(
+                            "terms" => array(
+                                $field => $value
+                            )
+                        ));
 
                         /* Initialize filter type, if required */
                         if (!isset($es_query['filter']['bool'][$filter_type]))
@@ -152,13 +162,23 @@ class UW_ES extends UW_Module {
                         /* Craft query terms */
                         $terms = array();
 
-                        foreach ($value as $v) {
-                            array_push($terms, array(
-                                'term' => array(
-                                    $field => $v
-                                )
-                            ));
+                        /* If the order of the "in" clause isn't mandatory, remove any duplicates from the requested array as they are not necessary to be present */
+                        if ($ordering != 'in') {
+                            $value_set = array();
+
+                            foreach ($value as $v) {
+                                if (!in_array($v, $value_set))
+                                    array_push($value_set, $v);
+                            }
+
+                            $value = $value_set;
                         }
+
+                        array_push($terms, array(
+                            "terms" => array(
+                                $field => $value
+                            )
+                        ));
 
                         /* Initialize filter type, if required */
                         if (!isset($es_query['filter']['bool'][$filter_type]))
@@ -246,6 +266,74 @@ class UW_ES extends UW_Module {
                         ));
                     } break;
 
+                    case 'nearby': {
+                        /* Validate if $value contains a latitude, longitude, distance and unit set */
+
+                        /* Validate latitude */
+                        if (!isset($value['latitude'])) {
+                            $this->restful->error('Missing \'latitude\' property in condition \'' . $cond . '\' for field \'' . $field . '.');
+                            $this->restful->output('400');
+                        } else {
+                            if (gettype($value['latitude']) != 'double') {
+                                $this->restful->error('Invalid type found in condition \'' . $cond . '\' on field \'' . $field . '\' under \'latitude\' property: Expecting float.');
+                                $this->restful->output('400');
+                            }
+                        }
+
+                        /* Validate longitude */
+                        if (!isset($value['longitude'])) {
+                            $this->restful->error('Missing \'longitude\' property in condition \'' . $cond . '\' for field \'' . $field . '.');
+                            $this->restful->output('400');
+                        } else {
+                            if (gettype($value['longitude']) != 'double') {
+                                $this->restful->error('Invalid type found in condition \'' . $cond . '\' on field \'' . $field . '\' under \'longitude\' property: Expecting float.');
+                                $this->restful->output('400');
+                            }
+                        }
+
+                        /* Validate distance */
+                        if (!isset($value['distance'])) {
+                            $this->restful->error('Missing \'distance\' property in condition \'' . $cond . '\' for field \'' . $field . '.');
+                            $this->restful->output('400');
+                        } else {
+                            if (gettype($value['distance']) != 'integer') {
+                                $this->restful->error('Invalid type found in condition \'' . $cond . '\' on field \'' . $field . '\' under \'distance\' property: Expecting integer.');
+                                $this->restful->output('400');
+                            }
+                        }
+
+                        /* Validate distance unit */
+                        if (!isset($value['unit'])) {
+                            $this->restful->error('Missing \'unit\' property in condition \'' . $cond . '\' for field \'' . $field . '.');
+                            $this->restful->output('400');
+                        } else {
+                            if (gettype($value['unit']) != 'string') {
+                                $this->restful->error('Invalid type found in condition \'' . $cond . '\' on field \'' . $field . '\' under \'unit\' property: Expecting string.');
+                                $this->restful->output('400');
+                            }
+
+                            if (!in_array($value['unit'], array('mi', 'yd', 'ft', 'in', 'km', 'm', 'cm', 'mm', 'nmi'))) {
+                                $this->restful->error('Invalid value found in condition \'' . $cond . '\' on field \'' . $field . '\' under \'unit\' property: Possible string values: mi, yd, ft, in, km, m, cm, mm or nmi.');
+                                $this->restful->output('400');
+                            }
+                        }
+
+                        /* Initialize filter type, if required */
+                        if (!isset($es_query['filter']['bool'][$filter_type]))
+                            $es_query['filter']['bool'][$filter_type] = array();
+
+                        /* Craft the geo_distance filter */
+                        array_push($es_query['filter']['bool'][$filter_type], array(
+                            'geo_distance' => array(
+                                'distance' => $value['distance'] . $value['unit'],
+                                $field => array(
+                                    'lat' => $value['latitude'],
+                                    'lon' => $value['longitude']
+                                )
+                            )
+                        ));
+                    } break;
+
                     case 'from': /* $cond may have been changed */ if ($cond == 'from') $cond = 'gte';
                     case 'to':   /* $cond may have been changed */ if ($cond == 'to') $cond = 'lte';
                     case 'gt':
@@ -319,8 +407,6 @@ class UW_ES extends UW_Module {
             $this->restful->output('400');
         }
 
-        $search['type'] = 'filter';
-        $search['query']['constant_score']['filter'] = $this->_usl_to_es($input['query'])['filter'];
 
         /* Validation - Check optional fields */
 
@@ -408,9 +494,15 @@ class UW_ES extends UW_Module {
                     $this->restful->output('400');
                 }
 
-				/* Store original limit and set the query limit to the amount of elements present in the "in" criteria for the "orderby" field */
-				$inorder_limit = $input['limit'];
-				$search['limit'] = count($input['query'][$input['orderby']]['in']);
+                /* Calculate the maximum number of entries that can result from this query */
+                $search['limit'] = count($input['query'][$input['orderby']]['in']);
+
+                /* Store original limit and set the query limit to the amount of elements present in the "in" criteria for the "orderby" field */
+                if (isset($input['limit'])) {
+                    $inorder_limit = $input['limit'];
+                } else {
+                    $inorder_limit = $search['limit'];
+                }
 
 				/* Validate requested limit for the inorder query */
 				if ($inorder_limit > $search['limit']) {
@@ -418,9 +510,15 @@ class UW_ES extends UW_Module {
 					$this->restful->output('400'); /* Bad Request */
 				}
 
-				/* Store original offset value and reset query offset */
-				$inorder_offset = $input['offset'];
-				$search['offset'] = 0;
+                /* Set the offset to 0 by default, as we want to retrieve all the results and create subsets after... */
+                $search['offset'] = 0;
+
+                /* Store original offset value and reset query offset */
+                if (isset($input['offset'])) {
+                    $inorder_offset = $input['offset'];
+                } else {
+                    $inorder_offset = 0;
+                }
 
 				/* Validate requested offset for the inorder query */
 				if ($inorder_offset >= $search['limit']) {
@@ -443,6 +541,12 @@ class UW_ES extends UW_Module {
         }
 
 
+        /** Convert USL to ES **/
+
+        $search['type'] = 'filter';
+        $search['query']['constant_score']['filter'] = $this->_usl_to_es($input['query'], isset($search['ordering']) ? $search['ordering'] : 'asc')['filter'];
+
+
         /** ES Query **/
 
         /* ES Query - Initialize query */
@@ -456,31 +560,25 @@ class UW_ES extends UW_Module {
         if (isset($search['orderby']))
             $es_input['sort'][$search['orderby']]['order'] = $search['ordering'];
 
-		/* Forward request to the search engine (ES) */
-		$ch = curl_init();
+        /* Forward request to the search engine (ES) */
+        $http_status_code = NULL;
+        $http_raw_output = false; /* Do not request the raw output */
 
-		/* Set the request URL */
-        curl_setopt($ch, CURLOPT_URL, rtrim($config['query']['base_url'], '/') . '/' . $index . ($type !== NULL ? ('/' . $type) : '') .'/_search?pretty');
+        $es_output = $this->restful->request(
+            'POST',
+            rtrim($config['query']['base_url'], '/') . '/' . $index . ($type !== NULL ? ('/' . $type) : '') .'/_search?pretty',
+            $es_input,
+            array(
+                'accept: application/json',
+                'content-type: application/json'
+            ),
+            $http_status_code,
+            $http_raw_output,
+            10000,
+            30000
+        );
 
-		/* Set request body data, if any */
-		if ($es_input !== NULL) {
-			curl_setopt($ch, CURLOPT_POST, true);
-			curl_setopt($ch, CURLOPT_POSTFIELDS, is_array($es_input) ? json_encode($es_input) : $es_input);
-		}
-
-		/* Grant that cURL will return the response output */
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-
-		/* Execute the request */
-		$es_output = curl_exec($ch);
-
-		/* Get HTTP Status Code */
-		$http_status_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-
-		/* Close the cURL handler */
-		curl_close($ch);
-
-
+		
         /** Status **/
         if (!in_array($http_status_code, array(200, 201))) {
             $this->restful->error('Unable to retrieve data from the search engine.');
@@ -489,7 +587,7 @@ class UW_ES extends UW_Module {
 
 
         /** Output **/
-        $output = json_decode($es_output, true);
+        $output = $es_output;
 
         if ($output === NULL || !isset($output['hits'])) {
             $this->restful->error('Unable to decode JSON data retrieved from search engine.');
@@ -729,7 +827,7 @@ class UW_ES extends UW_Module {
             }
 
             /* Translate USL filter to ES filter */
-            $es_input['query']['function_score']['query']['bool']['filter'] = $this->_usl_to_es($search['filter'])['filter'];
+            $es_input['query']['function_score']['query']['bool']['filter'] = $this->_usl_to_es($search['filter'], isset($search['ordering']) ? $search['ordering'] : 'asc')['filter'];
         }
         
 
@@ -770,30 +868,34 @@ class UW_ES extends UW_Module {
         $es_input['query']['function_score']['boost_mode'] = $config['score']['boost_mode'];
         $es_input['query']['function_score']['max_boost'] = $config['score']['max_boost'];
 
-		/* Forward request to the search engine (ES) */
-		$ch = curl_init();
+        /* Forward request to the search engine (ES) */
+        $http_status_code = NULL;
+        $http_raw_output = false; /* Do not request the raw output */
 
-		/* Set the request URL */
-        curl_setopt($ch, CURLOPT_URL, rtrim($config['query']['base_url'], '/') . '/' . $index . ($type !== NULL ? ('/' . $type) : '') .'/_search?size=' . $search['limit'] . '&from=' . $search['offset']);
+        $es_output = $this->restful->request(
+            'POST',
+            rtrim($config['query']['base_url'], '/') . '/' . $index . ($type !== NULL ? ('/' . $type) : '') .'/_search?size=' . $search['limit'] . '&from=' . $search['offset'],
+            $es_input,
+            array(
+                'accept: application/json',
+                'content-type: application/json'
+            ),
+            $http_status_code,
+            $http_raw_output,
+            10000,
+            30000
+        );
 
-		/* Set request body data, if any */
-		if ($es_input !== NULL) {
-			curl_setopt($ch, CURLOPT_POST, true);
-			curl_setopt($ch, CURLOPT_POSTFIELDS, is_array($es_input) ? json_encode($es_input) : $es_input);
-		}
 
-		/* Grant that cURL will return the response output */
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-
-		/* Execute the request */
-		$es_output = curl_exec($ch);
-
-		/* Close the cURL handler */
-		curl_close($ch);
+        /** Status **/
+        if (!in_array($http_status_code, array(200, 201))) {
+            $this->restful->error('Unable to retrieve data from the search engine.');
+            $this->restful->output('502'); /* Bad Gateway */
+        }
 
 
         /** Output **/
-        $output = json_decode($es_output, true);
+        $output = $es_output;
 
         if ($output === NULL || !isset($output['hits'])) {
             $this->restful->error('Unable to decode JSON data retrieved from search engine.');
@@ -853,29 +955,34 @@ class UW_ES extends UW_Module {
         /* ES Query - Initialize query */
         $es_input = $search['query'];
 
-		/* Forward request to the search engine (ES) */
-		$ch = curl_init();
+        /* Forward request to the search engine (ES) */
+        $http_status_code = NULL;
+        $http_raw_output = false; /* Do not request the raw output */
 
-		/* Set the request URL */
-        curl_setopt($ch, CURLOPT_URL, rtrim($config['query']['base_url'], '/') . '/' . $index . ($type !== NULL ? ('/' . $type) : '') .'/_search');
+        $es_output = $this->restful->request(
+            'POST',
+            rtrim($config['query']['base_url'], '/') . '/' . $index . ($type !== NULL ? ('/' . $type) : '') .'/_search',
+            $es_input,
+            array(
+                'accept: application/json',
+                'content-type: application/json'
+            ),
+            $http_status_code,
+            $http_raw_output,
+            10000,
+            30000
+        );
 
-		/* Set request body data, if any */
-		if ($es_input !== NULL) {
-			curl_setopt($ch, CURLOPT_POST, true);
-			curl_setopt($ch, CURLOPT_POSTFIELDS, is_array($es_input) ? json_encode($es_input) : $es_input);
-		}
 
-		/* Grant that cURL will return the response output */
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        /** Status **/
+        if (!in_array($http_status_code, array(200, 201))) {
+            $this->restful->error('Unable to retrieve data from the search engine.');
+            $this->restful->output('502'); /* Bad Gateway */
+        }
 
-		/* Execute the request */
-		$es_output = curl_exec($ch);
-
-		/* Close the cURL handler */
-		curl_close($ch);
 
         /** Output **/
-        $output = json_decode($es_output, true);
+        $output = $es_output;
 
         if ($output === NULL) {
             $this->restful->error('Unable to decode JSON data retrieved from search engine.');

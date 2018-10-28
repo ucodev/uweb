@@ -12,12 +12,15 @@ $restful['request']['encoding']['process'] = true;
 $restful['request']['header']['id'] = 'uweb-request-id';
 $restful['request']['header']['related_id'] = 'uweb-related-id';
 $restful['request']['header']['user_agent'] = 'uWeb RESTful Interface';
+$restful['request']['header']['user_id'] = 'uweb-user-id';
 $restful['response']['default']['status_code'] = '400';
 
 $restful['log']['enabled'] = false;
 $restful['log']['request_body'] = false;
+$restful['log']['request_headers'] = false; /* Possible values: false, 'list', 'map' */
 $restful['log']['response_body'] = false;
 $restful['log']['related'] = false;
+$restful['log']['context'] = false;
 $restful['log']['encode_body'] = true;
 $restful['log']['truncate_values'] = 128; /* Set to 0 to disable. If positive, must be greater than 16 bytes */
 $restful['log']['discard_huge_body'] = 15360; /* Maximum number of bytes accepted before ignoring body contents (only valid if encode_body is set to true) */

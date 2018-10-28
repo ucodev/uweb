@@ -2,7 +2,7 @@
 
 /* Author: Pedro A. Hortas
  * Email: pah@ucodev.org
- * Date: 20/05/2017
+ * Date: 28/10/2018
  * License: GPLv3
  */
 
@@ -46,7 +46,7 @@ function base_url($with_index = false) {
 	global $config;
 
 	if (isset($config['base']['url']) && ($config['base']['url'] !== NULL))
-		return $config['base']['url'] . ($with_index ? 'index.php/' : '');
+		return $config['base']['url'];
 
 	$server_port = '';
 
@@ -108,3 +108,47 @@ function remote_addr() {
 	return $_SERVER['REMOTE_ADDR'];
 }
 
+function is_linear_array($array) {
+	if ($array === NULL)
+		return NULL;
+
+	if (gettype($array) != 'array')
+		return false;
+
+	if (count(array_filter(array_keys($array), 'is_string')) > 0)
+		return false;
+	
+	/* NOTE: Empty arrays are considered linear */
+	return true;
+}
+
+function is_castable_integer($value) {
+	/* If $value is of integer type, this is a strict integer */
+	if (gettype($value) == 'integer')
+		return true;
+
+	/* If $value is not of integer type and there is no string to process, this is not a castable integer */
+	if (gettype($value) != 'string') /* NULL types are caught here */
+		return false;
+
+	/* If the string is empty, this is not a castable integer */
+	if (!strlen($value))
+		return false;
+
+	/* Attempt to convert string to integer */
+	$i = intval($value);
+
+	/* In the event the result is 0, grant that the string actually contained a single character "0" in it, otherwise this is not a strictly castable integer */
+	if (!$i) {
+		if (strlen($value) > 1)
+			return false;
+
+		if ($value[0] === '0')
+			return true;
+
+		return false;
+	}
+
+	/* This is a castable integer */
+	return true;
+}

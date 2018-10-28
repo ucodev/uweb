@@ -2,7 +2,7 @@
 
 /* Author:   Pedro A. Hortas
  * Email:    pah@ucodev.org
- * Modified: 03/03/2018
+ * Modified: 28/10/2018
  * License:  GPLv3
  */
 
@@ -27,6 +27,12 @@
  *
  */
 
+/* Define subcodes */
+define('UWEB_RESTFUL_SUBCODE_RELATED_COULDNT_CONNECT', 100);
+define('UWEB_RESTFUL_SUBCODE_RELATED_OPERATION_TIMEOUT', 101);
+
+
+/* RESTful class */
 class UW_Restful extends UW_Model {
 	/** Protected **/
 
@@ -85,13 +91,17 @@ class UW_Restful extends UW_Model {
 		'id' => NULL,
 		'data' => false,
 		'errors' => false,
+		'warnings' => false,
 		'method' => NULL,
-		'code' => '400'
+		'code' => '400',
+		'subcodes' => array()
 	);
 
 	private $_errors = array(
 		'message' => NULL
 	);
+
+	private $_warnings = array();
 
 	private $_headers = array();
 
@@ -115,9 +125,17 @@ class UW_Restful extends UW_Model {
 	private $_multi_responses = array();
 	private $_multi_input_index = 0;
 	private $_multi_errors = false;
+	private $_multi_warnings = false;
 
 	/* Related events */
 	private $_related = array();
+
+	/* Context data */
+	private $_context = array();
+
+	/* Output Callback */
+	private $_output_callback = NULL;
+
 
 	/* Private methods */
 	private function _headers_http_collect() {
@@ -148,6 +166,10 @@ class UW_Restful extends UW_Model {
 			$this->_related['ids'] = array();
 
 		array_push($this->_related['ids'], $request_id);
+	}
+
+	private function _context_add_map($key, $context) {
+		$this->_context[$key] = $context;
 	}
 
 	private function _multi_init() {
@@ -210,6 +232,32 @@ class UW_Restful extends UW_Model {
 		return $req_info;
 	}
 
+	public function context_add($key, $context) {
+		$this->_context_add_map($key, $context);
+	}
+
+	public function _log_request_headers_list() {
+		$headers_map = $this->header();
+		$headers_list = array();
+
+		foreach ($headers_map as $k => $v) {
+			/* Filter/ommit values that may cause security leaks */
+			switch (strtolower($k)) {
+				case current_config()['restful']['log']['header']['auth_token']:
+				case 'cookie':
+				case 'set-cookie': $v = '[ ... ommited ... ]';
+			}
+
+			if (current_config()['restful']['log']['request_headers'] == 'map') {
+				$headers_list[$k] = $v;
+			} else if (current_config()['restful']['log']['request_headers'] == 'list') {
+				array_push($headers_list, $k . ': ' . $v);
+			}
+		}
+
+		return $headers_list;
+	}
+
 	public function _log_array_value_process(&$v, $k) {
 		if (current_config()['restful']['log']['secure_fields'] && in_array($k, current_config()['restful']['log']['secure_fields'], true)) {
 			$v = '[ ... ommited ... ]';
@@ -229,6 +277,10 @@ class UW_Restful extends UW_Model {
 			'environment'	=> current_config()['restful']['log']['source']['environment'],
 			'company'		=> current_config()['restful']['log']['source']['company']
 		);
+
+		/* Set request headers */
+		if (current_config()['restful']['log']['request_headers'])
+			$log['rest']['request']['headers'] = $this->_log_request_headers_list();
 
 		/* Set request info */
 		$log['rest']['request']['info'] = $this->_request_info();
@@ -372,6 +424,10 @@ class UW_Restful extends UW_Model {
 		if (current_config()['restful']['log']['related'] && $this->_related)
 			$log['rest']['related'] = $this->_related;
 
+		/* Include context maps */
+		if (current_config()['restful']['log']['context'] && $this->_context)
+			$log['rest']['related'] = $this->_context;
+
 		/* Use selected log interface */
 		switch (current_config()['restful']['log']['interface']) {
 			case 'http_json': {
@@ -456,6 +512,26 @@ class UW_Restful extends UW_Model {
 		$this->_event_triggers['context'] = $context;
 	}
 
+	public function cache_control_no_cache($set = false) {
+		if ($set === false) {
+			if (strstr(strtolower($this->header('cache-control')), 'no-cache'))
+				return true;
+		} else {
+			$this->header('cache-control', 'no-cache');
+			return 'no-cache';
+		}
+	}
+
+	public function cache_control_no_store($set = false) {
+		if ($set === false) {
+			if (strstr(strtolower($this->header('cache-control')), 'no-store'))
+				return true;
+		} else {
+			$this->header('cache-control', 'no-store');
+			return 'no-store';
+		}
+	}
+
 	public function cache_hit($status = NULL) {
 		if ($status !== NULL) {
 			$this->_cache_hit = $status;
@@ -503,19 +579,65 @@ class UW_Restful extends UW_Model {
 		return $this->_call;
 	}
 
-	public function code($code, $protocol = NULL) {
+	public function code($code, $protocol = NULL, $set_header = true) {
 		if ($protocol === NULL)
 			$protocol = $_SERVER['SERVER_PROTOCOL'];
 
 		$this->_info['code'] = intval($code);
 
 		// header($protocol . ' ' . $code . ' ' . $this->_codes[$code]);
-		header($protocol . ' ' . $code);
+		if ($set_header === true)
+			header($protocol . ' ' . $code);
 	}
 
-	public function error($message) {
+	public function subcode($subcode = NULL) {
+		if ($subcode === NULL)
+			return; /* Do not add NULL to the collection */
+
+		if (gettype($subcode) == 'array') {
+			/* Accept multiple subcodes as the parameter */
+			foreach ($subcode as $sc) {
+				/* Convert subcode to integer, if not already integer */
+				$sc = intval($sc);
+
+				/* If the integer value is 0 or less, do not accept this subcode */
+				if ($sc <= 0) {
+					error_log('Invalid subcode value [' . $this->id() . ']: ' . $subcode);
+					continue;
+				}
+
+				/* Add subcode if not already in the subcode collection */
+				if (!in_array($sc, $this->_info['subcodes']))
+					array_push($this->_info['subcodes'], $sc);
+			}
+		} else if (gettype($subcode) == 'integer') {
+			/* Add subcode if not already in the subcode collection */
+			if (!in_array($subcode, $this->_info['subcodes']))
+				array_push($this->_info['subcodes'], intval($subcode));
+		} else {
+			error_log('Invalid type for subcode [' . $this->id() . ']: ' . $subcode);
+		}
+	}
+
+	public function error($message, $subcode = NULL) {
 		$this->_info['errors'] = true;
 		$this->_errors['message'] = $message;
+
+		$this->subcode($subcode);
+	}
+
+	public function warning($message, $subcode = NULL) {
+		$this->_info['warnings'] = true;
+
+		if (!in_array($message, $this->_warnings))
+			array_push($this->_warnings, $message);
+
+		$this->subcode($subcode);
+	}
+	public function output_callback($output_callback = NULL) {
+		if ($output_callback) {
+			$this->_output_callback = $output_callback;
+		}
 	}
 
 	public function header($key = NULL, $value = NULL, $replace = true) {
@@ -651,6 +773,11 @@ class UW_Restful extends UW_Model {
 	}
 
 	public function output($code, $data = NULL, $force_close = false) {
+		/* Check if there's a callback to be executed. If so, do it... */
+		if ($this->_output_callback) {
+			call_user_func($this->_output_callback, $code, $this->input(), $data);
+		}
+
 		/* If we are in the middle of a multiple entry request, store the response until all the requests are processed */
 		if ($this->_multi_enabled === true) {
 			if ($force_close === true) {
@@ -683,6 +810,19 @@ class UW_Restful extends UW_Model {
 				$this->_errors = array('message' => NULL);
 			}
 
+			/* Set response warnings */
+			if ($this->_info['warnings']) {
+				/* Mark this multi entry request as containing errors */
+				$this->_multi_warnings = true;
+
+				/* Set response warnings */
+				$response['warnings'] = $this->_warnings;
+
+				/* Reset warnings, so the next request starts clean */
+				$this->_info['warnings'] = false;
+				$this->_warnings = array();
+			}
+
 			/* Store the request response */
 			array_push($this->_multi_responses, $response);
 
@@ -708,6 +848,14 @@ class UW_Restful extends UW_Model {
 			$body['errors'] = $this->_errors;
 
 			error_log('uWeb RESTful ERROR [' . $code . ']: Request ID: ' . $this->id() . ' - Request path: ' . $this->_info['method'] . ' ' . $_SERVER['REQUEST_URI'] . ' - Message: ' . $this->_errors['message']);
+		}
+
+		/* Add warnings section, if any warning was set */
+		if ($this->_info['warnings']) {
+			$body['warnings'] = $this->_warnings;
+
+			foreach ($this->_warnings as $warn)
+				error_log('uWeb RESTful WARNING [' . $code . ']: Request ID: ' . $this->id() . ' - Request path: ' . $this->_info['method'] . ' ' . $_SERVER['REQUEST_URI'] . ' - Message: ' . $warn);
 		}
 
 		/* Check if there's data to be sent as the response body */
@@ -811,9 +959,14 @@ class UW_Restful extends UW_Model {
 		 */
 	}
 
-	public function init($ctrl, $obj_function, $argv = NULL) {
+	public function init($ctrl, $obj_function, $argv = NULL, $output_callback = NULL) {
 		/* Initialize request id */
 		$this->id();
+
+		/* Set output callback, if any */
+		if ($output_callback) {
+			$this->_output_callback = $output_callback;
+		}
 
 		/* Set object name and called function */
 		$this->call_start(strtolower(get_class($ctrl)), $obj_function, $argv);
@@ -1330,7 +1483,21 @@ class UW_Restful extends UW_Model {
 		}
 	}
 
-	public function request($method, $url, $data = NULL, $headers = NULL, &$status_code = false, &$raw_output = false, $timeout_conn = NULL /* in ms */, $timeout_exec = NULL /* in ms */, $basic_auth = NULL, $include_related = true) {
+	public function request(
+			$method,
+			$url,
+			$data = NULL,
+			$headers = NULL,
+			&$status_code = false,
+			&$raw_output = false,
+			$timeout_conn = NULL /* in ms */,
+			$timeout_exec = NULL /* in ms */,
+			$basic_auth = NULL,
+			$include_related = true,
+			$accept_encoding = NULL,
+			$content_encoding = NULL,
+			$cookie = NULL
+		) {
 			/* Initialize 'connection' log */
 			$log_connection = array();
 
@@ -1347,14 +1514,28 @@ class UW_Restful extends UW_Model {
 			/* Add the current request id to the headers, so the remote service can keep track of the origin request */
 			array_push($req_headers, current_config()['restful']['request']['header']['id'] . ': ' . $this->id());
 
+			/* Add the current request id as the related connection header, so recursive calls will correctly be indicated as related */
+			array_push($req_headers, current_config()['restful']['request']['header']['related_id'] . ': ' . $this->id());
+
 			/* Add origin timestamp */
 			array_push($req_headers, current_config()['restful']['log']['header']['timestamp'] . ': ' . microtime(true));
 
 			/* Add origin address */
 			array_push($req_headers, 'x-forwarded-for: ' . $_SERVER['REMOTE_ADDR']);
 
-			/* Add origin user-agent */
-			array_push($req_headers, 'x-forwarded-user-agent: ' . $this->header('user-agent'));
+			/* Add origin user-agent:
+			 *  - Always try to pick the forwarded user agent from an already x-forwarded-user-agent header that is set
+			 *  - If the above is not set, set the forwarded user agent as the current user agent from user-agent header
+			 */
+			$header_forward_user_agent = $this->header('x-forwarded-user-agent');
+
+			if (!$header_forward_user_agent)
+				$header_forward_user_agent = $this->header('user-agent');
+
+			array_push($req_headers, 'x-forwarded-user-agent: ' . $header_forward_user_agent);
+
+			/* Add origin user-id */
+			array_push($req_headers, 'x-forwarded-user-id: ' . $this->header(current_config()['restful']['request']['header']['user_id']));
 
             /* Forward request to the underlying layer (notify) */
             $ch = curl_init();
@@ -1367,7 +1548,6 @@ class UW_Restful extends UW_Model {
             curl_setopt($ch, CURLOPT_URL, $url);
 
 			/* Update connection request log */
-			$log_connection['request']['headers'] = $req_headers;
 			$log_connection['request']['user_agent'] = current_config()['restful']['request']['header']['user_agent'];
 			$log_connection['request']['start_time'] = microtime(true);
 			$log_connection['request']['method'] = $method;
@@ -1379,13 +1559,13 @@ class UW_Restful extends UW_Model {
 			$log_connection['request']['timeout']['execution'] = $timeout_exec ? $timeout_exec : 0;
 
 			/* Check if connection log body values should be truncated */
-			if (current_config()['restful']['log']['truncate_values'] || current_config()['restful']['log']['secure_fields']) {
+			if (isset($log_connection['request']['data']) && is_array($log_connection['request']['data']) && (current_config()['restful']['log']['truncate_values'] || current_config()['restful']['log']['secure_fields'])) {
 				/* Truncate values from response data */
 				array_walk_recursive($log_connection['request']['data'], array($this, '_log_array_value_process'));
 			}
 
 			/* Check if connection log body should be encoded */
-			if ($log_connection['request']['data'] && current_config()['restful']['log']['encode_body'] === true) {
+			if (isset($log_connection['request']['data']) && current_config()['restful']['log']['encode_body'] === true) {
 				if (is_array($log_connection['request']['data']))
 					$log_connection['request']['data'] = json_encode($log_connection['request']['data'], JSON_PRETTY_PRINT);
 
@@ -1398,8 +1578,100 @@ class UW_Restful extends UW_Model {
 			if ($basic_auth !== NULL)
 				curl_setopt($ch, CURLOPT_USERPWD, $basic_auth);
 
+			/* Set accept encoding header */
+			if ($accept_encoding !== NULL) {
+				curl_setopt($ch, CURLOPT_ENCODING, $accept_encoding);
+
+				array_push($req_headers, 'accept-encoding: ' . $accept_encoding);
+			}
+
+			/* Process content-encoding, if any set */
+			if ($data && $content_encoding !== NULL) {
+				/* JSON encode data, if required */
+				$data = is_array($data) ? json_encode($data) : $data;
+
+				if (!$data) {
+					/* Update connection request log (end time) */
+					$log_connection['request']['end_time'] = microtime(true);
+
+					/* Log response error */
+					$log_connection['response']['code'] = 0;
+					$log_connection['response']['errors'] = 'An error occurred while trying to JSON encode internal request data for the supplied content-encoding.';
+
+					/* Add related connection log */
+					if ($include_related)
+						$this->_related_add_connection($log_connection);
+
+					$this->error('An error occurred while trying to JSON encode internal request data for the supplied content-encoding.');
+					$this->output('500');
+				}
+
+				/* Use the selected compression method */
+				switch ($content_encoding) {
+					case 'deflate': {
+						/* Try to deflate data */
+						$data_deflate = gzdeflate($data);
+
+						/* Replace data only if deflate succeeded */
+						if ($data_deflate !== NULL) {
+							$data = $data_deflate;
+
+							/* Set content encoding header */
+							array_push($req_headers, 'content-encoding: ' . $content_encoding);
+						} else {
+							error_log('Unable to compress (deflate) data.');
+						}
+					} break;
+
+					case 'gzip': {
+						/* Try to deflate data */
+						$data_gzip = gzcompress($data);
+						
+						/* Replace data only if deflate succeeded */
+						if ($data_gzip !== NULL) {
+							$data = $data_gzip;
+
+							/* Set content encoding header */
+							array_push($req_headers, 'content-encoding: ' . $content_encoding);
+						} else {
+							error_log('Unable to compress (gzip) data.');
+						}
+					} break;
+
+					default: {
+						/* Update connection request log (end time) */
+						$log_connection['request']['end_time'] = microtime(true);
+
+						/* Log response error */
+						$log_connection['response']['code'] = 0;
+						$log_connection['response']['errors'] = 'Unsupported content-encoding set: ' . $content_encoding;
+
+						/* Add related connection log */
+						if ($include_related)
+							$this->_related_add_connection($log_connection);
+
+						$this->restful->error('Unsupported content-encoding set: ' . $content_encoding);
+						$this->restful->output('501');
+					}
+				}
+			}
+
+			/* Set cookie, if any */
+			if ($cookie !== NULL) {
+				curl_setopt($ch, CURLOPT_COOKIESESSION, false);
+				curl_setopt($ch, CURLOPT_COOKIE, $cookie);
+			}
+
             /* Set cURL request headers */
-            curl_setopt($ch, CURLOPT_HTTPHEADER, $req_headers);
+			curl_setopt($ch, CURLOPT_HTTPHEADER, $req_headers);
+			
+			/* Update log request headers */
+			$log_connection['request']['headers'] = $req_headers;
+
+			/* TODO:
+			 *  - Ommit header contents that match any of the keys under current_config()['restful']['log']['secure_headers']
+			 *  - Make this headers property a k/v type map
+			 */
 
 			/* Set connection timeout value, if set (from milliseconds) */
 			if ($timeout_conn !== NULL)
@@ -1457,17 +1729,89 @@ class UW_Restful extends UW_Model {
             /* Grant that cURL will return the response output */
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 
+			/* Gather response headers */
+			$_response_headers = array();
+			curl_setopt($ch, CURLOPT_HEADERFUNCTION,
+				function ($c, $raw_header) use (&$_response_headers) {
+					/* Remove CRLF */
+					$h = trim($raw_header);
+
+					/* Ommit values from headers that may lead to security leaks */
+					if (strtolower(substr($h, 0, 10)) == 'set-cookie') {
+						$h = 'set-cookie: [ ... ommited ... ]';
+					}
+
+					/* Check if this isn't an empty line */
+					if ($h)
+						array_push($_response_headers, $h);
+
+					return strlen($raw_header);
+				}
+			);
+
             /* Execute the request */
-            $output = curl_exec($ch);
+			$output = curl_exec($ch);
+			
+			/* Log connection information */
+			$log_connection['connection'] = array();
+			$log_connection['connection']['time']['namelookup'] = curl_getinfo($ch, CURLINFO_NAMELOOKUP_TIME);
+			$log_connection['connection']['time']['connect'] = curl_getinfo($ch, CURLINFO_CONNECT_TIME);
+			$log_connection['connection']['time']['redirect'] = curl_getinfo($ch, CURLINFO_REDIRECT_TIME);
+			$log_connection['connection']['time']['pretransfer'] = curl_getinfo($ch, CURLINFO_PRETRANSFER_TIME);
+			$log_connection['connection']['time']['firstbyte'] = curl_getinfo($ch, CURLINFO_STARTTRANSFER_TIME);
+			$log_connection['connection']['time']['total'] = curl_getinfo($ch, CURLINFO_TOTAL_TIME);
+			$log_connection['connection']['count']['connects'] = curl_getinfo($ch, CURLINFO_NUM_CONNECTS);
+			$log_connection['connection']['count']['redirects'] = curl_getinfo($ch, CURLINFO_REDIRECT_COUNT);
+			$log_connection['connection']['speed']['download'] = curl_getinfo($ch, CURLINFO_SPEED_DOWNLOAD);
+			$log_connection['connection']['speed']['upload'] = curl_getinfo($ch, CURLINFO_SPEED_UPLOAD);
+			$log_connection['connection']['size']['download'] = curl_getinfo($ch, CURLINFO_SIZE_DOWNLOAD);
+			$log_connection['connection']['size']['upload'] = curl_getinfo($ch, CURLINFO_SIZE_UPLOAD);
+			$log_connection['connection']['addresses']['remote'] = curl_getinfo($ch, CURLINFO_PRIMARY_IP);
+			$log_connection['connection']['addresses']['source'] = curl_getinfo($ch, CURLINFO_LOCAL_IP);
+			$log_connection['connection']['ports']['remote'] = curl_getinfo($ch, CURLINFO_PRIMARY_PORT);
+			$log_connection['connection']['ports']['source'] = curl_getinfo($ch, CURLINFO_LOCAL_PORT);
+			$log_connection['connection']['urls']['last'] = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
+			$log_connection['connection']['urls']['redirect'] = false;
+			//$log_connection['connection']['urls']['redirect'] = curl_getinfo($ch, CURLINFO_REDIRECT_URL);
 
 			/* Check for cURL errors */
 			if (curl_errno($ch)) {
-				error_log(__FILE__ . ': ' . __FUNCTION__ . ': cURL error: ' . curl_error($ch));
+				$curl_error = curl_error($ch);
+				$curl_errno = curl_errno($ch);
+
+				/* Update RESTful subcodes for the current request, based on cURL errno for this related request */
+				switch ($curl_errno) {
+					case CURLE_COULDNT_CONNECT: {
+						$this->subcode(UWEB_RESTFUL_SUBCODE_RELATED_COULDNT_CONNECT);
+					} break;
+					case CURLE_OPERATION_TIMEOUTED: {
+						/* Check if the connection was established in the first place. If not, this timeout also means a connection failure */
+						if (!curl_getinfo($ch, CURLINFO_CONNECT_TIME)) {
+							$this->subcode(UWEB_RESTFUL_SUBCODE_RELATED_COULDNT_CONNECT);
+						}
+
+						$this->subcode(UWEB_RESTFUL_SUBCODE_RELATED_OPERATION_TIMEOUT);
+					} break;
+				}
+
+				error_log(__FILE__ . ': ' . __FUNCTION__ . ': cURL error: ' . $curl_error);
 				curl_close($ch);
 
 				$status_code = NULL;
 				$raw_output = NULL;
 
+				/* Update connection request log (end time) */
+				$log_connection['request']['end_time'] = microtime(true);
+
+				/* Log response error */
+				$log_connection['response']['code'] = 0;
+				$log_connection['response']['errors'] = $curl_error;
+
+				/* Add related connection log */
+				if ($include_related)
+					$this->_related_add_connection($log_connection);
+
+				/* ... Something broke */
 				return NULL;
 			}
 
@@ -1490,6 +1834,7 @@ class UW_Restful extends UW_Model {
 
 			/* Update connection response log */
 			$log_connection['response']['code'] = $_status_code;
+			$log_connection['response']['headers'] = $_response_headers;
 
 			if ($output && current_config()['restful']['log']['response_body']) {
 				$log_connection['response']['data'] = $output;

@@ -203,6 +203,7 @@ class udoc_rst:
 		'201': 'Created',
 		'202': 'Accepted',
 		'204': 'No Content',
+		'207': 'Multi-Status',
 		# 3xx codes ...
 		'304': 'Not Modified',
 		# 4xx codes ...

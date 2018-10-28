@@ -2,7 +2,7 @@
 
 /* Author:   Pedro A. Hortas
  * Email:    pah@ucodev.org
- * Modified: 03/03/2018
+ * Modified: 28/10/2018
  * License:  GPLv3
  */
 
@@ -94,7 +94,7 @@ class UW_ND extends UW_Module {
 		}
 
 		/* Forward request to the underlying engine (nd-php) */
-		$ch = curl_init();
+		$req = array();
 
 		/* Check if we should accept certain encodings */
 		if (current_config()['nd']['encoding']['accept'] !== NULL) {
@@ -111,106 +111,49 @@ class UW_ND extends UW_Module {
 			}
 
 			/* Set accept-encoding header */
-			curl_setopt($ch, CURLOPT_ENCODING, implode(', ', current_config()['nd']['encoding']['accept']));
+			$req['accept_encoding'] = implode(', ', current_config()['nd']['encoding']['accept']);
 		}
 
 		/* Set the request URL */
-		curl_setopt($ch, CURLOPT_URL, current_config()['nd']['backend']['base_url'] . $uri);
-
-		/* Set HTTP/2 protocol, if available */
-		curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2_0);
-
-		/* Set cURL request headers */
-		curl_setopt($ch, CURLOPT_HTTPHEADER, $req_headers);
+		$req['url'] = current_config()['nd']['backend']['base_url'] . $uri;
 
 		/* Set request method to POST */
-		curl_setopt($ch, CURLOPT_POST, true);
+		$req['method'] = 'POST';
 
-		/* JSON encode data, if required */
-		$data = is_array($data) ? json_encode($data) : $data;
+		/* Assign request data */
+		$req['data'] = $data;
 
 		/* Set request body data, if any */
-		if ($data !== NULL) {
-			/* Check if request entity should be compressed */
-			if (current_config()['nd']['encoding']['content'] !== NULL) {
-				/* Use the selected compression method */
-				switch (current_config()['nd']['encoding']['content']) {
-					case 'deflate': {
-						/* Try to deflate data */
-						$data_deflate = gzdeflate($data);
+		$req['content_encoding'] = current_config()['nd']['encoding']['content'];
 
-						/* Replace data only if deflate succeeded */
-						if ($data_deflate !== NULL) {
-							$data = $data_deflate;
-
-							/* Set content encoding header */
-							array_push($req_headers, 'content-encoding: ' . current_config()['nd']['encoding']['content']);
-						} else {
-							error_log('Unable to compress (deflate) data.');
-						}
-					} break;
-
-					case 'gzip': {
-						/* Try to deflate data */
-						$data_gzip = gzcompress($data);
-						
-						/* Replace data only if deflate succeeded */
-						if ($data_gzip !== NULL) {
-							$data = $data_gzip;
-
-							/* Set content encoding header */
-							array_push($req_headers, 'content-encoding: ' . current_config()['nd']['encoding']['content']);
-						} else {
-							error_log('Unable to compress (gzip) data.');
-						}
-					} break;
-
-					default: {
-						$this->restful->error('Unsupported content-encoding set: ' . current_config()['nd']['encoding']['content']);
-						$this->restful->output('500');
-					}
-				}
-			}
-
-			/* Set request entity */
-			curl_setopt($ch, CURLOPT_POSTFIELDS, is_array($data) ? json_encode($data) : $data);
-		}
+		/* Set cURL request headers */
+		$req['headers'] = $req_headers;
 
 		/* Set session cookie data, if any */
-		if ($session !== NULL) {
-			curl_setopt($ch, CURLOPT_COOKIESESSION, false);
-			curl_setopt($ch, CURLOPT_COOKIE, $session['cookie']);
-		}
-
-		/* Replace User-Agent, if required */
-		if (current_config()['nd']['user_agent']['replace'] === true) {
-			curl_setopt($ch, CURLOPT_USERAGENT, current_config()['nd']['user_agent']['name'] . ' ' . current_config()['nd']['user_agent']['version']);
-		} else if (isset($_SERVER['HTTP_USER_AGENT'])) {
-			/* Otherwise, if User-Agent header is set, use it */
-			curl_setopt($ch, CURLOPT_USERAGENT, $_SERVER['HTTP_USER_AGENT']);
-		}
-
-		/* Grant that cURL will return the response output */
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+		$req['cookie'] = $session['cookie'];
 
 		/* Execute the request */
-		$output = curl_exec($ch);
+		$http_status_code = NULL;
+		$http_raw_output = NULL;
 
-		/* Get HTTP Status Code */
-		$http_status_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+		$nd_output = $this->restful->request(
+			$req['method'],
+			$req['url'],
+			$req['data'],
+			$req['headers'],
+			$http_status_code,
+			$http_raw_output,
+			10000,
+			30000,
+			NULL,
+			true,
+			$req['accept_encoding'],
+			$req['content_encoding'],
+			$req['cookie']
+		);
 
-		/* Close the cURL handler */
-		curl_close($ch);
-
-		/* Check if the response contains data */
-		if (!$output) {
-			$this->log('502', __FILE__, __LINE__, __FUNCTION__, 'Empty response from the underlying layer.', $session);
-			$this->restful->error('An error ocurred while retrieving data from the underlying layer. No data received. Please contact support.');
-			$this->restful->output('502'); /* Bad Gateway */
-		}
-
-		/* Decode JSON data */
-		$nd_data = json_decode($output, true);
+		/* Reassign output (data is already JSON decoded) */
+		$nd_data = $nd_output;
 
 		/* Check if JSON data was successfully decoded */
 		if ($nd_data === NULL) {
@@ -219,17 +162,22 @@ class UW_ND extends UW_Module {
 			/* Map relevant underlying layer errors */
 			if (in_array($http_status_code, array(401, 403))) {
 				/* Always explicitly inform about unauthorized or forbidden status codes */
-				$this->log($http_status_code, __FILE__, __LINE__, __FUNCTION__, 'An authorization or access request was denied while processing the request at the underlying layer: ' . $output, $session);
-				$this->restful->error('An authorization or access request was denied while processing the request at the underlying layer: ' . $output);
+				$this->log($http_status_code, __FILE__, __LINE__, __FUNCTION__, 'An authorization or access request was denied while processing the request at the underlying layer: ' . $http_raw_output, $session);
+				$this->restful->error('An authorization or access request was denied while processing the request at the underlying layer.');
 				$this->restful->output($http_status_code); /* [401] Unauthorized / [403] Forbidden */
 			} else if ($http_status_code == 409) {
 				/* Conflicting data should be forwarded from the underlying layer to the client */
-				$this->log($http_status_code, __FILE__, __LINE__, __FUNCTION__, 'A conflict occured while processing the request at the underlying layer: ' . $output, $session);
-				$this->restful->error('A conflict occured while processing the request at the underlying layer: ' . $output);
+				$this->log($http_status_code, __FILE__, __LINE__, __FUNCTION__, 'A conflict occured while processing the request at the underlying layer: ' . $http_raw_output, $session);
+				$this->restful->error('A conflict occured while processing the request at the underlying layer.');
 				$this->restful->output($http_status_code); /* [409] Conflict */
+			} else if (!$http_raw_output) {
+				/* Check if the response contains data */
+				$this->log('502', __FILE__, __LINE__, __FUNCTION__, 'Empty response from the underlying layer.', $session);
+				$this->restful->error('An error ocurred while retrieving data from the underlying layer. No data received. Please contact support.');
+				$this->restful->output('502'); /* Bad Gateway */
 			} else {
 				/* Mask any other status as Bad Gateway */
-				$this->log('502', __FILE__, __LINE__, __FUNCTION__, 'Unable to decode JSON data from the underlying layer response. Output: ' . $output, $session);
+				$this->log('502', __FILE__, __LINE__, __FUNCTION__, 'Unable to decode JSON data from the underlying layer response. Output: ' . $http_raw_output, $session);
 				$this->restful->error('An error ocurred while decoding data from the underlying layer. Please contact support.');
 				$this->restful->output('502'); /* Bad Gateway */
 			}
@@ -760,7 +708,23 @@ class UW_ND extends UW_Module {
 						case 'in':
 						case 'not_in': {
 							switch (gettype($cv)) {
-								case 'array': break;
+								case 'array': {
+									/* Check if there are non-unique values on the array for non "in" ordered criteria, and strip them out of the query */
+									if (isset($input['ordering']) && ($input['ordering'] != 'in')) {
+										$cv_set = array();
+			
+										foreach ($cv as $cve) {
+											if (!in_array($cve, $cv_set))
+												array_push($cv_set, $cve);
+										}
+			
+										$cv = $cv_set;
+
+										$input['query'][$k][$ck] = $cv;
+									}
+
+									break;
+								}
 
 								default: {
 									$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid value type for criteria \'' . $ck . '\' under field \'' . $k . '\': ' . $cv . '. Only array type is accepted.', $session);
