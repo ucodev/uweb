@@ -421,7 +421,7 @@ class UW_Composite extends UW_Module {
 
         /* Check if strict variables are enabled - if strict variables are enabled, the string value that contains a variable will be limited to one variable and won't accept constants along variables */
         if (current_config()['composite']['enforce_strict_vars']) {
-            $var_regex = '/^\$\$[A-Za-z0-9\_]+\.[A-Za-z0-9\_\(\)\|\.\[\]]+\$\$$/';
+            $var_regex = '/^(\$\$[A-Za-z0-9\_]+\.[A-Za-z0-9\_\(\)\|\.\[\]]+\$\$)$/';
         } else {
             $var_regex = '/(\$\$[A-Za-z0-9\_]+\.[A-Za-z0-9\_\(\)\|\.\[\]]+\$\$)/';
         }
