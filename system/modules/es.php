@@ -599,6 +599,12 @@ class UW_ES extends UW_Module {
         $data[$index]['total'] = $output['hits']['total'];
         $data[$index]['count'] = count($output['hits']['hits']);
 
+        /* Check if 404 response code was requested when no results are present */
+        if (!$data[$index]['count'] && isset($input['404']) && ($input['404'] === true)) {
+            $this->restful->error('No results.');
+            $this->restful->output('404'); /* Not Found */
+        }
+
         /* inorder results require a pre-existing array, filled with empty (false) values */
         if (isset($search['inorder']) && ($search['inorder'] === true)) {
             /* Get 'in' criteria values */
@@ -902,10 +908,18 @@ class UW_ES extends UW_Module {
             $this->restful->output('502'); /* Bad Gateway */
         }
 
+        /* Initialize index output */
         $data[$index]['total'] = $output['hits']['total'];
         $data[$index]['count'] = count($output['hits']['hits']);
         $data[$index]['result'] = array();
 
+        /* Check if 404 response code was requested when no results are present */
+        if (!$data[$index]['count'] && isset($input['404']) && ($input['404'] === true)) {
+            $this->restful->error('No results.');
+            $this->restful->output('404'); /* Not Found */
+        }
+
+        /* Process index output */
         foreach ($output['hits']['hits'] as $hit) {
             $filtered_hit = array();
 

@@ -20,3 +20,4 @@ $composite['max_var_length'] = 256;
 $composite['child_accept_encoding'] = 'gzip';
 $composite['child_content_encoding'] = 'gzip';
 $composite['child_basic_auth'] = NULL;
+$composite['strict_header_types'] = false;

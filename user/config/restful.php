@@ -7,6 +7,7 @@ $restful['version'] = '0.01';
 
 $restful['debug']['enabled'] = false;
 $restful['debug']['level'] = 1;
+$restful['debug']['directory'] = '/var/log/uweb';
 
 $restful['request']['encoding']['process'] = true;
 $restful['request']['header']['id'] = 'uweb-request-id';

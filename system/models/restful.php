@@ -28,8 +28,8 @@
  */
 
 /* Define subcodes */
-define('UWEB_RESTFUL_SUBCODE_RELATED_COULDNT_CONNECT', 100);
-define('UWEB_RESTFUL_SUBCODE_RELATED_OPERATION_TIMEOUT', 101);
+define('UWEB_SUBCODE_RESTFUL_RELATED_COULDNT_CONNECT', 100);
+define('UWEB_SUBCODE_RESTFUL_RELATED_OPERATION_TIMEOUT', 101);
 
 
 /* RESTful class */
@@ -483,6 +483,8 @@ class UW_Restful extends UW_Model {
 		/* Setup debug and logging parameters */
 		$this->_debug = current_config()['restful']['debug']['enabled'];
 		$this->_debug_level = current_config()['restful']['debug']['level'];
+		$this->_debug_directory = current_config()['restful']['debug']['directory'];
+		$this->_debug_content = array();
 		$this->_logging = current_config()['restful']['log']['enabled'];
 		$this->_event = current_config()['restful']['event']['enabled'];
 
@@ -747,14 +749,17 @@ class UW_Restful extends UW_Model {
 			}
 		}
 
-		/* Check if debug is enabled. */
-		if ($this->_debug) {
-			/* If so, dump input contents to error log */
-			error_log($raw_data);
-		}
-
 		/* Decode json data */
 		$json_data = json_decode($raw_data, true);
+
+		/* Check if debug is enabled. */
+		if ($this->_debug === true) {
+			/* Check if the debugging level includes input logging */
+			if (($this->_debug_level >= 2) && ($json_data !== NULL)) {
+				/* If so, include input content */
+				$this->_debug_content['input'] = $json_data;
+			}
+		}
 
 		/* If we're unable to decode the JSON data, this is a bad request */
 		if ($json_data === NULL) {
@@ -897,9 +902,17 @@ class UW_Restful extends UW_Model {
 		$this->header('content-length', strlen($output));
 
 		/* Check if debug is enabled */
-		if ($this->_debug) {
-			/* If so, dump output contents to error log */
-			error_log($output);
+		if ($this->_debug === true) {
+			/* Check if the debugging level includes output logging */
+			if ($this->_debug_level >= 1) {
+				/* If so, include output content */
+				$this->_debug_content['output'] = $body;
+			}
+
+			/* Dump debug content to a file under the debug output directory */
+			$fp = fopen($this->_debug_directory . '/' . $this->id() . '.json', 'w+');
+			fwrite($fp, json_encode($this->_debug_content, JSON_PRETTY_PRINT));
+			fclose($fp);
 		}
 
 		/* Check if we should inform the client to close the connection */
@@ -1782,15 +1795,15 @@ class UW_Restful extends UW_Model {
 				/* Update RESTful subcodes for the current request, based on cURL errno for this related request */
 				switch ($curl_errno) {
 					case CURLE_COULDNT_CONNECT: {
-						$this->subcode(UWEB_RESTFUL_SUBCODE_RELATED_COULDNT_CONNECT);
+						$this->subcode(UWEB_SUBCODE_RESTFUL_RELATED_COULDNT_CONNECT);
 					} break;
 					case CURLE_OPERATION_TIMEOUTED: {
 						/* Check if the connection was established in the first place. If not, this timeout also means a connection failure */
 						if (!curl_getinfo($ch, CURLINFO_CONNECT_TIME)) {
-							$this->subcode(UWEB_RESTFUL_SUBCODE_RELATED_COULDNT_CONNECT);
+							$this->subcode(UWEB_SUBCODE_RESTFUL_RELATED_COULDNT_CONNECT);
 						}
 
-						$this->subcode(UWEB_RESTFUL_SUBCODE_RELATED_OPERATION_TIMEOUT);
+						$this->subcode(UWEB_SUBCODE_RESTFUL_RELATED_OPERATION_TIMEOUT);
 					} break;
 				}
 

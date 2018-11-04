@@ -1392,8 +1392,14 @@ class UW_ND extends UW_Module {
 		}
 
 		/* If we've received an empty array, the search succeded, but no results were found... */
-		if (!$nd_data['count'])
-			$this->restful->output('201'); /* Search was peformed, but no content was delivered */
+		if (!$nd_data['count']) {
+			/* Check if 404 was requested when no results are present */
+			if (isset($input['404']) && ($input['404'] === true)) {
+				$this->restful->output('404'); /* Not found */
+			} else {
+				$this->restful->output('201'); /* Search was peformed, but no content was delivered */
+			}
+		}
 
 		/* inorder results require a pre-existing array, filled with empty (false) values */
 		if ($inorder === true) {

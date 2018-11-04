@@ -15,7 +15,8 @@
         "ordering"     : "<string>",
         "show"         : [ "<array>", "<of>", "<strings>" ],
         "aggregations" : { <object> },
-        "query":       : { <object> }
+        "query"        : { <object> },
+        "404"          : <boolean>
     }
 
 
@@ -62,6 +63,11 @@
    1.10. Property - query
 
       * The query object, where search criteria is set (see section 3).
+
+
+   1.11. Property - 404
+
+      * Forces a 404 status code when no results are available for the selected criteria, limit and offset.
 
 
 

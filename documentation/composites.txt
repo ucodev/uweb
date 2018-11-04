@@ -10,7 +10,8 @@
    - Responses from already processed composite calls (child calls) can be reused inside the same composite under the
      payload of other child calls with the usage of variables.
 
-   - Variables can aggregate results through iterables, or simply represent a plain value.
+   - Variables can aggregate results through iterables, or simply represent a plain value. They can be used under,
+     but not limited to, payload and headers properties.
 
 
  2. Scope
@@ -73,12 +74,16 @@
      + An integer value that indicates a position in an array.
      + They can be used in variable path segments that represent a linear array.
 
+   - "options":
+     + A segment inside a composite variable, denoted by "(field1|field2|...)", indicating that "field1" should be
+       selected if exists, otherwise "field2", and so on.
+
 
  5. Syntax
 
    {
      /* Required: Composite name. Should be a meaningful name that represents the procedure */
-     "name"    : "<string>",
+     "composite"    : "<string>",
 
      /* Required: The composite content. Each entry of the array represents a RESTful call */
      "content" : [
@@ -95,7 +100,9 @@
          /* Optional: Set to true to hide the results from this child request in the response. Defaults to false. */
          "hidden"     : <boolean>,
 
-         /* Optional: A map of request headers to be included in this child request. */
+         /* Optional: A map of request headers to be included in this child request.
+          *           When strict header types option is disabled, all header values will be cast to string.
+          */
          "headers": {
            "<string>" : "<string>",
            ...
@@ -135,4 +142,10 @@
    - Example with array index  : "$$last.data.result[0].id$$"
                                  Resulting type will be the same of the segment "id"
 
+   - Example with options      : "$$last.data.(zip|postal_code)$$"
+                                 Resulting value and type will be of the field "zip" if exists, otherwise "postal_code"
+
+   - Example w/ numeric index  : "$$4.data.id$$"
+
+   - Example w/ named index    : "$$xpto.data.id$$"
 

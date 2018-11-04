@@ -48,7 +48,7 @@ class UW_Composite extends UW_Module {
 
         /* Normalize case for header names and replace existing ones from parent request */
         foreach ($composite_headers as $k => $v) {
-            $headers[strtolower($k)] = $v;
+            $headers[strtolower($k)] = (string) $v;
         }
 
         /* Initialize headers list */
@@ -450,7 +450,7 @@ class UW_Composite extends UW_Module {
                 if (is_castable_integer($variables[0])) {
                     $index = intval($variables[0]);
                 } else if ($variables[0] == 'last') {
-                    $index = count($output) - 1;
+                    $index = $this->_current_index - 1;
                 } else {
                     /* Check for empty indexes - this should never occur */
                     if (!$variables[0]) {
@@ -547,6 +547,11 @@ class UW_Composite extends UW_Module {
             $this->restful->output('400');
         }
 
+        if (isset($input['single']) && (gettype($input['single']) != 'boolean')) {
+            $this->restful->error('Composite contains a property "single" with an invalid type. Expecting boolean.');
+            $this->restful->output('400');
+        }
+
         if (!isset($input['content'])) {
             $this->restful->error('No content found in composite data. A "content" key with a linear array as its type is required.');
             $this->restful->output('400');
@@ -567,6 +572,21 @@ class UW_Composite extends UW_Module {
 		/* Grant that every entry from the composite and determine key validity */
 		for ($i = 0; $i < count($input['content']); $i ++) {
 			$e = $input['content'][$i];
+
+            /* Check if unsafe is set and contains a valid type */
+            if (isset($e['unsafe'])) {
+                /* Validate type */
+                if (gettype($e['unsafe']) != 'boolean') {
+                    $this->restful->error('Composite element index ' . $i . ' contains a "unsafe" property with an invalid type. Expecting boolean.');
+                    $this->restful->output('400');
+                }
+
+                /* Check if explicit unsafe is true and if it is allowed to exist */
+                if ($e['unsafe'] && !current_config()['composite']['allow_explicit_unsafe']) {
+                    $this->restful->error('Composite element index ' . $i . ' contains explicit unsafe requests.');
+                    $this->restful->output('403');
+                }
+            }
 
 			/* Check required keys */
 			foreach (array('endpoint', 'method') as $k) {
@@ -615,26 +635,18 @@ class UW_Composite extends UW_Module {
                 }
 
 				foreach ($e['headers'] as $k => $v) {
-					if (gettype($v) != 'string') {
-						$this->restful->error('Composite element index ' . $i . ' containing a "headers" key of the right type (non-linear array), but at least one entry value of this array is not of string type for the following key: ' . $k);
-						$this->restful->output('400');
-					}
+					if (current_config()['composite']['strict_header_types'] === true) {
+                        if (gettype($v) != 'string') {
+						    $this->restful->error('Composite element index ' . $i . ' containing a "headers" key of the right type (non-linear array), but at least one entry value of this array is not of strict string type for the following key: ' . $k);
+                            $this->restful->output('400');
+                        }
+					} else {
+                        if (!in_array(gettype($v), array('string', 'integer', 'double', 'boolean', 'NULL'))) {
+						    $this->restful->error('Composite element index ' . $i . ' containing a "headers" key of the right type (non-linear array), but at least one entry value of this array is not of an acceptable types for the following key: ' . $k);
+                            $this->restful->output('400');
+                        }
+                    }
 				}
-            }
-
-            /* Check if unsafe is set and contains a valid type */
-            if (isset($e['unsafe'])) {
-                /* Validate type */
-                if (gettype($e['unsafe']) != 'boolean') {
-                    $this->restful->error('Composite element index ' . $i . ' contains a "unsafe" property with an invalid type. Expecting boolean.');
-                    $this->restful->output('400');
-                }
-
-                /* Check if explicit unsafe is true and if it is allowed to exist */
-                if ($e['unsafe'] && !current_config()['composite']['allow_explicit_unsafe']) {
-                    $this->restful->error('Composite element index ' . $i . ' contains explicit unsafe requests.');
-                    $this->restful->output('403');
-                }
             }
 
             /* Check if required is set and contains a valid type */
@@ -668,8 +680,8 @@ class UW_Composite extends UW_Module {
 
 		/** Execute composite **/
 
-        $output_list = array();
-        $status_list = array();
+        $output_list = array_pad(array(), count($input['content']), NULL);
+        $status_list = array_pad(array(), count($input['content']), NULL);
 
         for ($i = 0; $i < count($input['content']); $i ++) {
             /* Update current index */
@@ -677,9 +689,6 @@ class UW_Composite extends UW_Module {
 
             /* Shorten variable name for the current content entry */
             $c = $input['content'][$i];
-
-            /* Combine headers */
-			$c_headers = $this->_combine_headers(isset($c['headers']) ? $c['headers'] : array(), $input['composite']);
 
             /* If this entry is marked as unsafe, replace any variables found. */
             if (isset($c['unsafe']) && ($c['unsafe'] === true)) {
@@ -689,14 +698,17 @@ class UW_Composite extends UW_Module {
                 /* Security is now in the hands of the requester, as an unsafe call was forced.
                  * The requester must grant that a the content of the payload is always fully controlled programatically, and never filled or partially controlled by a third party.
                  */
-                $this->_lookup_variables($c['payload'], $output_list);
+                $this->_lookup_variables($c, $output_list);
 
                 /* Check if explicit unsafe requests can appear without variables set, and if not, check if any variables were set */
                 if (!current_config()['composite']['allow_unsafe_without_vars'] && !$this->_unsafe_variables_found) {
-                    $this->restful->error('Composite element index ' . $i . ' contains an enabled unsafe property, but no variables were found in the payload.');
+                    $this->restful->error('Composite element index ' . $i . ' contains an enabled unsafe property, but no variables were found in its content.');
                     $this->restful->output('403');
                 }
             }
+
+            /* Combine headers */
+			$c_headers = $this->_combine_headers(isset($c['headers']) ? $c['headers'] : array(), $input['composite']);
 
             /* Perform request */
             $r = $this->restful->request(
@@ -714,6 +726,12 @@ class UW_Composite extends UW_Module {
                 current_config()['composite']['child_content_encoding']
             );
 
+            /* Update status list */
+            array_push($status_list, $status_code);
+
+            /* Update output list */
+            $output_list[$i] = $r;
+
             /* Check if the returned status code falls under the lowest code to trigger an error */
             if ($status_code >= current_config()['composite']['lowest_error_code']) {
                 /* Check if the request is marked as required, and if so, abort execution... */
@@ -724,13 +742,10 @@ class UW_Composite extends UW_Module {
                     /* Set result partial error subcode when a request fails and is not marked as required */
                     $this->restful->subcode(UWEB_SUBCODE_COMPOSITE_ERROR_RESULT_PARTIAL);
                 }
+            } else if (isset($input['single']) && ($input['single'] === true)) {
+                /* If "single" property is enabled, the first successful request shall end the composite execution. */
+                break;
             }
-
-            /* Update status list */
-            array_push($status_list, $status_code);
-
-            /* Update output list */
-            array_push($output_list, $r);
         }
 
 
@@ -738,11 +753,12 @@ class UW_Composite extends UW_Module {
 
         /* Check for composite child requests which results should be removed from the effective response */
         for ($i = 0; $i < count($input['content']); $i ++) {
-            if (isset($input['content'][$i]['hidden']) && ($input['content'][$i]['hidden'] === true)) {
+            if (($status_list[$i] !== NULL) && isset($input['content'][$i]['hidden']) && ($input['content'][$i]['hidden'] === true)) {
                 /* Exclude result from output list */
-                $output_list[$i] = array('hidden' => true);
+                $output_list[$i] = array('hidden' => true, 'code' => $status_list[$i]);
             }
         }
+
 
         /* All good */
         return array(
