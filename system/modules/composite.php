@@ -727,7 +727,7 @@ class UW_Composite extends UW_Module {
             );
 
             /* Update status list */
-            array_push($status_list, $status_code);
+            $status_list[$i] = $status_code;
 
             /* Update output list */
             $output_list[$i] = $r;
