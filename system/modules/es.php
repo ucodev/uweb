@@ -2,7 +2,7 @@
 
 /* Author:   Pedro A. Hortas
  * Email:    pah@ucodev.org
- * Modified: 28/10/2018
+ * Modified: 18/11/2018
  * License:  GPLv3
  */
 
@@ -574,8 +574,8 @@ class UW_ES extends UW_Module {
             ),
             $http_status_code,
             $http_raw_output,
-            10000,
-            30000
+            current_config()['es']['timeout']['connect'],
+            current_config()['es']['timeout']['execute']
         );
 
 		
@@ -888,8 +888,8 @@ class UW_ES extends UW_Module {
             ),
             $http_status_code,
             $http_raw_output,
-            10000,
-            30000
+            current_config()['es']['timeout']['connect'],
+            current_config()['es']['timeout']['execute']
         );
 
 
@@ -983,8 +983,8 @@ class UW_ES extends UW_Module {
             ),
             $http_status_code,
             $http_raw_output,
-            10000,
-            30000
+            current_config()['es']['timeout']['connect'],
+            current_config()['es']['timeout']['execute']
         );
 
 
@@ -1048,58 +1048,51 @@ class UW_ES extends UW_Module {
     }
 
     public function delete($config = NULL, $index, $type, $id) {
-		/* Prepare and forward request to the search engine (ES) */
-		$ch = curl_init();
-
-		/* Set the request URL */
-        curl_setopt($ch, CURLOPT_URL, rtrim($config !== NULL ? $config['query']['base_url'] : current_config()['es']['base_url'], '/') . '/' . $index . '/' . $type . '/' . $id);
-
-        /* Set DELETE method */
-        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
-
-		/* Execute the request */
-		curl_exec($ch);
-
-        /* Get status code */
-        $status_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        /* Forward request to the search engine (ES) */
+        $r = $this->restful->request(
+            'DELETE',
+            rtrim($config !== NULL ? $config['query']['base_url'] : current_config()['es']['base_url'], '/') . '/' . $index . '/' . $type . '/' . $id,
+            NULL,
+            array(
+                'accept: application/json',
+                'content-type: application/json'
+            ),
+            $status_code,
+            $es_output,
+            current_config()['es']['timeout']['connect'],
+            current_config()['es']['timeout']['execute']
+        );
 
         /* Return true if entry was deleted, otherwise return false */
         return ($status_code == 200) ? true : false;
     }
 
     public function get($config = NULL, $index, $type, $id) {
-		/* Forward request to the search engine (ES) */
-		$ch = curl_init();
-
-		/* Set the request URL */
-        curl_setopt($ch, CURLOPT_URL, rtrim($config !== NULL ? $config['query']['base_url'] : current_config()['es']['base_url'], '/') . '/' . $index . '/' . $type . '/' . $id);
-
-		/* Grant that cURL will return the response output */
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-
-		/* Execute the request */
-		$es_output = curl_exec($ch);
-
-		/* Close the cURL handler */
-		curl_close($ch);
-
-        /* Initialize data */
-        $data = NULL;
-
-        /* Check if there's any output */
-        if ($es_output)
-            $data = json_decode($es_output, true);
-
-        /* Check if there's valid JSON data */
-        if ($data === NULL)
-            return NULL;
+        /* Forward request to the search engine (ES) */
+        $r = $this->restful->request(
+            'GET',
+            rtrim($config !== NULL ? $config['query']['base_url'] : current_config()['es']['base_url'], '/') . '/' . $index . '/' . $type . '/' . $id,
+            NULL,
+            array(
+                'accept: application/json',
+                'content-type: application/json'
+            ),
+            $status_code,
+            $es_output,
+            current_config()['es']['timeout']['connect'],
+            current_config()['es']['timeout']['execute']
+        );
 
         /* Check if document was found */
-        if ($data['found'] === false)
+        if (($status_code != 200) || ($r['found'] === false))
             return false;
 
+        /* Check if there's any output */
+        if (!$es_output || !$r)
+            return NULL;
+
         /* All good */
-        return $data['_source'];
+        return $r['_source'];
     }
 
     public function post($config = NULL, $index, $type, $data, $id = NULL) {
@@ -1115,51 +1108,37 @@ class UW_ES extends UW_Module {
             $tihs->restful->output('400');
         }
 
-		/* Prepare and forward request to the search engine (ES) */
-		$ch = curl_init();
-
-		/* Set the request URL */
-        curl_setopt($ch, CURLOPT_URL, rtrim($config !== NULL ? $config['query']['base_url'] : current_config()['es']['base_url'], '/') . '/' . $index . '/' . $type . (($id !== NULL) ? ('/' . $id) : ''));
-
-		/* Grant that cURL will return the response output */
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-
-        /* Set POST method and contents */
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $data_json);
-
-		/* Execute the request */
-		$es_output = curl_exec($ch);
-
-        /* Get status code */
-        $status_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-
-		/* Close the cURL handler */
-		curl_close($ch);
+        /* Forward request to the search engine (ES) */
+        $r = $this->restful->request(
+            'POST',
+            rtrim($config !== NULL ? $config['query']['base_url'] : current_config()['es']['base_url'], '/') . '/' . $index . '/' . $type . (($id !== NULL) ? ('/' . $id) : ''),
+            $data_json,
+            array(
+                'accept: application/json',
+                'content-type: application/json'
+            ),
+            $status_code,
+            $es_output,
+            current_config()['es']['timeout']['connect'],
+            current_config()['es']['timeout']['execute']
+        );
 
         /* Check if code is 200 or 201 */
         if (($status_code != 200) && ($status_code != 201))
             return false;
 
-        /* Initialize data */
-        $data = NULL;
-
         /* Check if there's any output */
-        if ($es_output)
-            $data = json_decode($es_output, true);
-
-        /* Check if there's valid JSON data */
-        if ($data === NULL)
+        if (!$es_output || !$r)
             return NULL;
 
         /* Check if document was found */
-        if (($data['result'] != 'created') && ($data['result'] != 'updated'))
+        if (($r['result'] != 'created') && ($r['result'] != 'updated'))
             return false;
 
         /* All good */
         return array(
-            'id' => $data['_id'],
-            'result' => $data['result']
+            'id' => $r['_id'],
+            'result' => $r['result']
         );
     }
 
@@ -1176,63 +1155,37 @@ class UW_ES extends UW_Module {
             $tihs->restful->output('400');
         }
 
-        /* Create a temporary resource */
-        if (!($data_fp = fopen('php://temp/maxmemory:1048576', 'w'))) {
-            $this->restful->error('Unable to create temporary resource.');
-            $this->restful->output('500');
-        }
-
-        /* Dump JSON data into temporary file */
-        fwrite($data_fp, json_encode($data));
-        fseek($data_fp, 0); /* Reset file pointer */
-
-		/* Prepare and forward request to the search engine (ES) */
-		$ch = curl_init();
-
-		/* Set the request URL */
-        curl_setopt($ch, CURLOPT_URL, rtrim($config !== NULL ? $config['query']['base_url'] : current_config()['es']['base_url'], '/') . '/' . $index . '/' . $type . (($id !== NULL) ? ('/' . $id) : ''));
-
-		/* Grant that cURL will return the response output */
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-
-        /* Set PUT method and respective contents */
-        curl_setopt($ch, CURLOPT_PUT, true);
-        curl_setopt($ch, CURLOPT_BINARYTRANSFER, true);
-        curl_setopt($ch, CURLOPT_INFILE, $data_fp);
-        curl_setopt($ch, CURLOPT_INFILEZIE, strlen($data_json));
-
-		/* Execute the request */
-		$es_output = curl_exec($ch);
-
-        /* Get status code */
-        $status_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-
-		/* Close the cURL handler */
-		curl_close($ch);
+        /* Forward request to the search engine (ES) */
+        $r = $this->restful->request(
+            'PUT',
+            rtrim($config !== NULL ? $config['query']['base_url'] : current_config()['es']['base_url'], '/') . '/' . $index . '/' . $type . (($id !== NULL) ? ('/' . $id) : ''),
+            $data_json,
+            array(
+                'accept: application/json',
+                'content-type: application/json'
+            ),
+            $status_code,
+            $es_output,
+            current_config()['es']['timeout']['connect'],
+            current_config()['es']['timeout']['execute']
+        );
 
         /* Check if code is 200 or 201 */
         if (($status_code != 200) && ($status_code != 201))
             return false;
 
-        /* Initialize data */
-        $data = NULL;
-
         /* Check if there's any output */
-        if ($es_output)
-            $data = json_decode($es_output, true);
-
-        /* Check if there's valid JSON data */
-        if ($data === NULL)
+        if (!$es_output || !$r)
             return NULL;
 
         /* Check if document was found */
-        if (($data['result'] != 'created') && ($data['result'] != 'updated'))
+        if (($r['result'] != 'created') && ($r['result'] != 'updated'))
             return false;
 
         /* All good */
         return array(
-            'id' => $data['_id'],
-            'result' => $data['result']
+            'id' => $r['_id'],
+            'result' => $r['result']
         );
     }
 }

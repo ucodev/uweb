@@ -2,7 +2,7 @@
 
 /* Author:   Pedro A. Hortas
  * Email:    pah@ucodev.org
- * Modified: 28/10/2018
+ * Modified: 18/11/2018
  * License:  GPLv3
  */
 
@@ -39,6 +39,11 @@ class UW_Restful extends UW_Model {
 	protected $_debug = false;
 	protected $_logging = false;
 	protected $_event = false;
+
+
+	/** Initialization control **/
+
+	protected $_init = false;
 
 
 	/** Private **/
@@ -133,8 +138,10 @@ class UW_Restful extends UW_Model {
 	/* Context data */
 	private $_context = array();
 
-	/* Output Callback */
+	/* Callbacks */
 	private $_output_callback = NULL;
+	private $_input_callback = NULL;
+	private $_init_callback = NULL;
 
 
 	/* Private methods */
@@ -636,9 +643,22 @@ class UW_Restful extends UW_Model {
 
 		$this->subcode($subcode);
 	}
+
 	public function output_callback($output_callback = NULL) {
 		if ($output_callback) {
 			$this->_output_callback = $output_callback;
+		}
+	}
+
+	public function input_callback($input_callback = NULL) {
+		if ($input_callback) {
+			$this->_input_callback = $input_callback;
+		}
+	}
+
+	public function init_callback($init_callback = NULL) {
+		if ($init_callback) {
+			$this->_init_callback = $init_callback;
 		}
 	}
 
@@ -686,92 +706,97 @@ class UW_Restful extends UW_Model {
 		if ($this->_input !== NULL) {
 			/* Multi entry inputs should be handled taking into account the ::_multi_input_index value */
 			if ($this->_multi_enabled) {
-				return $this->_input[$this->_multi_input_index];
+				$json_data = $this->_input[$this->_multi_input_index];
 			} else {
 				/* Regular calls (with single entry) are handled normally */
-				return $this->_input;
+				$json_data = $this->_input;
 			}
-		}
+		} else {
+			/* Fetch raw data */
+			$raw_data = file_get_contents('php://input');
 
-		/* Fetch raw data */
-		$raw_data = file_get_contents('php://input');
+			/* Check if there's any input */
+			if (!$raw_data) {
+				$this->_input = NULL;
+				$json_data = NULL;
+			} else {
+				/* If the content type isn't set as application/json, we'll not accept this request */
+				if (strstr($this->header('content-type'), 'application/json') === false) {
+					/* Content type is not acceptable here */
+					$this->error('Only application/json is acceptable as the content-type.');
 
-		/* Check if there's any input */
-		if (!$raw_data) {
-			$this->_input = NULL;
-			return NULL;
-		}
+					/* Not acceptable */
+					$this->output('406');
+				}
 
-		/* If the content type isn't set as application/json, we'll not accept this request */
-		if (strstr($this->header('content-type'), 'application/json') === false) {
-			/* Content type is not acceptable here */
-			$this->error('Only application/json is acceptable as the content-type.');
+				/* Check if content is compressed and if we should deal with it */
+				if ($this->header('content-encoding') && current_config()['restful']['request']['encoding']['process']) {
+					switch ($this->header('content-encoding')) {
+						case 'gzip': {
+							/* Uncompress the entity */
+							$raw_data_uncompressed = gzuncompress($raw_data);
 
-			/* Not acceptable */
-			$this->output('406');
-		}
+							/* Check if it was successful */
+							if ($raw_data_uncompressed === false) {
+								$this->error('The content encoding was set to \'gzip\' but the data uncompress process failed.');
+								$this->output('400');
+							}
 
-		/* Check if content is compressed and if we should deal with it */
-		if ($this->header('content-encoding') && current_config()['restful']['request']['encoding']['process']) {
-			switch ($this->header('content-encoding')) {
-				case 'gzip': {
-					/* Uncompress the entity */
-					$raw_data_uncompressed = gzuncompress($raw_data);
+							/* Re-assign the inflated data */
+							$raw_data = $raw_data_uncompressed;
+						}; break;
 
-					/* Check if it was successful */
-					if ($raw_data_uncompressed === false) {
-						$this->error('The content encoding was set to \'gzip\' but the data uncompress process failed.');
-						$this->output('400');
+						case 'deflate': {
+							/* Uncompress the entity */
+							$raw_data_inflated = gzinflate($raw_data);
+							
+							/* Check if it was successful */
+							if ($raw_data_inflated === false) {
+								$this->error('The content encoding was set to \'deflate\' but the data inflate process failed.');
+								$this->output('400');
+							}
+
+							/* Re-assign the inflated data */
+							$raw_data = $raw_data_inflated;
+						}; break;
+
+						default: {
+							$this->error('Unsupported content enconding: ' . $this->header('content-encoding'));
+							$this->output('400');
+						}
 					}
+				}
 
-					/* Re-assign the inflated data */
-					$raw_data = $raw_data_uncompressed;
-				}; break;
+				/* Decode json data */
+				$json_data = json_decode($raw_data, true);
 
-				case 'deflate': {
-					/* Uncompress the entity */
-					$raw_data_inflated = gzinflate($raw_data);
-					
-					/* Check if it was successful */
-					if ($raw_data_inflated === false) {
-						$this->error('The content encoding was set to \'deflate\' but the data inflate process failed.');
-						$this->output('400');
+				/* Check if debug is enabled. */
+				if ($this->_debug === true) {
+					/* Check if the debugging level includes input logging */
+					if (($this->_debug_level >= 2) && ($json_data !== NULL)) {
+						/* If so, include input content */
+						$this->_debug_content['input'] = $json_data;
 					}
+				}
 
-					/* Re-assign the inflated data */
-					$raw_data = $raw_data_inflated;
-				}; break;
+				/* If we're unable to decode the JSON data, this is a bad request */
+				if ($json_data === NULL) {
+					/* Cannot decode JSON data */
+					$this->error('Cannot decode JSON data.');
 
-				default: {
-					$this->error('Unsupported content enconding: ' . $this->header('content-encoding'));
+					/* Bad request */
 					$this->output('400');
 				}
+
+				/* Cache input */
+				$this->_input = $json_data;
 			}
 		}
 
-		/* Decode json data */
-		$json_data = json_decode($raw_data, true);
-
-		/* Check if debug is enabled. */
-		if ($this->_debug === true) {
-			/* Check if the debugging level includes input logging */
-			if (($this->_debug_level >= 2) && ($json_data !== NULL)) {
-				/* If so, include input content */
-				$this->_debug_content['input'] = $json_data;
-			}
+		/* Check if there's a callback to be executed. If so, do it... */
+		if ($this->_input_callback) {
+			call_user_func($this->_input_callback, $json_data);
 		}
-
-		/* If we're unable to decode the JSON data, this is a bad request */
-		if ($json_data === NULL) {
-			/* Cannot decode JSON data */
-			$this->error('Cannot decode JSON data.');
-
-			/* Bad request */
-			$this->output('400');
-		}
-
-		/* Cache input */
-		$this->_input = $json_data;
 
 		/* Return the decoded data */
 		return $json_data;
@@ -972,13 +997,18 @@ class UW_Restful extends UW_Model {
 		 */
 	}
 
-	public function init($ctrl, $obj_function, $argv = NULL, $output_callback = NULL) {
+	public function init($ctrl, $obj_function, $argv = NULL, $output_callback = NULL, $input_callback = NULL) {
 		/* Initialize request id */
 		$this->id();
 
 		/* Set output callback, if any */
 		if ($output_callback) {
 			$this->_output_callback = $output_callback;
+		}
+
+		/* Set input callback, if any */
+		if ($input_callback) {
+			$this->_input_callback = $input_callback;
 		}
 
 		/* Set object name and called function */
@@ -991,6 +1021,18 @@ class UW_Restful extends UW_Model {
 			/* Add related IDs */
 			$this->_related_add_id($related_id);
 		}
+
+		/* Check if there's a callback to be executed. If so, do it... */
+		if ($this->_init_callback) {
+			call_user_func($this->_init_callback);
+		}
+
+		/* Mark this instance as initialized */
+		$this->_init = true;
+	}
+
+	public function is_init() {
+		return $this->_init;
 	}
 
 	public function validate($method = NULL) {
@@ -1013,7 +1055,12 @@ class UW_Restful extends UW_Model {
 		}
 	}
 
-	public function process(&$ctrl, $argv = NULL) {
+	public function process(&$ctrl, $argv = NULL, $init_callback = NULL) {
+		/* Set init callback, if any */
+		if ($init_callback) {
+			$this->_init_callback = $init_callback;
+		}
+
 		/* Process method */
 		switch ($this->method()) {
 			case 'GET': {

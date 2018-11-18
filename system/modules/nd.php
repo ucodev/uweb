@@ -2,7 +2,7 @@
 
 /* Author:   Pedro A. Hortas
  * Email:    pah@ucodev.org
- * Modified: 28/10/2018
+ * Modified: 18/11/2018
  * License:  GPLv3
  */
 
@@ -143,8 +143,8 @@ class UW_ND extends UW_Module {
 			$req['headers'],
 			$http_status_code,
 			$http_raw_output,
-			10000,
-			30000,
+            current_config()['nd']['timeout']['connect'],
+            current_config()['nd']['timeout']['execute'],
 			NULL,
 			true,
 			$req['accept_encoding'],
@@ -222,7 +222,7 @@ class UW_ND extends UW_Module {
 		return true;
 	}
 
-	public function session_init() {
+	public function session_init($always_return = false, $after_precheck_return = false) {
 		/* Evaluate if session was already initiated / retrieved. If so, deliver the stored data */
 		if ($this->_session !== NULL)
 			return $this->_session;
@@ -231,18 +231,56 @@ class UW_ND extends UW_Module {
 		$user_id    = $this->restful->header(current_config()['nd']['header']['user_id']);
 		$auth_token = $this->restful->header(current_config()['nd']['header']['auth_token']);
 
-		/* Grant that user id header is set */
-		if (!$user_id || !is_numeric($user_id)) {
-			$this->log('401', __FILE__, __LINE__, __FUNCTION__, current_config()['nd']['header']['user_id'] . ' header is not set, is invalid, or contains no data.');
-			$this->restful->error(current_config()['nd']['header']['user_id'] . ' header is not set, is invalid, or contains no data.');
-			$this->restful->output('401'); /* Unauthorized */
+		/* Check if user id header is set */
+		if ($user_id === NULL) {
+			if ($always_return === true) {
+				return array(
+					'status' => '401'
+				);
+			} else {
+				$this->log('401', __FILE__, __LINE__, __FUNCTION__, current_config()['nd']['header']['user_id'] . ' header is not set.');
+				$this->restful->error(current_config()['nd']['header']['user_id'] . ' header is not set.');
+				$this->restful->output('401'); /* Bad Request */
+			}			
+		}
+
+		/* Grant that user id header is valid */
+		if (!is_numeric($user_id)) {
+			if ($always_return === true) {
+				return array(
+					'status' => '400'
+				);
+			} else {
+				$this->log('400', __FILE__, __LINE__, __FUNCTION__, current_config()['nd']['header']['user_id'] . ' header is invalid, or contains no data.');
+				$this->restful->error(current_config()['nd']['header']['user_id'] . ' header is invalid, or contains no data.');
+				$this->restful->output('400'); /* Bad Request */
+			}
+		}
+
+		/* Check if authentication token header is set */
+		if ($auth_token === NULL) {
+			if ($always_return === true) {
+				return array(
+					'status' => '401'
+				);
+			} else {
+				$this->log('401', __FILE__, __LINE__, __FUNCTION__, current_config()['nd']['header']['auth_token'] . ' header is not set.', array('user_id' => $user_id, 'token' => NULL));
+				$this->restful->error(current_config()['nd']['header']['auth_token'] . ' header is not set.');
+				$this->restful->output('401'); /* Bad Request */
+			}
 		}
 
 		/* Grant that authentication token header is set */
-		if (!$auth_token || strlen($auth_token) != 40 || hex2bin($auth_token) === false) {
-			$this->log('401', __FILE__, __LINE__, __FUNCTION__, current_config()['nd']['header']['auth_token'] . ' header is not set, is invalid, or contains no data.', array('user_id' => $user_id, 'token' => NULL));
-			$this->restful->error(current_config()['nd']['header']['auth_token'] . ' header is not set, is invalid, or contains no data.');
-			$this->restful->output('401'); /* Unauthorized */
+		if (strlen($auth_token) != 40 || hex2bin($auth_token) === false) {
+			if ($always_return === true) {
+				return array(
+					'status' => '400'
+				);
+			} else {
+				$this->log('400', __FILE__, __LINE__, __FUNCTION__, current_config()['nd']['header']['auth_token'] . ' header is invalid, or contains no data.', array('user_id' => $user_id, 'token' => NULL));
+				$this->restful->error(current_config()['nd']['header']['auth_token'] . ' header is invalid, or contains no data.');
+				$this->restful->output('400'); /* Bad Request */
+			}
 		}
 
 		/* Load auth cache context */
@@ -257,9 +295,15 @@ class UW_ND extends UW_Module {
 
 		/* If we're unable to fetch the session cookie, the user needs to re-authenticate */
 		if (!$enc_session_cookie) {
-			$this->log('401', __FILE__, __LINE__, __FUNCTION__, 'Cannot retrieve session data. Authentication required.', array('user_id' => $user_id, 'token' => NULL));
-			$this->restful->error('Cannot retrieve session data. Authentication required.');
-			$this->restful->output('401'); /* Unauthorized */
+			if (($always_return === true) || ($after_precheck_return === true)) {
+				return array(
+					'status' => '401'
+				);
+			} else {
+				$this->log('401', __FILE__, __LINE__, __FUNCTION__, 'Cannot retrieve session data. Authentication required.', array('user_id' => $user_id, 'token' => NULL));
+				$this->restful->error('Cannot retrieve session data. Authentication required.');
+				$this->restful->output('401'); /* Unauthorized */
+			}
 		}
 
 		/* Decrypt session cookie (We need do rtrim any paddings left from decryption) */
@@ -267,16 +311,23 @@ class UW_ND extends UW_Module {
 
 		/* If we're unable to decrypt the session cookie, an invalid authentication token was used */
 		if (!$session_cookie || strstr($session_cookie, 'HttpOnly') === false) { /* NOTE: We're searching for a plain HttpOnly in order to detect (earlier) that the data was decrypted */
-			$this->log('401', __FILE__, __LINE__, __FUNCTION__, 'Cannot decrypt session data.', array('user_id' => $user_id, 'token' => NULL));
-			$this->restful->error('Invalid authentication token.');
-			$this->restful->output('401'); /* Unauthorized */
+			if (($always_return === true) || ($after_precheck_return === true)) {
+				return array(
+					'status' => '401'
+				);
+			} else {
+				$this->log('401', __FILE__, __LINE__, __FUNCTION__, 'Cannot decrypt session data.', array('user_id' => $user_id, 'token' => NULL));
+				$this->restful->error('Invalid authentication token.');
+				$this->restful->output('401'); /* Unauthorized */
+			}
 		}
 
 		/* Store session data */
 		$this->_session = array(
 			'user_id' => $user_id,
 			'token'   => $auth_token,
-			'cookie'  => $session_cookie
+			'cookie'  => $session_cookie,
+			'status'  => '201'
 		);
 
 		/* Return session data */
@@ -1578,7 +1629,10 @@ class UW_ND extends UW_Module {
 							'content-type: application/json',
 							'accept: application/json'
 						),
-						$status_code
+						$status_code,
+						$raw_output,
+						current_config()['nd']['timeout']['connect'],
+						current_config()['nd']['timeout']['execute']
 					);
 
 					/* Check if the search was successful */

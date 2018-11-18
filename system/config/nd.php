@@ -22,6 +22,7 @@ $nd['encoding']['accept'] = array('gzip', 'deflate'); /* Set to NULL to disable 
 $nd['encoding']['content'] = NULL; /* Set to 'deflate' to enable content compression */
 
 $nd['models']['base_path'] = '/application/models/nd';
+$nd['models']['charset'] = 'UTF-8';
 $nd['models']['validate']['types'] = true;
 $nd['models']['validate']['input_types'] = true;
 $nd['models']['validate']['output_types'] = true;
@@ -30,3 +31,6 @@ $nd['cache']['context']['generic'] = 'default';
 $nd['cache']['context']['auth'] = 'default';
 $nd['cache']['lifetime']['generic'] = 600;
 $nd['cache']['lifetime']['auth'] = 7200;
+
+$nd['timeout']['connect'] = 10000;  /* in ms */
+$nd['timeout']['execute'] = 30000;  /* in ms */
