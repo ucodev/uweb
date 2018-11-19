@@ -1429,6 +1429,12 @@ class UW_ND extends UW_Module {
 			unset($input['aggregations']);
 		}
 
+		/* Look for 404 settings */
+		if (isset($input['404'])) {
+			$set_404 = $input['404'];
+			unset($input['404']);
+		}
+
 		/* Set request data */
 		$reqbody['data'] = $this->search_ndsl($input, $session);
 
@@ -1445,7 +1451,7 @@ class UW_ND extends UW_Module {
 		/* If we've received an empty array, the search succeded, but no results were found... */
 		if (!$nd_data['count']) {
 			/* Check if 404 was requested when no results are present */
-			if (isset($input['404']) && ($input['404'] === true)) {
+			if (isset($set_404) && ($set_404 === true)) {
 				$this->restful->output('404'); /* Not found */
 			} else {
 				$this->restful->output('201'); /* Search was peformed, but no content was delivered */
