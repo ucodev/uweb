@@ -87,7 +87,7 @@ class UW_ES extends UW_Module {
                                 'bool' => array(
                                     'must_not' => array(
                                         ((isset($usl_query[$field]['exact']) && $usl_query[$field]['exact']) ? 'term' : 'regexp') => array(
-                                            $field . '.keyword' => (isset($usl_query[$field]['exact']) && $usl_query[$field]['exact']) ? $value : ('.*' . $value . '.*')
+                                            $field . '.keyword' => (isset($usl_query[$field]['exact']) && $usl_query[$field]['exact']) ? $value : ('.*' . preg_quote($value) . '.*')
                                         )
                                     )
                                 )
@@ -99,7 +99,7 @@ class UW_ES extends UW_Module {
 
                             array_push($es_query['filter']['bool'][$filter_type], array(
                                 ((isset($usl_query[$field]['exact']) && $usl_query[$field]['exact']) ? 'term' : 'regexp') => array(
-                                    $field . '.keyword' => (isset($usl_query[$field]['exact']) && $usl_query[$field]['exact']) ? $value : ('.*' . $value . '.*')
+                                    $field . '.keyword' => (isset($usl_query[$field]['exact']) && $usl_query[$field]['exact']) ? $value : ('.*' . preg_quote($value) . '.*')
                                 )
                             ));
                         }
