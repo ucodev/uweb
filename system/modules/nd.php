@@ -745,13 +745,20 @@ class UW_ND extends UW_Module {
 
 						case 'contains': {
 							switch (gettype($cv)) {
-								case 'string':
-								case 'array': break;
+								case 'string': break;
+								case 'array': {
+									/* Do not accept empty arrays */
+									if (!count($cv)) {
+										$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid value for criteria \'' . $ck . '\' under field \'' . $k . '\': ' . $cv . '. Empty arrays are not accepted.', $session);
+										$this->restful->error('Invalid value for criteria \'' . $ck . '\' under field \'' . $k . '\': ' . $cv . '. Empty arrays are not accepted.');
+										$this->restful->output('400'); /* Bad Request */
+									}
+								} break;
 
 								default: {
 									$this->log('400', __FILE__, __LINE__, __FUNCTION__, 'Invalid value type for criteria \'' . $ck . '\' under field \'' . $k . '\': ' . $cv . '. Only string or array types are accepted.', $session);
 									$this->restful->error('Invalid value type for criteria \'' . $ck . '\' under field \'' . $k . '\': ' . $cv . '. Only string or array types are accepted.');
-									$this->restful->output('400'); /* Bad Request */									
+									$this->restful->output('400'); /* Bad Request */
 								}
 							}
 						} break;

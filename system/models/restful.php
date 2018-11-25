@@ -169,9 +169,15 @@ class UW_Restful extends UW_Model {
 	}
 
 	private function _related_add_id($request_id) {
+		/* Check if related ids array is already initialized... otherwise initialize it */
 		if (!isset($this->_related['ids']))
 			$this->_related['ids'] = array();
 
+		/* Grant that the request id isn't already present in the related ids array */
+		if (in_array($request_id, $this->_related['ids']))
+			return;
+
+		/* Add request id to the related ids array */
 		array_push($this->_related['ids'], $request_id);
 	}
 
