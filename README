@@ -1,3 +1,9 @@
 uWeb is an MVC framework written in PHP, similar to other common low-footprint frameworks in its structure.
 
 It was written from scratch, and designed to be used as a RESTful Gateway API, easily integrated with event driven interfaces, and detailed and comprehesive logging with native interfaces for ELK stacks.
+
+Here is the base structure to get started:
+
+* /application - where the models, controllers and views of the project applications reside.
+* /system      - The core models, controllers and default configuration of the uWeb framework.
+* /user        - Custom user extensions and user-defined configuration overlays.
